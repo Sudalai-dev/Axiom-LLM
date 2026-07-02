@@ -1,4 +1,22 @@
-Project Axiom: Enterprise AI PlatformPowered by the Octagonal Cognitive Intelligence Framework (OCIF)Project Axiom is a production-grade, modular, cloud-native Enterprise AI Platform governed by the Octagonal Cognitive Intelligence Framework (OCIF)[cite: 1]. It serves as a unifying substrate that allows conversational UIs, copilots, autonomous agents, Retrieval-Augmented Generation (RAG), and complex workflow automations to safely coexist, share enterprise infrastructure, and operate under a single, non-bypassable decision governance layer[cite: 1].## The Core Problem SpaceTraditional enterprise AI adoption often leads to fragmented capabilities: siloed chatbots without knowledge access, RAG pipelines lacking execution authority, and autonomous agents operating with no safety or audit controls[cite: 1]. This fragmentation results in point-solution sprawl, duplicate infrastructure spend, and critical compliance vulnerabilities[cite: 1].Axiom solves this by treating perception, context, knowledge, orchestration, reasoning, decision governance, and experience as first-class, independently scalable architectural layers[cite: 1].## Architectural Framework (OCIF Layer Model)The framework models enterprise AI cognition into eight sequential, composable layers, prioritizing strict governance before any real-world action is taken[cite: 1, 7].Code snippetflowchart TD
+# Project Axiom: Enterprise AI Platform
+> Powered by the **Octagonal Cognitive Intelligence Framework (OCIF)**
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-3178C6?style=flat-square)](https://www.trychroma.com/)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](#)
+
+Project Axiom is a production-grade, modular, cloud-native Enterprise AI Platform governed by the **Octagonal Cognitive Intelligence Framework (OCIF)**. It acts as a unifying cognitive substrate that integrates conversational user interfaces, copilot widgets, autonomous agent workflows, Retrieval-Augmented Generation (RAG), and complex tool orchestration within a single, secure, non-bypassable decision governance framework.
+
+---
+
+## 1. Architectural Framework (OCIF Layer Model)
+
+Enterprise cognition is structured into eight sequential, composable layers. Every inbound transaction or query traverses this pipeline, ensuring context enrichment, agent orchestration, and safety checking before executing any real-world actions.
+
+```mermaid
+flowchart TD
     L1["Layer 1 — Perception<br/>Input Capture & Normalization"] 
     L2["Layer 2 — Capture<br/>Gateway, Auth & Streaming"]
     L3["Layer 3 — Context Intelligence<br/>Intent, Entities & Memory"]
@@ -11,27 +29,170 @@ Project Axiom: Enterprise AI PlatformPowered by the Octagonal Cognitive Intellig
     L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8
     L7 -.->|Feedback & Correction| L5
     L8 -.->|User Feedback Loop| L3
-### The Layer BreakdownLayerResponsibilityKey SpecificationL1: PerceptionNormalizes inbound signals (text, voice, docs, APIs)[cite: 7].Speech-to-text, OCR, document parsing, schema mapping[cite: 7].L2: CaptureSecures ingress, resolves identity, manages sessions[cite: 7].API Gateway routing, OAuth2/JWT authentication, Kafka publishing[cite: 7].L3: Context IntelligenceIdentifies user intent and retains long/short-term memory[cite: 7].Intent classification, NER pipelines, Redis/PostgreSQL memory management[cite: 6, 7].L4: Knowledge EnrichmentGrounds requests in authoritative enterprise knowledge bases[cite: 7].Vector search (Pinecone), hybrid ranking (RRF), Knowledge Graph queries[cite: 6, 7].L5: OrchestrationFormulates execution plans and coordinates multi-agent routines[cite: 7].Prompt templating, tool registry validation, stateful LangGraph runtimes[cite: 5, 6, 7].L6: CognitionExecutes core reasoning and generates structured outputs[cite: 7].Model-agnostic abstraction layer (OpenAI, Claude, Gemini, Llama)[cite: 1, 7].L7: Decision & ActionMETA CORE: Mandatory governance checkpoint before any action[cite: 1, 7].Policy engine, hallucination detection, Human-in-the-Loop (HITL), tamper-evident audit logs[cite: 6, 7].L8: ExperienceHandles front-end delivery and user continuous learning loops[cite: 7].Next.js chat interfaces, operational dashboards, analytics telemetry[cite: 1, 3, 7].The Patent-Worthy Innovation (Layer 7): Unlike standard agent frameworks where an LLM calls tools directly, Axiom interposes a mandatory, non-bypassable policy engine between reasoning and action[cite: 7]. If an output triggers a high risk threshold, it is automatically routed to a Human-in-the-Loop queue for confirmation, writing a cryptographically chained ledger entry for compliance auditing[cite: 6, 7].## Key Platform FeaturesConversational Copilot Widgets: Embeddable assistants with contextual memory and multi-turn citation tracking[cite: 3].Enterprise Hybrid RAG: Document ingestion pipeline deploying Reciprocal Rank Fusion (RRF) across semantic vector namespaces and relational keyword structures[cite: 6].Multi-Agent Workflow Builder: Visual execution graphs connecting discrete triggers, tool registries, and model endpoints[cite: 3].Tamper-Evident Auditing: Chronological SHA-256 chained ledger recording all reasoning states, retrieved sources, policy passes, and final outcomes[cite: 6].Multi-Tenant Compute Isolation: Comprehensive defense-in-depth architecture enforcing database Row-Level Security (RLS) alongside tenant-partitioned vector indexing[cite: 8, 9].## Reference Technology StackProject Axiom is designed around a modern, vendor-neutral, cloud-native stack[cite: 1]:Frontend: React, Next.js, Tailwind CSS, TypeScript[cite: 1]Backend & Frameworks: Python, FastAPI, LangGraph, LangChain, LlamaIndex[cite: 1]Databases & Caches: PostgreSQL (Multi-AZ RDS), Pinecone (Vector Store), Redis (ElastiCache)[cite: 1, 5]Event Broker: Apache Kafka (Amazon MSK)[cite: 1, 5]Infrastructure & CI/CD: Docker, Kubernetes (Amazon EKS), AWS WAF/CloudFront, GitHub Actions[cite: 1, 5, 8]## Repository StructurePlaintextaxiom-core/
-├── apps/
-│   ├── frontend/             # Next.js user interfaces & dashboards (L8)
-│   └── gateway/              # FastAPI entrypoint & token auth middleware (L2)
-├── services/
-│   ├── context/              # Intent parsing & conversational memory (L3)
-│   ├── enrichment/           # Document ingestion & Pinecone query routing (L4)
-│   ├── orchestration/        # LangGraph state machine & tool registry (L5)
-│   ├── cognition/            # Multi-provider LLM abstraction interface (L6)
-│   └── decision/             # Policy evaluation, risk calculation & audit (L7)
-├── deployment/
-│   ├── helm/                 # Kubernetes namespace orchestration charts
-│   └── terraform/            # Infrastructure-as-Code for AWS/Pinecone footprints
-└── docs/                     # Full 20-part specifications (Vision, BRD, PRD, SRS)
-## Getting Started### PrerequisitesDocker & Docker ComposeKubernetes Cluster (or local alternative like Minikube)Python 3.11+ & Node.js 18+### Quickstart (Local Development Environment)Clone the repository and initialize environmental values:Bashgit clone https://github.com/enterprise-ai/axiom-core.git
-cd axiom-core
-cp .env.example .env
-Spin up core data-tier services (PostgreSQL, Redis, Mock Kafka):Bashdocker-compose -f deployment/docker-compose.local.yml up -d
-Initialize database schemas and default tenant policies:Bashcd services/decision
-pip install -r requirements.txt
-python scripts/init_db.py
-Launch the local orchestration cluster:Bashcd ../../
-docker-compose -f deployment/docker-compose.apps.yml up --build
-The platform API gateway will now be running locally at http://localhost:8080[cite: 10]. Access the visual developer admin workspace at http://localhost:3000 to register your enterprise tools, define compliance policy packs, and run sample pipelines[cite: 3, 6].
+```
+
+### The 8-Layer Cognition Pipeline
+
+| Layer | Responsibility | Key Specs & Subsystems | Source Files |
+| :--- | :--- | :--- | :--- |
+| **L1: Perception** | Normalizes inbound signals (text, attachments) and filters out immediate threats/spam. | Text input cleansing, document upload parsing, OCR. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer1_perception/service.py) |
+| **L2: Capture** | Handles ingress traffic, security context, rate-limiting, and tenant resolution. | API Gateway routing, OAuth2/JWT token parsing, row-level isolation. | [app.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/gateway/app.py), [auth_middleware.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/gateway/auth_middleware.py) |
+| **L3: Context** | Establishes identity, classifies request intents, extracts entities, and loads chat memory. | User profile mapping, Redis/SQL memory state tracking, intent classification. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer3_context/service.py) |
+| **L4: Knowledge** | Grounds the request using private company data libraries and databases. | ChromaDB vector search, local Knowledge Graph (KG) retrieval, RRF ranking. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer4_knowledge/service.py) |
+| **L5: Orchestration** | Decomposes goals into stateful multi-agent execution steps and binds registered tools. | Tool registry validation, prompt synthesis, state machine graphs. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer5_orchestration/service.py) |
+| **L6: Cognition** | Translates prompts into structured reasoning outputs using external LLM providers. | Multi-model routing (Gemini, Claude, Llama, OpenAI), confidence scoring. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer6_cognition/service.py) |
+| **L7: Decision** | **META CORE Checkpoint.** Checks outputs against business policies and triggers verification workflows. | Rules-as-code DSL engine, risk evaluation, HITL approval queue, SHA-256 audit ledger. | [service.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer7_decision/service.py) |
+| **L8: Experience** | Exposes HTTP routes and delivers the console frontend and chat experience. | Public REST router, static developer console hosting. | [router.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/layer8_experience/router.py) |
+
+---
+
+## 2. Real Repository Structure
+
+The actual codebase layout corresponds directly to the eight layers of the Octagonal Cognitive Intelligence Framework (OCIF):
+
+```plaintext
+axiom/
+├── core/                       # Shared system infrastructure & configurations
+│   ├── config.py               # Pydantic environment configurations & settings
+│   ├── event_bus.py            # Local in-memory asynchronous message broker (Mock Kafka)
+│   ├── security.py             # Security utilities: password hashing & JWT generation/verification
+│   ├── observability.py        # Structured JSON logger & context propagation utilities
+│   └── telemetry.py            # Operational metric collection & aggregation middleware
+│
+├── storage/                    # Database interface & persistence mechanisms
+│   ├── database.py             # SQLite and PostgreSQL connection pools (Sync/Async engines)
+│   └── models.py               # SQLAlchemy ORM schemas (Tenants, Policies, AuditLogs, Users)
+│
+├── gateway/                    # Layer 2 Capture: Secure Ingress Routing
+│   ├── app.py                  # Core FastAPI application builder
+│   ├── auth_middleware.py      # JWT authentication, role resolver, & request context injector
+│   ├── tenant_resolver.py      # Tenant identifier mapping & database level isolation logic
+│   └── rate_limiter.py         # Leaky bucket token-based rate limiting per tenant tier
+│
+├── layer1_perception/          # L1 Perception: Normalization & immediate validation
+├── layer3_context/             # L3 Context: Intent classification, entities, & memory retrieval
+├── layer4_knowledge/           # L4 Knowledge: ChromaDB retrieval & hybrid search (RRF)
+├── layer5_orchestration/       # L5 Orchestration: Task planner, tool registry, & prompt assembler
+├── layer6_cognition/           # L6 Cognition: Multi-LLM provider wrappers (Gemini, OpenAI, Claude)
+├── layer7_decision/            # L7 Decision: Policy Engine, HITL reviews, & tamper-evident log writing
+├── layer8_experience/          # L8 Experience: Public-facing FastAPI routers
+│
+├── frontend/                   # L8 Experience Frontend console
+│   └── index.html              # Premium Glassmorphic Web UI Console
+│
+├── chunk_engine/               # Text chunking algorithms for document ingestion
+├── parser_engine/              # PDF/CSV/Document ingestion parsers
+├── embedding_engine/           # local vector embeddings generator (sentence-transformers)
+├── vector_engine/              # ChromaDB client connector
+└── knowledge_graph/            # Local SQLite-backed knowledge graph connector
+```
+
+---
+
+## 3. Technology Stack
+
+Axiom uses a modern, light-weight, cloud-native tech stack optimized for performance, scalability, and strict security compliance:
+
+*   **API Gateway & Server**: [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) (Asynchronous HTTP server runtime)
+*   **Database & ORM**: SQLite (`ocif_platform.db` for local dev) / PostgreSQL via [SQLAlchemy 2.0](https://www.sqlalchemy.org/)
+*   **Vector Search & RAG**: [ChromaDB](https://www.trychroma.com/) (local vector indexing) and local `sentence-transformers` for embeddings
+*   **Configuration & Validation**: [Pydantic v2](https://docs.pydantic.dev/) + `pydantic-settings`
+*   **Frontend**: Single Page Application styled with Vanilla CSS (Dark glassmorphism theme) using Google Fonts (Inter, JetBrains Mono)
+*   **Audit Compliance**: Tamper-evident ledger entries chained using SHA-256 hashing
+
+---
+
+## 4. Key Platform Features
+
+1.  **Strict Policy Governance Engine (Layer 7)**: Binds a custom Rules-As-Code policy framework. All agent behaviors and outputs must pass through active policy checks. If an agent action carries a high risk score, it is paused and placed in a Human-in-the-Loop approval queue.
+2.  **Multitenancy Isolation**: Enforces tenant-based access checks at the gateway layer, isolating relational records (Row-Level Security simulations) and vector namespaces per client tenant.
+3.  **Explainable AI & Auditability**: Writes cryptographic ledger entries for each inference cycle. The logs contain raw retrieved documents, prompt inputs, system templates, LLM responses, active policy evaluations, and final decision outcomes.
+4.  **Role-Based Access Control (RBAC)**: Supports roles (`platform_admin`, `process_owner`, `compliance_officer`, `end_user`) to control access to operational consoles, approvals, and administrative routes.
+
+---
+
+## 5. Getting Started
+
+### Prerequisites
+
+*   **Python**: Version 3.11 or higher
+*   **Git**: Installed and configured
+
+### Install Dependencies
+
+From the project root directory, install all required packages:
+
+```bash
+pip install -r axiom/backend/requirements.txt
+```
+
+### Running the Application
+
+You can launch the Axiom Platform local development environment using the wrapper script or running Uvicorn directly.
+
+#### Option A: Running via start.bat (Windows)
+
+Double-click on [start.bat](file:///d:/Tasks/Axiom%20-%20LLM/start.bat) or execute it from PowerShell/CMD:
+
+```cmd
+.\start.bat
+```
+
+Select option `[1]` to initialize the database (if not already initialized) and launch the FastAPI web server. The launcher will automatically open your default browser.
+
+#### Option B: Running via CLI
+
+Launch the Uvicorn application server directly:
+
+```bash
+python -m uvicorn axiom.backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+The database tables are automatically initialized and seeded with default metadata on startup by [axiom/backend/main.py](file:///d:/Tasks/Axiom%20-%20LLM/axiom/backend/main.py).
+
+---
+
+## 6. Accessing the Platform
+
+Once running, navigate to:
+
+*   **Web Console UI**: [http://127.0.0.1:8000/static/index.html](http://127.0.0.1:8000/static/index.html)
+*   **API Docs Swagger UI**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Pre-seeded Credentials
+
+Use these credentials to authenticate in the Web Console:
+
+*   **Username**: `admin`
+*   **Password**: `admin123`
+
+---
+
+## 7. Documentation Matrix
+
+For deep details, consult the 20-part specifications located in the project root:
+
+1.  **Vision & Requirements**:
+    *   [01-Vision-Document.md](file:///d:/Tasks/Axiom%20-%20LLM/01-Vision-Document.md)
+    *   [02-Business-Requirements-Document.md](file:///d:/Tasks/Axiom%20-%20LLM/02-Business-Requirements-Document.md)
+    *   [03-Product-Requirements-Document.md](file:///d:/Tasks/Axiom%20-%20LLM/03-Product-Requirements-Document.md)
+    *   [04-Software-Requirements-Specification.md](file:///d:/Tasks/Axiom%20-%20LLM/04-Software-Requirements-Specification.md)
+2.  **Design & Architecture**:
+    *   [05-High-Level-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/05-High-Level-Design.md)
+    *   [06-Low-Level-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/06-Low-Level-Design.md)
+    *   [07-OCIF-Detailed-Specification.md](file:///d:/Tasks/Axiom%20-%20LLM/07-OCIF-Detailed-Specification.md)
+    *   [08-System-Architecture.md](file:///d:/Tasks/Axiom%20-%20LLM/08-System-Architecture.md)
+    *   [09-Database-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/09-Database-Design.md)
+3.  **Module Detailed Design**:
+    *   [10-API-Specification.md](file:///d:/Tasks/Axiom%20-%20LLM/10-API-Specification.md)
+    *   [11-RAG-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/11-RAG-Design.md)
+    *   [12-Prompt-Engineering-Guide.md](file:///d:/Tasks/Axiom%20-%20LLM/12-Prompt-Engineering-Guide.md)
+    *   [13-Agent-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/13-Agent-Design.md)
+    *   [14-Security-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/14-Security-Design.md)
+    *   [15-UI-UX-Design.md](file:///d:/Tasks/Axiom%20-%20LLM/15-UI-UX-Design.md)
+4.  **Guides, Strategy, & Deployment**:
+    *   [16-Development-Roadmap.md](file:///d:/Tasks/Axiom%20-%20LLM/16-Development-Roadmap.md)
+    *   [17-Testing-Strategy.md](file:///d:/Tasks/Axiom%20-%20LLM/17-Testing-Strategy.md)
+    *   [18-Deployment-Guide.md](file:///d:/Tasks/Axiom%20-%20LLM/18-Deployment-Guide.md)
+    *   [19-User-Manual.md](file:///d:/Tasks/Axiom%20-%20LLM/19-User-Manual.md)
+    *   [20-Coding-Prompts.md](file:///d:/Tasks/Axiom%20-%20LLM/20-Coding-Prompts.md)
