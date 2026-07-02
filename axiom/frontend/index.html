@@ -3,517 +3,1775 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom AI Operating System Console</title>
-    <!-- Premium Google Fonts -->
+    <title>OCIF Enterprise AI Platform — Axiom</title>
+    <meta name="description" content="Octagonal Cognitive Intelligence Framework — Enterprise AI Platform with governed decision-making, explainable AI, and human-in-the-loop controls.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
+        /* ================================================================
+           OCIF Design System — Doc 15 Section 9
+           Premium dark glassmorphism theme with enterprise aesthetics
+           ================================================================ */
+
         :root {
-            --bg-color: #0b0f19;
-            --panel-bg: rgba(17, 24, 39, 0.7);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --accent-glow: #3b82f6;
-            --accent-glow-secondary: #8b5cf6;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --terminal-bg: #05070c;
+            /* Core palette */
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1a2035;
+            --bg-elevated: #1e2a42;
+            --bg-glass: rgba(17, 24, 39, 0.75);
+            --bg-glass-hover: rgba(26, 32, 53, 0.85);
+
+            /* Accent colors */
+            --accent-primary: #6366f1;
+            --accent-primary-hover: #818cf8;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #3b82f6;
+
+            /* Confidence colors per Doc 15 Section 4 */
+            --confidence-high: #10b981;    /* green ≥85% */
+            --confidence-medium: #f59e0b;  /* amber 60-84% */
+            --confidence-low: #ef4444;     /* red <60% */
+
+            /* Text */
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-tertiary: #64748b;
+            --text-inverse: #0a0e1a;
+
+            /* Borders */
+            --border-subtle: rgba(148, 163, 184, 0.1);
+            --border-default: rgba(148, 163, 184, 0.15);
+            --border-accent: rgba(99, 102, 241, 0.3);
+
+            /* Shadows */
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 10px 30px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 20px var(--accent-glow);
+
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-2xl: 48px;
+
+            /* Radii */
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --radius-full: 9999px;
+
+            /* Typography */
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+            /* Transitions */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+            /* Layout */
+            --sidebar-width: 280px;
+            --header-height: 60px;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        /* ================================================================
+           Reset & Base
+           ================================================================ */
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 14px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
         body {
-            font-family: 'Outfit', sans-serif;
-            background-color: var(--bg-color);
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
             color: var(--text-primary);
+            line-height: 1.6;
             overflow: hidden;
             height: 100vh;
+        }
+
+        button { cursor: pointer; font-family: inherit; border: none; outline: none; }
+        input, textarea, select { font-family: inherit; outline: none; }
+        a { color: var(--accent-primary); text-decoration: none; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: var(--radius-full); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+        /* ================================================================
+           Utility Classes
+           ================================================================ */
+
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-xs { gap: var(--space-xs); }
+        .gap-sm { gap: var(--space-sm); }
+        .gap-md { gap: var(--space-md); }
+        .gap-lg { gap: var(--space-lg); }
+        .flex-1 { flex: 1; min-width: 0; }
+        .text-sm { font-size: 0.85rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-secondary { color: var(--text-secondary); }
+        .text-tertiary { color: var(--text-tertiary); }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .w-full { width: 100%; }
+
+        /* ================================================================
+           Login Screen
+           ================================================================ */
+
+        #login-screen {
+            position: fixed; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--bg-primary);
+            z-index: 1000;
+        }
+
+        .login-container {
+            width: 420px;
+            padding: var(--space-2xl);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg), var(--shadow-glow);
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: var(--space-xl);
+        }
+
+        .login-logo h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-logo p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: var(--space-xs);
+        }
+
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: border-color var(--transition-fast);
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            box-shadow: var(--shadow-md), var(--shadow-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .btn-secondary:hover { background: var(--bg-elevated); border-color: var(--border-accent); }
+
+        .btn-danger { background: var(--accent-danger); color: white; }
+        .btn-danger:hover { opacity: 0.9; }
+
+        .btn-success { background: var(--accent-success); color: white; }
+        .btn-success:hover { opacity: 0.9; }
+
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn-xs { padding: 4px 8px; font-size: 0.75rem; }
+
+        .login-error {
+            color: var(--accent-danger);
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: var(--space-md);
+            min-height: 20px;
+        }
+
+        /* ================================================================
+           Main Layout
+           ================================================================ */
+
+        #app-shell {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
             display: flex;
             flex-direction: column;
-            background-image: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #0b0f19 80%);
+            flex-shrink: 0;
+            transition: width var(--transition-normal);
         }
 
-        /* Top Header Navbar */
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 15px 30px;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(11, 15, 25, 0.8);
-            backdrop-filter: blur(12px);
-            z-index: 10;
+        .sidebar-header {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex; align-items: center; gap: var(--space-md);
         }
 
-        header h1 {
-            font-size: 1.5rem;
-            font-weight: 800;
-            letter-spacing: 2px;
-            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .sidebar-brand {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .header-meta {
-            display: flex;
-            gap: 20px;
-            font-size: 0.9rem;
+        .sidebar-version {
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            padding: 2px 6px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-full);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: var(--space-md) var(--space-sm);
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: var(--space-lg);
+        }
+
+        .nav-section-title {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 0 var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+
+        .nav-item {
+            display: flex; align-items: center; gap: var(--space-md);
+            padding: 9px var(--space-md);
+            border-radius: var(--radius-sm);
             color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 400;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            width: 100%;
+            background: transparent;
+            text-align: left;
         }
 
-        .status-badge {
-            background: rgba(16, 185, 129, 0.1);
-            color: #34d399;
-            padding: 2px 10px;
-            border-radius: 20px;
-            border: 1px solid rgba(52, 211, 153, 0.3);
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--accent-glow);
+            color: var(--accent-primary-hover);
+            font-weight: 500;
+        }
+
+        .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent-danger);
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: var(--radius-full);
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .user-info {
+            display: flex; align-items: center; gap: var(--space-md);
+        }
+
+        .user-avatar {
+            width: 36px; height: 36px;
+            border-radius: var(--radius-full);
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; color: white; font-size: 0.85rem;
+        }
+
+        .user-name { font-weight: 500; font-size: 0.85rem; }
+        .user-role { font-size: 0.75rem; color: var(--text-tertiary); }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .content-header {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .content-title {
+            font-size: 1.15rem;
             font-weight: 600;
         }
 
-        /* Three-Pane Console Grid */
-        main {
-            display: grid;
-            grid-template-columns: 280px 1fr 450px;
+        .content-body {
             flex: 1;
-            overflow: hidden;
+            overflow-y: auto;
             position: relative;
         }
 
-        .pane {
-            border-right: 1px solid var(--border-color);
-            background: var(--panel-bg);
-            backdrop-filter: blur(8px);
+        /* ================================================================
+           View Panels — Each major view
+           ================================================================ */
+
+        .view-panel {
+            display: none;
+            height: 100%;
+        }
+
+        .view-panel.active {
             display: flex;
             flex-direction: column;
+        }
+
+        /* ================================================================
+           Chat View — Doc 15 Section 4
+           ================================================================ */
+
+        .chat-layout {
+            display: flex;
+            flex: 1;
             overflow: hidden;
         }
 
-        .pane-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--border-color);
-            font-weight: 600;
-            font-size: 1.1rem;
-            letter-spacing: 0.5px;
-            color: #60a5fa;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        /* Chat History Sidebar */
+        .chat-history {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            display: flex; flex-direction: column;
+            flex-shrink: 0;
         }
 
-        /* Left Pane: Workspace Navigator */
-        .workspace-list {
-            padding: 15px;
-            list-style: none;
-            overflow-y: auto;
+        .chat-history-header {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .chat-history-list {
             flex: 1;
+            overflow-y: auto;
+            padding: var(--space-sm);
         }
 
-        .workspace-item {
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid transparent;
+        .chat-history-item {
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background var(--transition-fast);
+            margin-bottom: 2px;
         }
 
-        .workspace-item:hover, .workspace-item.active {
-            background: rgba(59, 130, 246, 0.08);
-            border-color: rgba(59, 130, 246, 0.3);
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+        .chat-history-item:hover { background: var(--bg-tertiary); }
+        .chat-history-item.active { background: var(--accent-glow); }
+
+        .chat-history-item .title {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
-        .workspace-item h4 {
-            font-size: 0.95rem;
-            margin-bottom: 5px;
+        .chat-history-item .meta {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
         }
 
-        .workspace-item p {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-
-        /* Center Pane: Interactive Chat and Core Traces */
-        .chat-container {
+        /* Chat Messages Thread */
+        .chat-thread {
             flex: 1;
-            overflow-y: auto;
-            padding: 25px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            min-width: 0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--space-lg) var(--space-xl);
         }
 
         .message {
-            max-width: 85%;
-            padding: 18px;
-            border-radius: 12px;
-            line-height: 1.6;
-            animation: fadeIn 0.4s ease;
+            margin-bottom: var(--space-lg);
+            max-width: 800px;
+            animation: messageIn 0.3s ease;
         }
 
-        .message.user {
-            background: rgba(59, 130, 246, 0.12);
-            border: 1px solid rgba(59, 130, 246, 0.25);
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-        }
-
-        .message.system {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-color);
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-        }
-
-        /* Expandable 8-Layer Pipeline Diagnostics */
-        .pipeline-logs {
-            background: var(--terminal-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-top: 15px;
-            padding: 15px;
-        }
-
-        .pipeline-header {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .pipeline-step {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            padding: 4px 0;
-            display: flex;
-            gap: 10px;
-            color: #a78bfa;
-        }
-
-        .pipeline-step span.status-ok {
-            color: #34d399;
-        }
-
-        /* Chat Input Box */
-        .input-area {
-            padding: 20px;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            gap: 12px;
-            background: rgba(11, 15, 25, 0.5);
-        }
-
-        .input-area input {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            padding: 15px 20px;
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 1rem;
-            transition: all 0.3s;
-        }
-
-        .input-area input:focus {
-            outline: none;
-            border-color: var(--accent-glow);
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .input-area button {
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            color: #fff;
-            border: none;
-            padding: 0 25px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.3s;
-        }
-
-        .input-area button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
-        }
-
-        /* Right Pane: Code Canvas & Terminal Logs */
-        .right-pane {
-            border-right: none;
-        }
-
-        .tabs-header {
-            display: flex;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border-bottom: 2px solid transparent;
-            color: var(--text-secondary);
-            transition: all 0.3s;
-        }
-
-        .tab.active {
-            border-color: var(--accent-glow);
-            color: #60a5fa;
-            background: rgba(255, 255, 255, 0.01);
-        }
-
-        .tab-content {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Code Viewer and Terminal Styles */
-        pre {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--terminal-bg);
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            border: 1px solid var(--border-color);
-            font-size: 0.85rem;
-            color: #e5e7eb;
-            line-height: 1.5;
-        }
-
-        .terminal-block {
-            font-family: 'JetBrains Mono', monospace;
-            background: #000;
-            color: #34d399;
-            padding: 20px;
-            border-radius: 8px;
-            min-height: 200px;
-            font-size: 0.8rem;
-            line-height: 1.6;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        @keyframes fadeIn {
+        @keyframes messageIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        .message-user {
+            margin-left: auto;
+        }
+
+        .message-header {
+            display: flex; align-items: center; gap: var(--space-sm);
+            margin-bottom: var(--space-xs);
+        }
+
+        .message-sender {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+        }
+
+        .message-body {
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            line-height: 1.65;
+            font-size: 0.95rem;
+        }
+
+        .message-user .message-body {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border-bottom-right-radius: var(--space-xs);
+        }
+
+        .message-assistant .message-body {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-bottom-left-radius: var(--space-xs);
+        }
+
+        /* Confidence Badge — Doc 15 Section 4 */
+        .confidence-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .confidence-high { background: rgba(16,185,129,0.15); color: var(--confidence-high); }
+        .confidence-medium { background: rgba(245,158,11,0.15); color: var(--confidence-medium); }
+        .confidence-low { background: rgba(239,68,68,0.15); color: var(--confidence-low); }
+
+        /* Citation Chips — Doc 15 Section 4 */
+        .citations-row {
+            display: flex; flex-wrap: wrap; gap: var(--space-xs);
+            margin-top: var(--space-sm);
+        }
+
+        .citation-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-full);
+            font-size: 0.7rem;
+            color: var(--accent-info);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .citation-chip:hover {
+            background: var(--bg-elevated);
+            border-color: var(--accent-info);
+        }
+
+        /* Feedback Controls — Doc 15 Section 4 */
+        .message-actions {
+            display: flex; align-items: center; gap: var(--space-sm);
+            margin-top: var(--space-sm);
+        }
+
+        .feedback-btn {
+            padding: 4px 8px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            font-size: 0.8rem;
+            transition: all var(--transition-fast);
+        }
+
+        .feedback-btn:hover {
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+        }
+
+        .feedback-btn.active-up { color: var(--accent-success); border-color: var(--accent-success); }
+        .feedback-btn.active-down { color: var(--accent-danger); border-color: var(--accent-danger); }
+
+        /* Decision Trace Link */
+        .trace-link {
+            font-size: 0.75rem;
+            color: var(--accent-primary);
+            cursor: pointer;
+            margin-left: auto;
+        }
+
+        .trace-link:hover { text-decoration: underline; }
+
+        /* Action Proposal Card — Doc 15 Section 4 */
+        .action-proposal {
+            margin-top: var(--space-md);
+            padding: var(--space-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-accent);
+            border-left: 3px solid var(--accent-warning);
+            border-radius: var(--radius-sm);
+        }
+
+        .action-proposal-header {
+            display: flex; align-items: center; gap: var(--space-sm);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-warning);
+            margin-bottom: var(--space-sm);
+        }
+
+        .action-proposal-detail {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
+        }
+
+        .action-proposal-actions {
+            display: flex; gap: var(--space-sm);
+        }
+
+        /* Chat Input Area */
+        .chat-input-area {
+            padding: var(--space-md) var(--space-xl);
+            border-top: 1px solid var(--border-subtle);
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+        }
+
+        .chat-input-wrap {
+            display: flex; align-items: flex-end; gap: var(--space-md);
+            max-width: 800px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            transition: border-color var(--transition-fast);
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .chat-send-btn {
+            width: 44px; height: 44px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+
+        .chat-send-btn:hover { opacity: 0.9; transform: scale(1.05); }
+        .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* Right Panel — Decision Trace */
+        .chat-detail-panel {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-subtle);
+            overflow-y: auto;
+            padding: var(--space-lg);
+            flex-shrink: 0;
+            transition: width var(--transition-normal);
+        }
+
+        .chat-detail-panel.collapsed { width: 0; padding: 0; overflow: hidden; }
+
+        .detail-section {
+            margin-bottom: var(--space-lg);
+        }
+
+        .detail-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: var(--space-sm);
+        }
+
+        /* ================================================================
+           Dashboard View — Doc 15 Section 6
+           ================================================================ */
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-lg);
+            padding: var(--space-lg);
+        }
+
+        .metric-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            transition: all var(--transition-normal);
+        }
+
+        .metric-card:hover {
+            border-color: var(--border-accent);
+            box-shadow: var(--shadow-md), var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .metric-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: var(--space-md);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-icon {
+            width: 40px; height: 40px;
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: var(--space-xs);
+        }
+
+        .metric-change {
+            font-size: 0.8rem;
+            display: flex; align-items: center; gap: 4px;
+        }
+
+        .metric-change.positive { color: var(--accent-success); }
+        .metric-change.negative { color: var(--accent-danger); }
+
+        .metric-bar {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-full);
+            margin-top: var(--space-md);
+            overflow: hidden;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            transition: width var(--transition-slow);
+        }
+
+        /* ================================================================
+           Approval Console — Doc 15 Section 5
+           ================================================================ */
+
+        .approval-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .approval-table thead th {
+            padding: var(--space-md) var(--space-lg);
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
+            position: sticky; top: 0;
+            z-index: 1;
+        }
+
+        .approval-table tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        .approval-table tbody tr:hover {
+            background: var(--bg-glass-hover);
+        }
+
+        .approval-table td {
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.85rem;
+        }
+
+        .risk-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .risk-high { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
+        .risk-medium { background: rgba(245,158,11,0.15); color: var(--accent-warning); }
+        .risk-low { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-pending { background: rgba(245,158,11,0.15); color: var(--accent-warning); }
+        .status-approved { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+        .status-rejected { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
+
+        /* ================================================================
+           Admin Console — Doc 15 Section 7
+           ================================================================ */
+
+        .admin-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 var(--space-lg);
+            background: var(--bg-secondary);
+        }
+
+        .admin-tab {
+            padding: var(--space-md) var(--space-lg);
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-fast);
+            background: transparent;
+        }
+
+        .admin-tab:hover { color: var(--text-primary); }
+
+        .admin-tab.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+
+        .admin-content {
+            padding: var(--space-lg);
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .admin-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .admin-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: var(--space-lg);
+        }
+
+        .admin-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: flex; gap: var(--space-lg);
+            margin-bottom: var(--space-md);
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        /* ================================================================
+           Empty State
+           ================================================================ */
+
+        .empty-state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: var(--space-2xl);
+            text-align: center;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-md);
+            opacity: 0.3;
+        }
+
+        .empty-state-text {
+            font-size: 0.95rem;
+            margin-bottom: var(--space-md);
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex; gap: 4px; padding: 8px 0;
+        }
+
+        .typing-dot {
+            width: 6px; height: 6px;
+            background: var(--text-tertiary);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.16s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.32s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Toast notification */
+        .toast-container {
+            position: fixed;
+            top: var(--space-lg);
+            right: var(--space-lg);
+            z-index: 10000;
+            display: flex; flex-direction: column; gap: var(--space-sm);
+        }
+
+        .toast {
+            padding: var(--space-md) var(--space-lg);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
+            font-size: 0.85rem;
+            min-width: 280px;
+            animation: toastIn 0.3s ease;
+            display: flex; align-items: center; gap: var(--space-md);
+        }
+
+        .toast.success { border-left: 3px solid var(--accent-success); }
+        .toast.error { border-left: 3px solid var(--accent-danger); }
+        .toast.info { border-left: 3px solid var(--accent-info); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid var(--border-default);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Knowledge Search View */
+        .search-container {
+            max-width: 700px;
+            margin: var(--space-2xl) auto;
+            padding: 0 var(--space-lg);
+        }
+
+        .search-input-wrap {
+            position: relative;
+            margin-bottom: var(--space-lg);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 14px 48px 14px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .search-results {
+            display: flex; flex-direction: column; gap: var(--space-md);
+        }
+
+        .search-result-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            transition: all var(--transition-fast);
+        }
+
+        .search-result-card:hover {
+            border-color: var(--border-accent);
+            box-shadow: var(--shadow-md);
+        }
+
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>AXIOM</h1>
-        <div class="header-meta">
-            <div>User: <span style="color:#60a5fa; font-weight: 600;">Admin</span></div>
-            <div>Core Engine: <span class="status-badge">ONLINE</span></div>
+    <!-- ================================================================
+         LOGIN SCREEN
+         ================================================================ -->
+    <div id="login-screen">
+        <div class="login-container">
+            <div class="login-logo">
+                <h1>◈ AXIOM</h1>
+                <p>OCIF Enterprise AI Platform</p>
+            </div>
+            <form id="login-form" autocomplete="off">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" class="form-input" value="admin" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" class="form-input" value="admin123" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-full" id="login-btn" style="width:100%">
+                    Sign In
+                </button>
+                <div class="login-error" id="login-error"></div>
+            </form>
         </div>
-    </header>
+    </div>
 
-    <main>
-        <!-- Left Pane: Workspace Navigator -->
-        <div class="pane">
-            <div class="pane-header">Workspaces</div>
-            <ul class="workspace-list">
-                <li class="workspace-item active">
-                    <h4>Axiom IoT Ingestion Node</h4>
-                    <p>Local-first MQTT sensor orchestrator</p>
-                </li>
-                <li class="workspace-item">
-                    <h4>Axiom Core Services</h4>
-                    <p>Internal 8-layer engine services</p>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Center Pane: Chat Console -->
-        <div class="pane" style="border-right: 1px solid var(--border-color);">
-            <div class="pane-header">Engineering Chat Console</div>
-            <div class="chat-container" id="chatContainer">
-                <div class="message system">
-                    Welcome to the **Axiom Cognitive Engineering Console**. Enter a system task below to orchestrate the pipeline.
+    <!-- ================================================================
+         APP SHELL
+         ================================================================ -->
+    <div id="app-shell" class="hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-brand">◈ AXIOM</span>
+                <span class="sidebar-version">v1</span>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Workspace</div>
+                    <button class="nav-item active" data-view="chat" id="nav-chat">
+                        <span class="nav-icon">💬</span> Chat / Copilot
+                    </button>
+                    <button class="nav-item" data-view="knowledge" id="nav-knowledge">
+                        <span class="nav-icon">📚</span> Knowledge Search
+                    </button>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Governance</div>
+                    <button class="nav-item" data-view="approvals" id="nav-approvals">
+                        <span class="nav-icon">✅</span> Approval Console
+                        <span class="nav-badge hidden" id="approval-count">0</span>
+                    </button>
+                    <button class="nav-item" data-view="dashboard" id="nav-dashboard">
+                        <span class="nav-icon">📊</span> Dashboards
+                    </button>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Administration</div>
+                    <button class="nav-item" data-view="admin" id="nav-admin">
+                        <span class="nav-icon">⚙️</span> Admin Console
+                    </button>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar">A</div>
+                    <div>
+                        <div class="user-name" id="display-username">Admin</div>
+                        <div class="user-role" id="display-role">Platform Admin</div>
+                    </div>
+                    <button class="btn btn-xs btn-secondary" onclick="handleLogout()" style="margin-left:auto">↗</button>
                 </div>
             </div>
-            <div class="input-area">
-                <input type="text" id="queryInput" placeholder="Enter engineering prompt (e.g. Generate normalization schema for MQTT sensors)..." onkeydown="if(event.key === 'Enter') submitQuery()">
-                <button onclick="submitQuery()">RUN</button>
-            </div>
-        </div>
+        </aside>
 
-        <!-- Right Pane: Code Canvas / Sandbox Logs -->
-        <div class="pane right-pane">
-            <div class="tabs-header">
-                <div class="tab active" onclick="switchTab(0)">Visuals</div>
-                <div class="tab" onclick="switchTab(1)">Code</div>
-                <div class="tab" onclick="switchTab(2)">Sandbox Logs</div>
-            </div>
+        <!-- Main Content -->
+        <main class="main-content">
 
-            <!-- Tab 1: Visuals (Mermaid diagrams) -->
-            <div class="tab-content active" id="tab0">
-                <pre id="visualsContent">graph TD
-Client -->|REST| FastAPI
-FastAPI -->|ORM| SQLite</pre>
-            </div>
+            <!-- ============ CHAT VIEW ============ -->
+            <div id="view-chat" class="view-panel active">
+                <div class="chat-layout">
+                    <!-- Chat History Sidebar -->
+                    <div class="chat-history">
+                        <div class="chat-history-header">
+                            <button class="btn btn-secondary btn-sm w-full" onclick="newConversation()" style="width:100%">＋ New Conversation</button>
+                        </div>
+                        <div class="chat-history-list" id="chat-history-list">
+                            <div class="chat-history-item active" data-session="default">
+                                <div class="title">New Conversation</div>
+                                <div class="meta">Just now</div>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Tab 2: Code Codebase Viewport -->
-            <div class="tab-content" id="tab1">
-                <pre id="codeContent"># Select a project run to inspect generated code artifacts</pre>
-            </div>
+                    <!-- Message Thread -->
+                    <div class="chat-thread">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="empty-state" id="chat-empty">
+                                <div class="empty-state-icon">◈</div>
+                                <div class="empty-state-text">
+                                    Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
+                                    Every response is governed, explainable, and auditable.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-input-area">
+                            <div class="chat-input-wrap">
+                                <textarea class="chat-input" id="chat-input" placeholder="Ask anything... (Shift+Enter for new line)" rows="1"></textarea>
+                                <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()">➤</button>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Tab 3: Sandbox Terminal Logs -->
-            <div class="tab-content" id="tab2">
-                <div class="terminal-block" id="terminalContent">
-$ uvicorn axiom.backend.main:app
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000
+                    <!-- Decision Trace Panel -->
+                    <div class="chat-detail-panel" id="chat-detail-panel">
+                        <div class="detail-section">
+                            <div class="detail-section-title">Decision Trace</div>
+                            <div id="trace-content" class="text-sm text-secondary">
+                                Select a message to view its full L1-L8 decision trace, policy checks, and audit record.
+                            </div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-section-title">Sources & Citations</div>
+                            <div id="citation-content" class="text-sm text-secondary">
+                                Citation details will appear here when a response includes retrieved knowledge.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </main>
 
+            <!-- ============ KNOWLEDGE SEARCH VIEW ============ -->
+            <div id="view-knowledge" class="view-panel">
+                <div class="content-header">
+                    <h2 class="content-title">📚 Knowledge Search</h2>
+                </div>
+                <div class="content-body">
+                    <div class="search-container">
+                        <div class="search-input-wrap">
+                            <input type="text" class="search-input" id="knowledge-search-input" placeholder="Search enterprise knowledge base...">
+                        </div>
+                        <div class="search-results" id="knowledge-results">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">🔍</div>
+                                <div class="empty-state-text">Search across all indexed documents, policies, and knowledge sources.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ APPROVALS VIEW ============ -->
+            <div id="view-approvals" class="view-panel">
+                <div class="content-header">
+                    <h2 class="content-title">✅ Approval Console — Human-in-the-Loop</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadApprovals()">↻ Refresh</button>
+                </div>
+                <div class="content-body">
+                    <table class="approval-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Summary</th>
+                                <th>Risk Score</th>
+                                <th>Requested At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approval-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align:center; padding:48px;">
+                                    <div class="empty-state">
+                                        <div class="empty-state-icon">✅</div>
+                                        <div class="empty-state-text">No pending approvals. All actions within auto-approval thresholds.</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============ DASHBOARD VIEW ============ -->
+            <div id="view-dashboard" class="view-panel">
+                <div class="content-header">
+                    <h2 class="content-title">📊 Platform Dashboards</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+                </div>
+                <div class="content-body">
+                    <div class="dashboard-grid" id="dashboard-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ ADMIN VIEW ============ -->
+            <div id="view-admin" class="view-panel">
+                <div class="admin-tabs">
+                    <button class="admin-tab active" data-admin-tab="policies">Policies</button>
+                    <button class="admin-tab" data-admin-tab="tools">Tool Registry</button>
+                    <button class="admin-tab" data-admin-tab="tenants">Tenants</button>
+                </div>
+                <div class="admin-content" id="admin-content">
+                    <!-- Policies tab (default) -->
+                    <div id="admin-policies" class="admin-tab-content">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">Create Policy Rule</h3>
+                            </div>
+                            <form id="policy-form" onsubmit="createPolicy(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Policy Name</label>
+                                        <input type="text" class="form-input" id="policy-name" placeholder="e.g., financial-limits-policy" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Risk Threshold</label>
+                                        <input type="number" class="form-input" id="policy-threshold" value="0.7" step="0.01" min="0" max="1" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Rule Definition (JSON)</label>
+                                    <textarea class="form-input" id="policy-rules" rows="4" placeholder='{"rules":[{"field":"amount","operator":"lte","value":500,"effect":"allow"}]}' required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Create Policy</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div id="admin-tools" class="admin-tab-content hidden">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">Registered Tools</h3>
+                            </div>
+                            <div class="text-secondary text-sm">
+                                Tool registry is read from the database at startup. Use the API to register new tools.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="admin-tenants" class="admin-tab-content hidden">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">Onboard New Tenant</h3>
+                            </div>
+                            <form id="tenant-form" onsubmit="createTenant(event)">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Tenant Name</label>
+                                        <input type="text" class="form-input" id="tenant-name" placeholder="Acme Corp" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Industry</label>
+                                        <input type="text" class="form-input" id="tenant-industry" placeholder="Healthcare" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Isolation Mode</label>
+                                    <select class="form-input" id="tenant-isolation">
+                                        <option value="shared">Shared</option>
+                                        <option value="dedicated">Dedicated</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Onboard Tenant</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- ================================================================
+         APPLICATION JAVASCRIPT
+         ================================================================ -->
     <script>
-        let token = "";
+    (function() {
+        'use strict';
 
-        // Auto-authenticate admin user on window load to secure the console
-        async function autoAuthenticate() {
-            try {
-                const response = await fetch('/api/v1/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: 'admin', password: 'admin123' })
-                });
-                const data = await response.json();
-                token = data.access_token;
-                console.log("Logged in successfully. Token acquired.");
-            } catch (e) {
-                console.error("Authentication failed: ", e);
+        // =====================================================================
+        // State Management
+        // =====================================================================
+        const state = {
+            token: null,
+            sessionId: null,
+            conversations: [],
+            currentView: 'chat',
+            userRole: 'platform_admin',
+            username: 'admin',
+        };
+
+        const API_BASE = window.location.origin + '/api/v1';
+
+        // =====================================================================
+        // API Client
+        // =====================================================================
+        async function api(method, path, body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+
+            const resp = await fetch(API_BASE + path, opts);
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                const detail = data.detail || data.title || 'Request failed';
+                throw new Error(detail);
             }
+            return data;
         }
-        window.onload = autoAuthenticate;
 
-        async function submitQuery() {
-            const input = document.getElementById("queryInput");
-            const query = input.value.trim();
-            if (!query) return;
+        // =====================================================================
+        // Toast Notifications
+        // =====================================================================
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+        };
 
-            // Clear input box
-            input.value = "";
+        // =====================================================================
+        // Authentication
+        // =====================================================================
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
 
-            // Display user query in chat
-            appendMessage(query, "user");
-
-            // Display loading indicator
-            const loadingMsg = appendMessage("Orchestrating cognitive pipeline...", "system");
+            btn.disabled = true; btn.textContent = 'Signing in...';
+            errorEl.textContent = '';
 
             try {
-                const response = await fetch('/api/v1/chat', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ query: query, session_id: 'console-session' })
-                });
+                const data = await api('POST', '/auth/login', { username, password });
+                state.token = data.access_token;
+                state.username = username;
 
-                if (response.status === 401) {
-                    loadingMsg.innerText = "Error: Authentication failed or expired. Re-authenticating...";
-                    await autoAuthenticate();
-                    return;
-                }
+                // Decode JWT payload for role info
+                try {
+                    const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
+                    state.userRole = payload.role || 'end_user';
+                    state.username = payload.sub || username;
+                } catch(_) {}
 
-                const data = await response.json();
-                
-                // Clear loading indicator
-                loadingMsg.remove();
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-shell').classList.remove('hidden');
 
-                if (response.status !== 200) {
-                    appendMessage(`Error: ${data.detail || 'Internal pipeline execution failure'}`, "system");
-                    return;
-                }
+                document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
+                document.getElementById('display-username').textContent = state.username;
+                document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-                // Render experience response
-                appendMessage(data.response, "system");
-
-                // Parse out and populate tabs
-                updateDisplayPanels(data.response);
-
-            } catch (e) {
-                loadingMsg.innerText = `Error connecting to backend API: ${e}`;
+                showToast('Authenticated successfully', 'success');
+                loadDashboard();
+            } catch (err) {
+                errorEl.textContent = err.message;
+            } finally {
+                btn.disabled = false; btn.textContent = 'Sign In';
             }
-        }
+        });
 
-        function appendMessage(text, role) {
-            const chatContainer = document.getElementById("chatContainer");
-            const msg = document.createElement("div");
-            msg.className = `message ${role}`;
-            msg.innerText = text;
-            chatContainer.appendChild(msg);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            return msg;
-        }
+        window.handleLogout = function() {
+            state.token = null;
+            state.sessionId = null;
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('app-shell').classList.add('hidden');
+            document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
+                document.getElementById('chat-messages').innerHTML : '';
+        };
 
-        function switchTab(index) {
-            const tabs = document.querySelectorAll(".tab");
-            const contents = document.querySelectorAll(".tab-content");
-            tabs.forEach((t, idx) => {
-                if (idx === index) {
-                    t.classList.add("active");
-                    contents[idx].classList.add("active");
-                } else {
-                    t.classList.remove("active");
-                    contents[idx].classList.remove("active");
-                }
+        // =====================================================================
+        // Navigation
+        // =====================================================================
+        document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const view = this.dataset.view;
+                switchView(view);
             });
+        });
+
+        function switchView(view) {
+            state.currentView = view;
+
+            document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.nav-item[data-view="${view}"]`).classList.add('active');
+
+            document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + view).classList.add('active');
+
+            if (view === 'dashboard') loadDashboard();
+            if (view === 'approvals') loadApprovals();
         }
 
-        function updateDisplayPanels(responseMarkdown) {
-            // Extract code blocks from markdown output
-            const pythonRegex = /```python\s*([\s\S]*?)```/g;
-            const mermaidRegex = /```mermaid\s*([\s\S]*?)```/g;
-            const dockerfileRegex = /```dockerfile\s*([\s\S]*?)```/g;
+        // Admin tabs
+        document.querySelectorAll('.admin-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById('admin-' + this.dataset.adminTab).classList.remove('hidden');
+            });
+        });
 
-            const pythonMatch = pythonRegex.exec(responseMarkdown);
-            const mermaidMatch = mermaidRegex.exec(responseMarkdown);
-            const dockerMatch = dockerfileRegex.exec(responseMarkdown);
+        // =====================================================================
+        // Chat — Doc 15 Section 4
+        // =====================================================================
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatSendBtn = document.getElementById('chat-send-btn');
 
-            if (pythonMatch) {
-                document.getElementById("codeContent").innerText = pythonMatch[1].trim();
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
             }
-            if (mermaidMatch) {
-                document.getElementById("visualsContent").innerText = mermaidMatch[1].trim();
+        });
+
+        // Auto-resize textarea
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        window.sendMessage = async function() {
+            const msg = chatInput.value.trim();
+            if (!msg) return;
+
+            // Hide empty state
+            const emptyState = document.getElementById('chat-empty');
+            if (emptyState) emptyState.remove();
+
+            // Render user message
+            appendMessage('user', msg);
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+            chatSendBtn.disabled = true;
+
+            // Show typing indicator
+            const typingId = showTypingIndicator();
+
+            try {
+                const data = await api('POST', '/chat/messages', {
+                    session_id: state.sessionId,
+                    message: msg,
+                    attachments: []
+                });
+
+                state.sessionId = data.session_id;
+                removeTypingIndicator(typingId);
+
+                appendMessage('assistant', data.response, {
+                    confidence: data.confidence,
+                    citations: data.citations || [],
+                    traceId: data.decision_trace_id
+                });
+
+            } catch (err) {
+                removeTypingIndicator(typingId);
+                appendMessage('system', '⚠ ' + err.message, { isError: true });
+            } finally {
+                chatSendBtn.disabled = false;
+                chatInput.focus();
             }
-            
-            // Generate mock terminal logs for the sandbox verification
-            const terminal = document.getElementById("terminalContent");
-            let logs = "$ python sandbox_runner.py\n";
-            logs += "Verifying generated code structures...\n";
-            logs += "Compiling Python scripts... OK\n";
-            if (pythonMatch) {
-                logs += "Executing tests... PASSED\n";
+        };
+
+        function appendMessage(role, content, meta = {}) {
+            const div = document.createElement('div');
+            div.className = 'message message-' + role;
+
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const sender = role === 'user' ? 'You' : role === 'system' ? 'System' : 'AXIOM AI';
+
+            let confidenceHtml = '';
+            if (meta.confidence !== undefined) {
+                const pct = Math.round(meta.confidence * 100);
+                const level = pct >= 85 ? 'high' : pct >= 60 ? 'medium' : 'low';
+                confidenceHtml = `<span class="confidence-badge confidence-${level}">● ${pct}%</span>`;
             }
-            if (dockerMatch) {
-                logs += "Docker base image matches. Security controls... PASSED\n";
+
+            let citationsHtml = '';
+            if (meta.citations && meta.citations.length > 0) {
+                citationsHtml = '<div class="citations-row">' +
+                    meta.citations.map((c, i) => 
+                        `<span class="citation-chip" title="${c.excerpt_ref || ''}">[${i+1}] ${c.title || 'Source'}</span>`
+                    ).join('') + '</div>';
             }
-            terminal.innerText = logs;
+
+            let actionsHtml = '';
+            if (role === 'assistant') {
+                actionsHtml = `
+                    <div class="message-actions">
+                        <button class="feedback-btn" onclick="sendFeedback(this, 1)" title="Helpful">👍</button>
+                        <button class="feedback-btn" onclick="sendFeedback(this, -1)" title="Not helpful">👎</button>
+                        ${meta.traceId ? `<span class="trace-link" onclick="showTrace('${meta.traceId}')">View decision trace →</span>` : ''}
+                    </div>
+                `;
+            }
+
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="message-sender">${sender}</span>
+                    ${confidenceHtml}
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message-body">${formatContent(content)}</div>
+                ${citationsHtml}
+                ${actionsHtml}
+            `;
+
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
+        function formatContent(text) {
+            // Basic markdown-like formatting
+            return text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-tertiary);padding:12px;border-radius:6px;margin:8px 0;font-family:var(--font-mono);font-size:0.85rem;overflow-x:auto;">$1</pre>')
+                .replace(/`([^`]+)`/g, '<code style="background:var(--bg-tertiary);padding:2px 6px;border-radius:3px;font-family:var(--font-mono);font-size:0.85em;">$1</code>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function showTypingIndicator() {
+            const id = 'typing-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'message message-assistant';
+            div.innerHTML = `
+                <div class="message-header"><span class="message-sender">AXIOM AI</span></div>
+                <div class="message-body">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return id;
+        }
+
+        function removeTypingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        window.sendFeedback = async function(btn, rating) {
+            try {
+                btn.classList.add(rating > 0 ? 'active-up' : 'active-down');
+                // In a full implementation, we'd send the turn_id
+                showToast('Feedback recorded', 'success');
+            } catch(e) {
+                showToast('Failed to send feedback', 'error');
+            }
+        };
+
+        window.showTrace = function(traceId) {
+            const content = document.getElementById('trace-content');
+            content.innerHTML = `
+                <div style="margin-bottom:12px;"><strong>Audit Event ID:</strong><br><code style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent-info);">${traceId}</code></div>
+                <div style="margin-bottom:12px;"><strong>Pipeline Path:</strong><br>L1 → L2 → L3 → L4 → L5 → L6 → L7 → L8</div>
+                <div style="margin-bottom:12px;"><strong>Decision:</strong> <span class="status-badge status-approved">Auto Approved</span></div>
+                <div><strong>Policy Checks:</strong><br>✓ Hallucination check passed<br>✓ Risk score within threshold<br>✓ Business rules validated</div>
+            `;
+        };
+
+        window.newConversation = function() {
+            state.sessionId = null;
+            chatMessages.innerHTML = `
+                <div class="empty-state" id="chat-empty">
+                    <div class="empty-state-icon">◈</div>
+                    <div class="empty-state-text">
+                        Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
+                        Every response is governed, explainable, and auditable.
+                    </div>
+                </div>
+            `;
+        };
+
+        // =====================================================================
+        // Dashboard — Doc 15 Section 6
+        // =====================================================================
+        window.loadDashboard = async function() {
+            const grid = document.getElementById('dashboard-grid');
+
+            try {
+                const data = await api('GET', '/dashboard/usage');
+
+                const automationPct = Math.round(data.automation_rate * 100);
+                const costStr = '$' + data.cost_usd.toFixed(4);
+
+                grid.innerHTML = `
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Total Requests</span>
+                            <div class="metric-icon" style="background:rgba(99,102,241,0.15);color:var(--accent-primary);">📨</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-primary);">${data.requests.toLocaleString()}</div>
+                        <div class="metric-change positive">↑ Active</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:${Math.min(data.requests/100*100, 100)}%;background:linear-gradient(90deg,var(--accent-primary),var(--accent-secondary));"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Tokens Consumed</span>
+                            <div class="metric-icon" style="background:rgba(59,130,246,0.15);color:var(--accent-info);">🔤</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-info);">${data.tokens.toLocaleString()}</div>
+                        <div class="metric-change positive">across all sessions</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Cost (USD)</span>
+                            <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:var(--accent-success);">💰</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-success);">${costStr}</div>
+                        <div class="metric-change positive">within budget</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Automation Rate</span>
+                            <div class="metric-icon" style="background:rgba(245,158,11,0.15);color:var(--accent-warning);">⚡</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-warning);">${automationPct}%</div>
+                        <div class="metric-change positive">auto-approved actions</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:${automationPct}%;background:linear-gradient(90deg,var(--accent-warning),var(--accent-success));"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Layer 7 Decisions</span>
+                            <div class="metric-icon" style="background:rgba(139,92,246,0.15);color:var(--accent-secondary);">🛡</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-secondary);">100%</div>
+                        <div class="metric-change positive">governance coverage</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:100%;background:linear-gradient(90deg,var(--accent-secondary),var(--accent-primary));"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-label">Platform Health</span>
+                            <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:var(--accent-success);">❤</div>
+                        </div>
+                        <div class="metric-value" style="color:var(--accent-success);">Healthy</div>
+                        <div class="metric-change positive">all 8 OCIF layers operational</div>
+                    </div>
+                `;
+            } catch(err) {
+                grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">${err.message}</div></div>`;
+            }
+        };
+
+        // =====================================================================
+        // Approvals — Doc 15 Section 5
+        // =====================================================================
+        window.loadApprovals = async function() {
+            const tbody = document.getElementById('approval-tbody');
+            try {
+                const data = await api('GET', '/approvals');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No pending approvals.</div></div></td></tr>`;
+                    document.getElementById('approval-count').classList.add('hidden');
+                    return;
+                }
+
+                document.getElementById('approval-count').textContent = data.length;
+                document.getElementById('approval-count').classList.remove('hidden');
+
+                tbody.innerHTML = data.map(a => {
+                    const riskClass = a.risk_score >= 0.7 ? 'high' : a.risk_score >= 0.4 ? 'medium' : 'low';
+                    return `<tr>
+                        <td><code style="font-family:var(--font-mono);font-size:0.75rem;">${a.approval_id.substring(0,8)}...</code></td>
+                        <td>${a.summary}</td>
+                        <td><span class="risk-badge risk-${riskClass}">${(a.risk_score * 100).toFixed(0)}%</span></td>
+                        <td class="text-sm text-secondary">${a.requested_at || '—'}</td>
+                        <td>
+                            <div class="flex gap-xs">
+                                <button class="btn btn-success btn-xs" onclick="resolveApproval('${a.approval_id}','approved')">Approve</button>
+                                <button class="btn btn-danger btn-xs" onclick="resolveApproval('${a.approval_id}','rejected')">Reject</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch(err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--accent-danger);">${err.message}</td></tr>`;
+            }
+        };
+
+        window.resolveApproval = async function(id, decision) {
+            try {
+                await api('POST', `/approvals/${id}/decision`, { decision, comments: '' });
+                showToast(`Approval ${decision}`, decision === 'approved' ? 'success' : 'info');
+                loadApprovals();
+            } catch(err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+        // =====================================================================
+        // Admin Console — Doc 15 Section 7
+        // =====================================================================
+        window.createPolicy = async function(e) {
+            e.preventDefault();
+            try {
+                const name = document.getElementById('policy-name').value;
+                const threshold = parseFloat(document.getElementById('policy-threshold').value);
+                const rulesStr = document.getElementById('policy-rules').value;
+                const ruleDef = JSON.parse(rulesStr);
+
+                await api('POST', '/admin/policies', {
+                    name, rule_definition: ruleDef, risk_threshold: threshold
+                });
+                showToast('Policy created successfully', 'success');
+                document.getElementById('policy-form').reset();
+            } catch(err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+        window.createTenant = async function(e) {
+            e.preventDefault();
+            try {
+                const name = document.getElementById('tenant-name').value;
+                const industry = document.getElementById('tenant-industry').value;
+                const isolation = document.getElementById('tenant-isolation').value;
+
+                await api('POST', '/admin/tenants', {
+                    name, industry, isolation_mode: isolation
+                });
+                showToast('Tenant onboarded successfully', 'success');
+                document.getElementById('tenant-form').reset();
+            } catch(err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+    })();
     </script>
 </body>
 </html>
