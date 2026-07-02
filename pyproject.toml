@@ -1,0 +1,14 @@
+[project]
+name = "Axiom-LLM"
+version = "0.1.0"
+description = "Axiom OCIF Enterprise AI Platform"
+authors = [
+  {name = "Siddharth Dev-spec"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+packages = ["axiom"]
+
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
