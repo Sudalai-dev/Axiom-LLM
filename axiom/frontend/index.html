@@ -1324,7 +1324,9 @@
             username: 'admin',
         };
 
-        const API_BASE = window.location.origin + '/api/v1';
+        const API_BASE = window.location.port === '3000'
+            ? 'http://127.0.0.1:8000/api/v1'
+            : window.location.origin + '/api/v1';
 
         // =====================================================================
         // API Client
