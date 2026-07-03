@@ -1,10 +1,11 @@
-import numpy as np
 from typing import List, Dict, Any, Optional
+import math
 
 class VectorRecord:
     def __init__(self, record_id: str, vector: List[float], payload: Dict[str, Any], project_id: int):
         self.record_id = record_id
-        self.vector = np.array(vector, dtype=np.float32)
+        # store as plain Python list for portability
+        self.vector = [float(v) for v in vector]
         self.payload = payload
         self.project_id = project_id
 
@@ -25,8 +26,10 @@ class VectorEngine:
             del self.records[record_id]
 
     def search(self, query_vector: List[float], project_id: int, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        q_vec = np.array(query_vector, dtype=np.float32)
-        q_norm = np.linalg.norm(q_vec)
+        q_vec = [float(v) for v in query_vector]
+        # compute L2 norm
+        q_norm_sq = sum(v * v for v in q_vec)
+        q_norm = math.sqrt(q_norm_sq)
         
         results = []
         
@@ -46,11 +49,16 @@ class VectorEngine:
                     continue
             
             # Compute Cosine Similarity
-            rec_norm = np.linalg.norm(rec.vector)
+            rec_norm_sq = sum(v * v for v in rec.vector)
+            rec_norm = math.sqrt(rec_norm_sq)
             if q_norm == 0 or rec_norm == 0:
                 similarity = 0.0
             else:
-                similarity = float(np.dot(q_vec, rec.vector) / (q_norm * rec_norm))
+                # dot product
+                dot = 0.0
+                for a, b in zip(q_vec, rec.vector):
+                    dot += a * b
+                similarity = float(dot / (q_norm * rec_norm))
                 
             results.append({
                 "id": rec.record_id,
