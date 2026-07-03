@@ -1,5 +1,5 @@
 import hashlib
-import numpy as np
+import math
 from typing import List
 
 class EmbeddingEngine:
@@ -40,23 +40,26 @@ class EmbeddingEngine:
     def _generate_fallback_vector(self, text: str) -> List[float]:
         """
         Generates a unit-normalized vector using MD5 hashes of substrings.
-        Provides deterministic, localized semantic simulation without internet.
+        Provides deterministic, localized semantic simulation without internet
+        and without requiring NumPy to be installed.
         """
-        vector = np.zeros(self.vector_dim)
         words = text.lower().split()
         if not words:
-            return vector.tolist()
-            
+            return [0.0] * self.vector_dim
+
+        # Use a plain Python list for accumulation to avoid importing NumPy
+        vector = [0.0] * self.vector_dim
         for word in words:
-            # Hash each word to map it to a specific index in the vector dimension
             h = int(hashlib.md5(word.encode("utf-8")).hexdigest(), 16)
             idx = h % self.vector_dim
-            # Accumulate values
             vector[idx] += 1.0
-            
-        # Normalize the vector to unit length
-        norm = np.linalg.norm(vector)
+
+        # Compute L2 norm in pure Python
+        norm_sq = 0.0
+        for v in vector:
+            norm_sq += v * v
+        norm = math.sqrt(norm_sq)
         if norm > 0:
-            vector = vector / norm
-            
-        return vector.tolist()
+            vector = [v / norm for v in vector]
+
+        return vector

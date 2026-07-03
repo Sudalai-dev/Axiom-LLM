@@ -23,6 +23,7 @@ if PROJECT_ROOT not in sys.path:
 
 import uvicorn
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from axiom.core.config import settings
 from axiom.core.security import hash_password
@@ -200,7 +201,6 @@ frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
-
 @app.on_event("startup")
 async def startup_event():
     """
@@ -281,6 +281,11 @@ async def startup_event():
 
     print("Startup document sync and initialization completed.")
 
+
+# Redirect root to the mounted frontend for convenience
+@app.get("/", include_in_schema=False)
+async def _root():
+    return RedirectResponse(url="/static/")
 
 if __name__ == "__main__":
     uvicorn.run("axiom.backend.main:app", host="127.0.0.1", port=8000, reload=True)
