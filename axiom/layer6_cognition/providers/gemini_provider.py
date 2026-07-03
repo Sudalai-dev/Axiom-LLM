@@ -91,39 +91,5 @@ class GeminiProvider(BaseLLMProvider):
             raise
 
     def _simulate_completion(self, prompt: str) -> Dict[str, Any]:
-        """Provides local-first response mocks to support offline development."""
-        content = "Simulated Gemini Response based on input prompt."
-        
-        if "fastapi" in prompt.lower() or "code" in prompt.lower():
-            content = (
-                "Based on prompt, here is the Gemini FastAPI code:\n"
-                "```python\n"
-                "from fastapi import FastAPI\n"
-                "app = FastAPI(title='Gemini Axiom Service')\n"
-                "```"
-            )
-        elif "policy" in prompt.lower() or "risk" in prompt.lower():
-            content = (
-                "Based on the analysis, here is the Gemini action proposal:\n"
-                "```json\n"
-                "{\n"
-                "  \"action_type\": \"tool_call\",\n"
-                "  \"tool_id\": \"refund_tool_v1\",\n"
-                "  \"tool_input\": {\"amount\": 240.0},\n"
-                "  \"rationale\": \"Gemini identified refund logic triggers due to customer returns criteria compliance.\",\n"
-                "  \"confidence\": 0.93,\n"
-                "  \"risk_self_assessment\": \"medium\"\n"
-                "}\n"
-                "```"
-            )
+        return super()._simulate_completion(prompt)
 
-        return {
-            "content": content,
-            "tokens_used": {
-                "input": len(prompt) // 4,
-                "output": len(content) // 4,
-                "cost_usd": 0.0001
-            },
-            "model_used": f"{self.model_name}-simulated",
-            "confidence_estimate": 0.91
-        }

@@ -51,12 +51,31 @@ class HallucinationDetector:
         if not grounding_chunks:
             return True, 1.0, None
 
+        # Clean content from JSON if applicable, checking only the actual answer text
+        check_text = content
+        if content.strip().startswith("{") and content.strip().endswith("}"):
+            try:
+                import json
+                parsed = json.loads(content)
+                if "answer" in parsed:
+                    check_text = parsed["answer"]
+            except Exception:
+                pass
+
         # Combine all grounding texts
         combined_grounding = " ".join(chunk.text.lower() for chunk in grounding_chunks)
 
+        # Remove UUID citation strings (e.g. chunk IDs) from content to prevent them
+        # from being flagged as ungrounded factual hallucinations.
+        clean_content = re.sub(
+            r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:_c\d+)?\b",
+            "",
+            check_text
+        )
+
         # Extract numeric entities, symbols, or codes (e.g. #4471, $240.00, IP, port)
         # as these are high-risk targets for hallucination (ungrounded transactions, etc.)
-        entities = re.findall(r"\b\d+(?:\.\d+)?\b|\b[A-Za-z0-9_\-\.\#]+\b", content)
+        entities = re.findall(r"\b\d+(?:\.\d+)?\b|\b[A-Za-z0-9_\-\.\#]+\b", clean_content)
         # Filter down to entities containing numbers or uppercase letters
         critical_entities = [
             e for e in entities 

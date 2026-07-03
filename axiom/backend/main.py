@@ -200,5 +200,88 @@ frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    On startup, bootstrap local markdown documents into the system.
+    If the document has already been ingested successfully, load its existing chunks
+    from SQLite database, embed them, and insert them into the local in-memory VectorEngine.
+    If not, ingest the document from scratch.
+    """
+    import glob
+    from sqlalchemy import select, delete
+    from axiom.layer8_experience.router import l4_knowledge
+    from axiom.storage.database import AsyncSessionLocal
+    from axiom.storage.models import Document, DocumentChunk
+    from axiom.core.models.base import IngestionStatus
+
+    tenant_id = "11111111-1111-1111-1111-111111111111"
+    project_id = hash(tenant_id) % 100000
+
+    print("Executing startup document sync and initialization...")
+    async with AsyncSessionLocal() as db:
+        # Scan for markdown design documents in project root
+        md_files = glob.glob(os.path.join(PROJECT_ROOT, "*.md"))
+        print(f"Bootstrapping vector knowledge base. Found {len(md_files)} markdown documents in root.")
+
+        for filepath in md_files:
+            title = os.path.basename(filepath)
+            
+            # Check if document already exists in DB
+            doc_query = await db.execute(
+                select(Document).filter(Document.title == title, Document.tenant_id == tenant_id)
+            )
+            existing_doc = doc_query.scalars().first()
+
+            if existing_doc and existing_doc.ingestion_status == IngestionStatus.COMPLETED.value:
+                # Document is already parsed. Load cached chunks into in-memory VectorEngine
+                chunks_query = await db.execute(
+                    select(DocumentChunk).filter(DocumentChunk.doc_id == existing_doc.doc_id)
+                )
+                chunks = chunks_query.scalars().all()
+                for chunk in chunks:
+                    vector = l4_knowledge.embedder.embed(chunk.text)
+                    payload = {
+                        "doc_id": existing_doc.doc_id,
+                        "chunk_id": chunk.chunk_id,
+                        "tenant_id": tenant_id,
+                        "title": title,
+                        "source_type": existing_doc.source_type,
+                        "section_ref": "General",
+                        "text": chunk.text,
+                        "chunk_index": chunk.chunk_index
+                    }
+                    l4_knowledge.vector_retriever.local_db.insert(
+                        record_id=chunk.chunk_id,
+                        vector=vector,
+                        payload=payload,
+                        project_id=project_id
+                    )
+                print(f"Loaded {len(chunks)} cached chunks for '{title}' into VectorEngine.")
+            else:
+                if existing_doc:
+                    print(f"Removing old incomplete/failed document record for '{title}'...")
+                    await db.execute(delete(Document).filter(Document.doc_id == existing_doc.doc_id))
+                    await db.commit()
+                
+                print(f"Ingesting fresh document '{title}'...")
+                try:
+                    await l4_knowledge.ingest(
+                        db=db,
+                        filepath=filepath,
+                        tenant_id=tenant_id,
+                        source_type="upload"
+                    )
+                    await db.commit()
+                    print(f"Successfully ingested '{title}' with fresh chunks.")
+                except Exception as e:
+                    print(f"Failed to ingest document '{title}': {e}")
+                    await db.rollback()
+
+    print("Startup document sync and initialization completed.")
+
+
 if __name__ == "__main__":
     uvicorn.run("axiom.backend.main:app", host="127.0.0.1", port=8000, reload=True)
+

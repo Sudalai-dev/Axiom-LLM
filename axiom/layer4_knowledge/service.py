@@ -76,6 +76,9 @@ class KnowledgeService:
             top_cosine_score = raw_vector_matches[0]["score"]
 
         threshold = settings.vector_db.similarity_threshold
+        if settings.vector_db.provider == "memory":
+            threshold = 0.20  # Lower threshold for local hashing-based vectorizer fallback
+
         no_grounding = False
         retrieval_confidence = 0.0
 

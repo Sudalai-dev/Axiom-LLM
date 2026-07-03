@@ -19,9 +19,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r axiom/backend/requirements.txt
-          pip install pytest httpx
+          pip install pytest httpx python-dotenv
           pip install -e .
       - name: Run tests
         run: |
           python -c "import sys; from pathlib import Path; sys.path.insert(0, str(Path.cwd())); import axiom; print('axiom import ok')"
-          pytest -q
+          python -m pytest -q

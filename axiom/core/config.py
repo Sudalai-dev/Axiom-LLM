@@ -16,6 +16,10 @@ import secrets
 from enum import Enum
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class Environment(str, Enum):
