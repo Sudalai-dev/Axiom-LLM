@@ -4,7 +4,7 @@ pydantic==2.7.4
 sqlalchemy==2.0.31
 pydantic-settings==2.3.4
 python-multipart==0.0.9
-aiosqlite==0.10.0
+aiosqlite>=0.20.0
 numpy==1.26.4
 httpx==0.28.1
 python-dotenv>=1.0.0
