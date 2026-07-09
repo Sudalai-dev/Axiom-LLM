@@ -152,9 +152,7 @@
             position: absolute;
             inset: 0;
             overflow: hidden;
-            opacity: 0;
-            transform: scale(1.5);
-            animation: login-gradient-entrance 2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+            opacity: 0.2;
         }
 
         .login-gradient-canvas {
@@ -162,8 +160,64 @@
             inset: 0;
         }
 
-        @keyframes login-gradient-entrance {
-            to { opacity: 1; transform: scale(1); }
+        /* Login Screen — accent grid lines (static: a CSS entrance animation
+           here previously froze the whole login card invisible in some
+           rendering pipelines, so nothing on this screen gates visibility
+           behind an animation) */
+        .login-accent-lines { position: absolute; inset: 0; pointer-events: none; opacity: 0.7; z-index: 0; }
+        .login-hline, .login-vline { position: absolute; background: var(--border-default); }
+        .login-hline { left: 0; right: 0; height: 1px; }
+        .login-vline { top: 0; bottom: 0; width: 1px; }
+        .login-hline:nth-child(1) { top: 18%; }
+        .login-hline:nth-child(2) { top: 50%; }
+        .login-hline:nth-child(3) { top: 82%; }
+        .login-vline:nth-child(4) { left: 22%; }
+        .login-vline:nth-child(5) { left: 50%; }
+        .login-vline:nth-child(6) { left: 78%; }
+        .login-hline::after, .login-vline::after {
+            content: ""; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+            opacity: 0; animation: login-shimmer 0.9s ease-out forwards;
+        }
+        .login-hline:nth-child(1)::after { animation-delay: .12s; }
+        .login-hline:nth-child(2)::after { animation-delay: .22s; }
+        .login-hline:nth-child(3)::after { animation-delay: .32s; }
+        .login-vline:nth-child(4)::after { animation-delay: .42s; }
+        .login-vline:nth-child(5)::after { animation-delay: .54s; }
+        .login-vline:nth-child(6)::after { animation-delay: .66s; }
+        @keyframes login-shimmer { 0% { opacity: 0; } 35% { opacity: .6; } 100% { opacity: 0; } }
+
+        /* Login Screen — rising particle field */
+        #login-particles {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            opacity: 0.6;
+            mix-blend-mode: screen;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Login Screen — top brand bar */
+        .login-header {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 1;
+        }
+        .login-header-brand {
+            font-size: 0.7rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+        }
+        .login-header-brand strong { color: var(--accent-primary); font-weight: 600; }
+        .login-header-tag {
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            padding: 2px 8px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-full);
         }
 
         .login-container {
@@ -176,6 +230,49 @@
             border: 1px solid var(--border-default);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-lg), var(--shadow-glow);
+        }
+
+        .input-icon-wrap { position: relative; }
+        .input-icon-wrap .form-input { padding-left: 38px; }
+        .input-icon-wrap .form-input.has-toggle { padding-right: 38px; }
+        .input-icon {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--text-tertiary);
+            display: flex;
+            pointer-events: none;
+        }
+        .password-toggle-btn {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            display: flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px;
+            background: transparent; border: none;
+            color: var(--text-tertiary);
+            border-radius: var(--radius-sm);
+            transition: color var(--transition-fast);
+        }
+        .password-toggle-btn:hover { color: var(--text-primary); }
+
+        .remember-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: var(--space-lg);
+            font-size: 0.8rem;
+        }
+        .remember-row label {
+            display: flex; align-items: center; gap: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .remember-row input[type="checkbox"] {
+            accent-color: var(--accent-primary);
+            width: 14px; height: 14px;
+            cursor: pointer;
+        }
+
+        .login-footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: var(--space-lg);
         }
 
         .login-logo {
@@ -1278,25 +1375,62 @@
         <div class="login-gradient-bg" id="login-gradient-bg">
             <div class="login-gradient-canvas" id="login-gradient-canvas"></div>
         </div>
+
+        <div class="login-accent-lines">
+            <div class="login-hline"></div>
+            <div class="login-hline"></div>
+            <div class="login-hline"></div>
+            <div class="login-vline"></div>
+            <div class="login-vline"></div>
+            <div class="login-vline"></div>
+        </div>
+
+        <canvas id="login-particles"></canvas>
+
+        <div class="login-header">
+            <span class="login-header-brand"><strong>◈ AXIOM</strong> — OCIF Enterprise AI Platform</span>
+            <span class="login-header-tag">v1</span>
+        </div>
+
         <div class="login-container">
             <div class="login-logo">
                 <h1>◈ AXIOM</h1>
-                <p>OCIF Enterprise AI Platform</p>
+                <p>Sign in to your account</p>
             </div>
             <form id="login-form" autocomplete="off">
                 <div class="form-group">
                     <label for="login-username">Username</label>
-                    <input type="text" id="login-username" class="form-input" value="admin" placeholder="Enter username" required>
+                    <div class="input-icon-wrap">
+                        <span class="input-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                        </span>
+                        <input type="text" id="login-username" class="form-input" value="admin" placeholder="Enter username" required>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" class="form-input" value="admin123" placeholder="Enter password" required>
+                    <div class="input-icon-wrap">
+                        <span class="input-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </span>
+                        <input type="password" id="login-password" class="form-input has-toggle" value="admin123" placeholder="Enter password" required>
+                        <button type="button" class="password-toggle-btn" id="password-toggle-btn" aria-label="Show password">
+                            <svg id="password-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="remember-row">
+                    <label for="login-remember">
+                        <input type="checkbox" id="login-remember">
+                        Remember me
+                    </label>
                 </div>
                 <button type="submit" class="btn btn-primary w-full" id="login-btn" style="width:100%">
                     Sign In
                 </button>
                 <div class="login-error" id="login-error"></div>
             </form>
+            <div class="login-footer-note">Access is provisioned by your platform administrator.</div>
         </div>
     </div>
 
@@ -1670,6 +1804,112 @@
             window.startLoginGradient();
         })();
 
+        // =====================================================================
+        // Login Screen — Rising Particle Field
+        // =====================================================================
+        (function() {
+            const canvas = document.getElementById('login-particles');
+            const ctx = canvas ? canvas.getContext('2d') : null;
+            if (!canvas || !ctx) return;
+
+            let particles = [];
+            let frame = null;
+
+            function setSize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            function makeParticle() {
+                return {
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    v: Math.random() * 0.25 + 0.05,
+                    o: Math.random() * 0.35 + 0.15,
+                    mint: Math.random() > 0.5,
+                };
+            }
+
+            function initParticles() {
+                particles = [];
+                const count = Math.floor((canvas.width * canvas.height) / 9000);
+                for (let i = 0; i < count; i++) particles.push(makeParticle());
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.y -= p.v;
+                    if (p.y < 0) {
+                        p.x = Math.random() * canvas.width;
+                        p.y = canvas.height + Math.random() * 40;
+                        p.v = Math.random() * 0.25 + 0.05;
+                        p.o = Math.random() * 0.35 + 0.15;
+                    }
+                    ctx.fillStyle = p.mint ? `rgba(122,255,180,${p.o})` : `rgba(227,255,239,${p.o})`;
+                    ctx.fillRect(p.x, p.y, 0.7, 2.2);
+                });
+                frame = requestAnimationFrame(draw);
+            }
+
+            function onResize() {
+                setSize();
+                initParticles();
+            }
+
+            window.startLoginParticles = function() {
+                if (frame !== null) return;
+                setSize();
+                initParticles();
+                window.addEventListener('resize', onResize);
+                frame = requestAnimationFrame(draw);
+            };
+            window.stopLoginParticles = function() {
+                if (frame !== null) cancelAnimationFrame(frame);
+                frame = null;
+                window.removeEventListener('resize', onResize);
+            };
+
+            window.startLoginParticles();
+        })();
+
+        // =====================================================================
+        // Login Screen — password visibility toggle + "remember me" (username only)
+        // =====================================================================
+        (function() {
+            const toggleBtn = document.getElementById('password-toggle-btn');
+            const toggleIcon = document.getElementById('password-toggle-icon');
+            const passwordInput = document.getElementById('login-password');
+            if (toggleBtn && passwordInput) {
+                toggleBtn.addEventListener('click', function() {
+                    const showing = passwordInput.type === 'text';
+                    passwordInput.type = showing ? 'password' : 'text';
+                    toggleBtn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+                    toggleIcon.innerHTML = showing
+                        ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>'
+                        : '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 7 11 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 7 11 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>';
+                });
+            }
+
+            const rememberKey = 'axiom_remembered_username';
+            const usernameInput = document.getElementById('login-username');
+            const rememberCheckbox = document.getElementById('login-remember');
+            const remembered = localStorage.getItem(rememberKey);
+            if (remembered && usernameInput && rememberCheckbox) {
+                usernameInput.value = remembered;
+                rememberCheckbox.checked = true;
+            }
+
+            window.persistRememberedUsername = function(username) {
+                if (!rememberCheckbox) return;
+                if (rememberCheckbox.checked) {
+                    localStorage.setItem(rememberKey, username);
+                } else {
+                    localStorage.removeItem(rememberKey);
+                }
+            };
+        })();
+
         function tickStatusClock() {
             const el = document.getElementById('status-clock');
             if (el) el.textContent = new Date().toISOString().substr(11, 8) + ' UTC';
@@ -1746,6 +1986,8 @@
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app-shell').classList.remove('hidden');
                 window.stopLoginGradient();
+                window.stopLoginParticles();
+                window.persistRememberedUsername(username);
 
                 document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
                 document.getElementById('display-username').textContent = state.username;
@@ -1770,6 +2012,7 @@
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
             window.startLoginGradient();
+            window.startLoginParticles();
             document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
                 document.getElementById('chat-messages').innerHTML : '';
         };
