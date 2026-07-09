@@ -898,7 +898,9 @@
 
         .chat-input-wrap {
             display: flex; align-items: flex-end; gap: var(--space-md);
-            max-width: 800px;
+            max-width: 680px;
+            width: 100%;
+            margin: 0 auto;
         }
 
         .radiant-input-shell {
@@ -952,19 +954,19 @@
         .radiant-input-inner {
             position: relative;
             z-index: 1;
-            display: flex; align-items: center; gap: var(--space-xs);
-            padding: 6px 6px 6px 14px;
-            min-height: 56px;
+            display: flex; align-items: center; gap: 2px;
+            padding: 4px 4px 4px 12px;
+            min-height: 44px;
         }
 
         .radiant-icon-btn {
             flex-shrink: 0;
-            width: 36px; height: 36px;
+            width: 30px; height: 30px;
             border-radius: var(--radius-full);
             display: flex; align-items: center; justify-content: center;
             color: var(--text-tertiary);
             background: transparent;
-            font-size: 1.05rem;
+            font-size: 0.9rem;
             transition: all var(--transition-fast);
         }
 
@@ -973,14 +975,14 @@
         .chat-input {
             flex: 1;
             min-width: 0;
-            padding: 15px 4px;
+            padding: 10px 6px;
             background: transparent;
             border: none;
             color: var(--text-primary);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             line-height: 1.4;
             resize: none;
-            min-height: 44px;
+            min-height: 36px;
             max-height: 120px;
             outline: none;
         }
@@ -988,12 +990,12 @@
         .chat-input::placeholder { color: var(--text-tertiary); }
 
         .chat-send-btn {
-            width: 40px; height: 40px;
+            width: 32px; height: 32px;
             border-radius: var(--radius-full);
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
             color: white;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             transition: all var(--transition-fast);
             flex-shrink: 0;
         }
