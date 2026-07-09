@@ -7,7 +7,7 @@
     <meta name="description" content="Octagonal Cognitive Intelligence Framework — Enterprise AI Platform with governed decision-making, explainable AI, and human-in-the-loop controls.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
     <style>
@@ -17,45 +17,47 @@
            ================================================================ */
 
         :root {
-            /* Core palette */
-            --bg-primary: #0b0f19;
-            --bg-secondary: #131a2e;
-            --bg-tertiary: #1b2541;
-            --bg-elevated: #222d4f;
-            --bg-glass: rgba(19, 26, 46, 0.8);
-            --bg-glass-hover: rgba(27, 37, 65, 0.9);
+            /* Core palette — Metaview bioluminescent theme */
+            --bg-primary: #000a06;        /* Deep Forest — canvas */
+            --bg-secondary: #0a1a14;      /* Pine Bark — cards, panels */
+            --bg-tertiary: #0a1a14;       /* Pine Bark — nested/tertiary surfaces */
+            --bg-elevated: #161818;       /* Charcoal — modals, overlays */
+            --bg-glass: rgba(10, 26, 20, 0.85);
+            --bg-glass-hover: rgba(22, 24, 24, 0.92);
 
-            /* Accent colors */
-            --accent-primary: #3b82f6;
-            --accent-primary-hover: #60a5fa;
-            --accent-secondary: #0ea5e9;
-            --accent-glow: rgba(59, 130, 246, 0.12);
-            --accent-success: #10b981;
-            --accent-warning: #f59e0b;
-            --accent-danger: #ef4444;
-            --accent-info: #3b82f6;
+            /* Accent colors — bichromatic: dark neutrals + a single mint */
+            --accent-primary: #7affb4;        /* Electric Mint */
+            --accent-primary-hover: #9dffc7;
+            --accent-secondary: #4dd699;      /* deeper mint, for gradient depth only */
+            --accent-glow: rgba(122, 255, 180, 0.12);
+            --accent-success: #7affb4;        /* success reuses the brand mint */
+            --accent-warning: #f59e0b;        /* functional, non-brand */
+            --accent-danger: #ef4444;         /* functional, non-brand */
+            --accent-info: #7affb4;
+            --accent-mint-whisper: #e3ffef;
 
             /* Confidence colors per Doc 15 Section 4 */
-            --confidence-high: #10b981;    /* green ≥85% */
+            --confidence-high: #7affb4;    /* mint ≥85% */
             --confidence-medium: #f59e0b;  /* amber 60-84% */
             --confidence-low: #ef4444;     /* red <60% */
 
             /* Text */
-            --text-primary: #f8fafc;
-            --text-secondary: #cbd5e1;
-            --text-tertiary: #94a3b8;
-            --text-inverse: #0b0f19;
+            --text-primary: #ffffff;      /* Paper White */
+            --text-secondary: #5e6262;    /* Ash Gray */
+            --text-tertiary: #828282;     /* Smoke */
+            --text-inverse: #000a06;      /* Deep Forest, for text on mint fills */
 
             /* Borders */
-            --border-subtle: rgba(59, 130, 246, 0.08);
-            --border-default: rgba(59, 130, 246, 0.15);
-            --border-accent: rgba(59, 130, 246, 0.35);
+            --border-subtle: rgba(1, 5, 27, 0.35);
+            --border-default: #01051b;    /* Abyssal Indigo */
+            --border-accent: #7affb4;
 
-            /* Shadows */
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-            --shadow-lg: 0 10px 30px rgba(0,0,0,0.5);
-            --shadow-glow: 0 0 25px var(--accent-glow);
+            /* Shadows — per brand rule, no drop shadows for elevation */
+            --shadow-sm: none;
+            --shadow-md: none;
+            --shadow-lg: none;
+            --shadow-glow: none;
+            --shadow-button-inset: rgba(1, 5, 27, 0.06) 0px 0px 0px 1px inset;
 
             /* Spacing */
             --space-xs: 4px;
@@ -66,13 +68,13 @@
             --space-2xl: 48px;
 
             /* Radii */
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 16px;
-            --radius-full: 9999px;
+            --radius-sm: 8px;      /* inputs, nested */
+            --radius-md: 16px;     /* cards */
+            --radius-lg: 16px;     /* cards */
+            --radius-full: 999px;  /* buttons, badges, pills */
 
             /* Typography */
-            --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+            --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
             --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
             /* Transitions */
@@ -162,10 +164,9 @@
 
         .login-logo h1 {
             font-size: 1.8rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            color: var(--accent-primary);
         }
 
         .login-logo p {
@@ -207,28 +208,28 @@
         .btn {
             display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
             padding: 10px 20px;
-            border-radius: var(--radius-sm);
+            border-radius: var(--radius-full);
             font-weight: 500;
             font-size: 0.9rem;
             transition: all var(--transition-fast);
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            color: white;
-            box-shadow: var(--shadow-sm);
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+            box-shadow: var(--shadow-button-inset);
         }
 
         .btn-primary:hover {
             opacity: 0.9;
-            box-shadow: var(--shadow-md), var(--shadow-glow);
             transform: translateY(-1px);
         }
 
         .btn-secondary {
-            background: var(--bg-tertiary);
+            background: var(--bg-secondary);
             color: var(--text-primary);
             border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
         }
 
         .btn-secondary:hover { background: var(--bg-elevated); border-color: var(--border-accent); }
@@ -279,10 +280,9 @@
 
         .sidebar-brand {
             font-size: 1.1rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            color: var(--accent-primary);
         }
 
         .sidebar-version {
@@ -333,8 +333,8 @@
         }
 
         .nav-item.active {
-            background: var(--accent-glow);
-            color: var(--accent-primary-hover);
+            background: var(--accent-mint-whisper);
+            color: var(--text-inverse);
             font-weight: 500;
         }
 
@@ -364,9 +364,9 @@
         .user-avatar {
             width: 36px; height: 36px;
             border-radius: var(--radius-full);
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            background: var(--accent-primary);
             display: flex; align-items: center; justify-content: center;
-            font-weight: 600; color: white; font-size: 0.85rem;
+            font-weight: 600; color: var(--text-inverse); font-size: 0.85rem;
         }
 
         .user-name { font-weight: 500; font-size: 0.85rem; }
@@ -452,8 +452,8 @@
             margin-bottom: 2px;
         }
 
-        .chat-history-item:hover { background: var(--bg-tertiary); }
-        .chat-history-item.active { background: var(--accent-glow); }
+        .chat-history-item:hover { background: var(--bg-elevated); }
+        .chat-history-item.active { background: rgba(122,255,180,0.1); border: 1px solid var(--border-accent); }
 
         .chat-history-item .title {
             font-size: 0.85rem;
@@ -521,8 +521,9 @@
         }
 
         .message-user .message-body {
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-            color: white;
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
             border-bottom-right-radius: var(--space-xs);
         }
 
@@ -554,15 +555,16 @@
         .md-doc blockquote { border-left: 3px solid var(--accent-primary); margin: 8px 0; padding: 4px 12px; color: var(--text-secondary); }
 
         /* Developer mode toggle + trace timeline */
-        .dev-mode-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 0.78rem; color: var(--text-tertiary); }
-        .dev-mode-row input { accent-color: var(--accent-secondary); cursor: pointer; }
-        .dev-mode-row label { cursor: pointer; user-select: none; }
-        .dev-mode-row .dev-badge { background: rgba(139,92,246,0.15); color: var(--accent-secondary); border-radius: var(--radius-full); padding: 1px 8px; font-size: 0.7rem; }
+        .dev-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 0.78rem; color: var(--text-tertiary); }
+        .dev-mode-row input { flex-shrink: 0; accent-color: var(--accent-secondary); cursor: pointer; }
+        .dev-mode-row label { flex-shrink: 0; white-space: nowrap; cursor: pointer; user-select: none; }
+        .dev-mode-row > span:last-child { flex: 1 1 auto; min-width: 160px; text-align: right; }
+        .dev-mode-row .dev-badge { background: rgba(122,255,180,0.15); color: var(--accent-primary); border-radius: var(--radius-full); padding: 1px 8px; font-size: 0.7rem; }
         .trace-engine-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); font-size: 0.78rem; }
         .trace-engine-row .engine-name { font-family: var(--font-mono); color: var(--text-primary); }
         .trace-engine-row .engine-ms { color: var(--text-tertiary); }
         .trace-engine-status { border-radius: var(--radius-full); padding: 0 8px; font-size: 0.7rem; }
-        .trace-engine-status.completed { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+        .trace-engine-status.completed { background: rgba(122,255,180,0.15); color: var(--accent-success); }
         .trace-engine-status.skipped { background: rgba(148,163,184,0.15); color: var(--text-tertiary); }
         .trace-engine-status.failed { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
         .octagon-diagram { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px; margin-bottom: 14px; text-align: center; }
@@ -608,7 +610,7 @@
             font-weight: 600;
         }
 
-        .confidence-high { background: rgba(16,185,129,0.15); color: var(--confidence-high); }
+        .confidence-high { background: rgba(122,255,180,0.15); color: var(--confidence-high); }
         .confidence-medium { background: rgba(245,158,11,0.15); color: var(--confidence-medium); }
         .confidence-low { background: rgba(239,68,68,0.15); color: var(--confidence-low); }
 
@@ -697,7 +699,7 @@
             display: flex; gap: var(--space-sm);
         }
 
-        /* Chat Input Area */
+        /* Chat Input Area — Radiant gradient-border pill (faithful rainbow reproduction) */
         .chat-input-area {
             padding: var(--space-md) var(--space-xl);
             border-top: 1px solid var(--border-subtle);
@@ -705,37 +707,114 @@
             backdrop-filter: blur(12px);
         }
 
+        @property --rotation {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+        }
+
+        @keyframes rotate-gradient {
+            to { --rotation: 360deg; }
+        }
+
         .chat-input-wrap {
             display: flex; align-items: flex-end; gap: var(--space-md);
             max-width: 800px;
         }
 
+        .radiant-input-shell {
+            --border-size: 2px;
+            --radiant-gradient: conic-gradient(
+                from var(--rotation) at 50% 50% in oklab,
+                var(--accent-primary) 0%,
+                var(--accent-mint-whisper) 25%,
+                var(--accent-primary) 50%,
+                #0f3a2b 75%,
+                var(--accent-primary) 100%
+            );
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            border-radius: 28px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            animation: rotate-gradient 6s infinite linear;
+            transition: box-shadow var(--transition-normal);
+        }
+
+        .radiant-input-shell:hover,
+        .radiant-input-shell:focus-within {
+            box-shadow: 0 0 30px rgba(122, 255, 180, 0.12);
+        }
+
+        .radiant-input-shell::before {
+            content: '';
+            position: absolute;
+            inset: calc(var(--border-size) * -1);
+            border-radius: inherit;
+            background: var(--radiant-gradient);
+            z-index: -1;
+            filter: blur(8px);
+            opacity: 0.55;
+        }
+
+        .radiant-input-border {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: var(--border-size);
+            background: var(--radiant-gradient);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+
+        .radiant-input-inner {
+            position: relative;
+            z-index: 1;
+            display: flex; align-items: center; gap: var(--space-xs);
+            padding: 6px 6px 6px 14px;
+            min-height: 56px;
+        }
+
+        .radiant-icon-btn {
+            flex-shrink: 0;
+            width: 36px; height: 36px;
+            border-radius: var(--radius-full);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-tertiary);
+            background: transparent;
+            font-size: 1.05rem;
+            transition: all var(--transition-fast);
+        }
+
+        .radiant-icon-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
         .chat-input {
             flex: 1;
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
+            min-width: 0;
+            padding: 15px 4px;
+            background: transparent;
+            border: none;
             color: var(--text-primary);
             font-size: 0.95rem;
+            line-height: 1.4;
             resize: none;
             min-height: 44px;
             max-height: 120px;
-            transition: border-color var(--transition-fast);
+            outline: none;
         }
 
-        .chat-input:focus {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
+        .chat-input::placeholder { color: var(--text-tertiary); }
 
         .chat-send-btn {
-            width: 44px; height: 44px;
-            border-radius: var(--radius-md);
+            width: 40px; height: 40px;
+            border-radius: var(--radius-full);
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
             color: white;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             transition: all var(--transition-fast);
             flex-shrink: 0;
         }
@@ -892,7 +971,7 @@
 
         .risk-high { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
         .risk-medium { background: rgba(245,158,11,0.15); color: var(--accent-warning); }
-        .risk-low { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+        .risk-low { background: rgba(122,255,180,0.15); color: var(--accent-success); }
 
         .status-badge {
             display: inline-flex; align-items: center; gap: 4px;
@@ -903,7 +982,7 @@
         }
 
         .status-pending { background: rgba(245,158,11,0.15); color: var(--accent-warning); }
-        .status-approved { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+        .status-approved { background: rgba(122,255,180,0.15); color: var(--accent-success); }
         .status-rejected { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
 
         /* ================================================================
@@ -985,13 +1064,13 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));
+            filter: drop-shadow(0 0 10px rgba(122, 255, 180, 0.4));
             animation: pulse-glow 3s infinite ease-in-out;
         }
 
         @keyframes pulse-glow {
-            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); }
-            50% { transform: scale(1.08); filter: drop-shadow(0 0 20px rgba(14, 165, 233, 0.6)); }
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(122, 255, 180, 0.3)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 20px rgba(122, 255, 180, 0.6)); }
         }
 
         .empty-state-text {
@@ -1221,9 +1300,17 @@
                                 <span style="margin-left:auto;">reveals cognitive execution trace</span>
                             </div>
                             <div class="chat-input-wrap">
-                                <textarea class="chat-input" id="chat-input" placeholder="Describe an engineering problem or use case... (Shift+Enter for new line)" rows="1"></textarea>
-                                <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()">➤</button>
+                                <div class="radiant-input-shell">
+                                    <div class="radiant-input-border"></div>
+                                    <div class="radiant-input-inner">
+                                        <button type="button" class="radiant-icon-btn" aria-label="Add attachment">＋</button>
+                                        <textarea class="chat-input" id="chat-input" placeholder="Ask AXIOM anything..." rows="1"></textarea>
+                                        <button type="button" class="radiant-icon-btn" aria-label="Use microphone">🎤</button>
+                                        <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
+                                    </div>
+                                </div>
                             </div>
+                            <div style="text-align:center; font-size:0.7rem; color:var(--text-tertiary); margin-top:6px;">Shift+Enter for a new line</div>
                         </div>
                     </div>
 
@@ -1570,6 +1657,12 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
+
+        // Clicking/focusing an empty textarea can drop the caret wherever the
+        // click landed on the placeholder, making it look detached from the text.
+        ['focus', 'click'].forEach(evt => chatInput.addEventListener(evt, function() {
+            if (!this.value) this.setSelectionRange(0, 0);
+        }));
 
         window.sendMessage = async function() {
             const msg = chatInput.value.trim();
@@ -2044,7 +2137,7 @@
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Total Requests</span>
-                            <div class="metric-icon" style="background:rgba(99,102,241,0.15);color:var(--accent-primary);">📨</div>
+                            <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-primary);">📨</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-primary);">${data.requests.toLocaleString()}</div>
                         <div class="metric-change positive">↑ Active</div>
@@ -2053,7 +2146,7 @@
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Tokens Consumed</span>
-                            <div class="metric-icon" style="background:rgba(59,130,246,0.15);color:var(--accent-info);">🔤</div>
+                            <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-info);">🔤</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-info);">${data.tokens.toLocaleString()}</div>
                         <div class="metric-change positive">across all sessions</div>
@@ -2061,7 +2154,7 @@
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Cost (USD)</span>
-                            <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:var(--accent-success);">💰</div>
+                            <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-success);">💰</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-success);">${costStr}</div>
                         <div class="metric-change positive">within budget</div>
@@ -2078,7 +2171,7 @@
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Layer 7 Decisions</span>
-                            <div class="metric-icon" style="background:rgba(139,92,246,0.15);color:var(--accent-secondary);">🛡</div>
+                            <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-secondary);">🛡</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-secondary);">100%</div>
                         <div class="metric-change positive">governance coverage</div>
@@ -2087,7 +2180,7 @@
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Platform Health</span>
-                            <div class="metric-icon" style="background:rgba(16,185,129,0.15);color:var(--accent-success);">❤</div>
+                            <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-success);">❤</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-success);">Healthy</div>
                         <div class="metric-change positive">all 8 OCIF layers operational</div>
