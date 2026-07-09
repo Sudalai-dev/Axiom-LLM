@@ -143,52 +143,56 @@
         #login-screen {
             position: fixed; inset: 0;
             display: flex; align-items: center; justify-content: center;
-            background: var(--bg-primary);
             z-index: 1000;
             overflow: hidden;
         }
 
-        .login-gradient-bg {
+        /* Shared ambient background — a fixed, viewport-level layer sitting
+           behind both the login screen and the app shell (whichever is
+           visible), so the same living backdrop follows the user in. */
+        #ambient-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+
+        .ambient-gradient-bg {
             position: absolute;
             inset: 0;
             overflow: hidden;
             opacity: 0.2;
         }
 
-        .login-gradient-canvas {
+        .ambient-gradient-canvas {
             position: absolute;
             inset: 0;
         }
 
-        /* Login Screen — accent grid lines (static: a CSS entrance animation
-           here previously froze the whole login card invisible in some
-           rendering pipelines, so nothing on this screen gates visibility
-           behind an animation) */
-        .login-accent-lines { position: absolute; inset: 0; pointer-events: none; opacity: 0.7; z-index: 0; }
-        .login-hline, .login-vline { position: absolute; background: var(--border-default); }
-        .login-hline { left: 0; right: 0; height: 1px; }
-        .login-vline { top: 0; bottom: 0; width: 1px; }
-        .login-hline:nth-child(1) { top: 18%; }
-        .login-hline:nth-child(2) { top: 50%; }
-        .login-hline:nth-child(3) { top: 82%; }
-        .login-vline:nth-child(4) { left: 22%; }
-        .login-vline:nth-child(5) { left: 50%; }
-        .login-vline:nth-child(6) { left: 78%; }
-        .login-hline::after, .login-vline::after {
+        /* Ambient background — accent grid lines (static: a CSS entrance
+           animation here previously froze this element invisible in some
+           rendering pipelines, so nothing in the ambient background gates
+           visibility behind an animation) */
+        .ambient-accent-lines { position: absolute; inset: 0; pointer-events: none; opacity: 0.7; z-index: 0; }
+        .ambient-hline, .ambient-vline { position: absolute; background: var(--border-default); }
+        .ambient-hline { left: 0; right: 0; height: 1px; }
+        .ambient-vline { top: 0; bottom: 0; width: 1px; }
+        .ambient-hline:nth-child(1) { top: 18%; }
+        .ambient-hline:nth-child(2) { top: 50%; }
+        .ambient-hline:nth-child(3) { top: 82%; }
+        .ambient-vline:nth-child(4) { left: 22%; }
+        .ambient-vline:nth-child(5) { left: 50%; }
+        .ambient-vline:nth-child(6) { left: 78%; }
+        .ambient-hline::after, .ambient-vline::after {
             content: ""; position: absolute; inset: 0;
             background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
-            opacity: 0; animation: login-shimmer 0.9s ease-out forwards;
+            opacity: 0; animation: ambient-shimmer 0.9s ease-out forwards;
         }
-        .login-hline:nth-child(1)::after { animation-delay: .12s; }
-        .login-hline:nth-child(2)::after { animation-delay: .22s; }
-        .login-hline:nth-child(3)::after { animation-delay: .32s; }
-        .login-vline:nth-child(4)::after { animation-delay: .42s; }
-        .login-vline:nth-child(5)::after { animation-delay: .54s; }
-        .login-vline:nth-child(6)::after { animation-delay: .66s; }
-        @keyframes login-shimmer { 0% { opacity: 0; } 35% { opacity: .6; } 100% { opacity: 0; } }
+        .ambient-hline:nth-child(1)::after { animation-delay: .12s; }
+        .ambient-hline:nth-child(2)::after { animation-delay: .22s; }
+        .ambient-hline:nth-child(3)::after { animation-delay: .32s; }
+        .ambient-vline:nth-child(4)::after { animation-delay: .42s; }
+        .ambient-vline:nth-child(5)::after { animation-delay: .54s; }
+        .ambient-vline:nth-child(6)::after { animation-delay: .66s; }
+        @keyframes ambient-shimmer { 0% { opacity: 0; } 35% { opacity: .6; } 100% { opacity: 0; } }
 
-        /* Login Screen — rising particle field */
-        #login-particles {
+        /* Ambient background — rising particle field */
+        #ambient-particles {
             position: absolute; inset: 0;
             width: 100%; height: 100%;
             opacity: 0.6;
@@ -374,6 +378,8 @@
            ================================================================ */
 
         #app-shell {
+            position: relative;
+            z-index: 1;
             display: flex;
             flex-direction: column;
             height: 100vh;
@@ -1371,22 +1377,28 @@
     <!-- ================================================================
          LOGIN SCREEN
          ================================================================ -->
+    <!-- ================================================================
+         AMBIENT BACKGROUND — shared behind both the login screen and the
+         app shell (whichever is visible)
+         ================================================================ -->
+    <div id="ambient-background">
+        <div class="ambient-gradient-bg" id="ambient-gradient-bg">
+            <div class="ambient-gradient-canvas" id="ambient-gradient-canvas"></div>
+        </div>
+
+        <div class="ambient-accent-lines">
+            <div class="ambient-hline"></div>
+            <div class="ambient-hline"></div>
+            <div class="ambient-hline"></div>
+            <div class="ambient-vline"></div>
+            <div class="ambient-vline"></div>
+            <div class="ambient-vline"></div>
+        </div>
+
+        <canvas id="ambient-particles"></canvas>
+    </div>
+
     <div id="login-screen">
-        <div class="login-gradient-bg" id="login-gradient-bg">
-            <div class="login-gradient-canvas" id="login-gradient-canvas"></div>
-        </div>
-
-        <div class="login-accent-lines">
-            <div class="login-hline"></div>
-            <div class="login-hline"></div>
-            <div class="login-hline"></div>
-            <div class="login-vline"></div>
-            <div class="login-vline"></div>
-            <div class="login-vline"></div>
-        </div>
-
-        <canvas id="login-particles"></canvas>
-
         <div class="login-header">
             <span class="login-header-brand"><strong>◈ AXIOM</strong> — OCIF Enterprise AI Platform</span>
             <span class="login-header-tag">v1</span>
@@ -1764,10 +1776,10 @@
         }
 
         // =====================================================================
-        // Login Screen — Animated Gradient Background (breathing radial glow)
+        // Ambient Background — breathing gradient (shared: login + app shell)
         // =====================================================================
         (function() {
-            const canvas = document.getElementById('login-gradient-canvas');
+            const canvas = document.getElementById('ambient-gradient-canvas');
             if (!canvas) return;
 
             const startingGap = 125;
@@ -1779,7 +1791,6 @@
 
             let width = startingGap;
             let direction = 1;
-            let frame = null;
 
             function tick() {
                 if (width >= startingGap + breathingRange) direction = -1;
@@ -1789,31 +1800,21 @@
                 const stopsString = gradientStops.map((stop, i) => `${gradientColors[i]} ${stop}%`).join(', ');
                 canvas.style.background = `radial-gradient(${width}% ${width + topOffset}% at 50% 20%, ${stopsString})`;
 
-                frame = requestAnimationFrame(tick);
+                requestAnimationFrame(tick);
             }
 
-            window.startLoginGradient = function() {
-                if (frame !== null) return;
-                frame = requestAnimationFrame(tick);
-            };
-            window.stopLoginGradient = function() {
-                if (frame !== null) cancelAnimationFrame(frame);
-                frame = null;
-            };
-
-            window.startLoginGradient();
+            requestAnimationFrame(tick);
         })();
 
         // =====================================================================
-        // Login Screen — Rising Particle Field
+        // Ambient Background — rising particle field (shared: login + app shell)
         // =====================================================================
         (function() {
-            const canvas = document.getElementById('login-particles');
+            const canvas = document.getElementById('ambient-particles');
             const ctx = canvas ? canvas.getContext('2d') : null;
             if (!canvas || !ctx) return;
 
             let particles = [];
-            let frame = null;
 
             function setSize() {
                 canvas.width = window.innerWidth;
@@ -1849,28 +1850,17 @@
                     ctx.fillStyle = p.mint ? `rgba(122,255,180,${p.o})` : `rgba(227,255,239,${p.o})`;
                     ctx.fillRect(p.x, p.y, 0.7, 2.2);
                 });
-                frame = requestAnimationFrame(draw);
+                requestAnimationFrame(draw);
             }
 
-            function onResize() {
+            window.addEventListener('resize', function() {
                 setSize();
                 initParticles();
-            }
+            });
 
-            window.startLoginParticles = function() {
-                if (frame !== null) return;
-                setSize();
-                initParticles();
-                window.addEventListener('resize', onResize);
-                frame = requestAnimationFrame(draw);
-            };
-            window.stopLoginParticles = function() {
-                if (frame !== null) cancelAnimationFrame(frame);
-                frame = null;
-                window.removeEventListener('resize', onResize);
-            };
-
-            window.startLoginParticles();
+            setSize();
+            initParticles();
+            requestAnimationFrame(draw);
         })();
 
         // =====================================================================
@@ -1985,8 +1975,6 @@
 
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app-shell').classList.remove('hidden');
-                window.stopLoginGradient();
-                window.stopLoginParticles();
                 window.persistRememberedUsername(username);
 
                 document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
@@ -2011,8 +1999,6 @@
             state.sessionId = null;
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
-            window.startLoginGradient();
-            window.startLoginParticles();
             document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
                 document.getElementById('chat-messages').innerHTML : '';
         };
