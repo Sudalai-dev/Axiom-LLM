@@ -1,0 +1,152 @@
+"""
+Local-dev bootstrap seeding — default tenant, admin user, policy, tool, and
+startup ingestion of root-level markdown documents into the knowledge base.
+
+Production deployments replace this with real tenant onboarding
+(`POST /admin/tenants`) and migrations; this exists purely so a freshly
+cloned repo (or a fresh Docker container) is immediately usable.
+"""
+
+import glob
+import json
+import logging
+import os
+from pathlib import Path
+
+from sqlalchemy import delete, select
+
+from api.routes.deps import SEED_TENANT_ID, SEED_USER_ID, SEED_USERNAME, knowledge_service
+from core.models.base import IngestionStatus
+from storage.database import AsyncSessionLocal, async_engine
+from storage.models import Base, Document, DocumentChunk, Policy, Tenant, Tool, User
+
+logger = logging.getLogger("AxiomSeed")
+
+
+async def ensure_seed_data() -> None:
+    """Creates the default tenant, admin user, RLS policy, tool, and bootstraps vector documents."""
+    async with async_engine.begin() as conn:
+        # Create tables if missing (dev convenience — production uses migrations)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as db:
+        await _seed_tenant_and_admin(db)
+        await _seed_default_policy(db)
+        await _seed_default_tool(db)
+        await _bootstrap_knowledge_base(db)
+
+
+async def _seed_tenant_and_admin(db) -> None:
+    existing = (await db.execute(
+        select(User).filter(User.user_id == SEED_USER_ID)
+    )).scalars().first()
+    if existing:
+        return
+
+    db.add(Tenant(
+        tenant_id=SEED_TENANT_ID,
+        name="Default Tenant",
+        industry="technology",
+        isolation_mode="shared",
+    ))
+    db.add(User(
+        user_id=SEED_USER_ID,
+        tenant_id=SEED_TENANT_ID,
+        external_idp_subject=SEED_USERNAME,
+        email="admin@axiom.local",
+        role="platform_admin",
+        department="Engineering",
+    ))
+    await db.commit()
+    logger.info("Seeded default tenant and admin user.")
+
+
+async def _seed_default_policy(db) -> None:
+    policy_name = "default-financial-limits-policy"
+    existing = (await db.execute(
+        select(Policy).filter(Policy.tenant_id == SEED_TENANT_ID, Policy.name == policy_name)
+    )).scalars().first()
+    if existing:
+        return
+
+    rule_def = {"rules": [{"field": "amount", "operator": "lte", "value": 500.0, "effect": "allow"}]}
+    db.add(Policy(
+        tenant_id=SEED_TENANT_ID,
+        name=policy_name,
+        rule_definition=json.dumps(rule_def),
+        risk_threshold=0.7,
+        is_active=True,
+    ))
+    await db.commit()
+    logger.info(f"Seeded policy: {policy_name}")
+
+
+async def _seed_default_tool(db) -> None:
+    existing = (await db.execute(
+        select(Tool).filter(Tool.tenant_id == SEED_TENANT_ID, Tool.name == "code_generator_tool")
+    )).scalars().first()
+    if existing:
+        return
+
+    input_schema = {"type": "object", "properties": {"language": {"type": "string"}, "framework": {"type": "string"}}, "required": ["language"]}
+    output_schema = {"type": "object", "properties": {"status": {"type": "string"}, "content": {"type": "string"}}}
+    db.add(Tool(
+        tenant_id=SEED_TENANT_ID,
+        name="code_generator_tool",
+        description="Generates standard code templates for developer sessions",
+        input_schema=json.dumps(input_schema),
+        output_schema=json.dumps(output_schema),
+        risk_level="low",
+        requires_approval=False,
+        endpoint="local",
+        is_active=True,
+    ))
+    await db.commit()
+    logger.info("Seeded default tool.")
+
+
+async def _bootstrap_knowledge_base(db) -> None:
+    project_root = Path(__file__).resolve().parent.parent.parent
+    md_files = [
+        f for f in glob.glob(str(project_root / "*.md"))
+        if os.path.basename(f).upper() != "CLAUDE.MD"
+    ] + glob.glob(str(project_root / "docs" / "**" / "*.md"), recursive=True)
+    logger.info(f"Bootstrapping vector knowledge base. Found {len(md_files)} markdown documents.")
+
+    for filepath in md_files:
+        title = os.path.basename(filepath)
+
+        doc_query = await db.execute(
+            select(Document).filter(Document.title == title, Document.tenant_id == SEED_TENANT_ID)
+        )
+        existing_doc = doc_query.scalars().first()
+
+        if existing_doc and existing_doc.ingestion_status == IngestionStatus.COMPLETED.value:
+            chunks_query = await db.execute(
+                select(DocumentChunk).filter(DocumentChunk.doc_id == existing_doc.doc_id)
+            )
+            for chunk in chunks_query.scalars().all():
+                vector = knowledge_service.embedder.embed(chunk.text)
+                payload = {
+                    "doc_id": existing_doc.doc_id,
+                    "chunk_id": chunk.chunk_id,
+                    "tenant_id": SEED_TENANT_ID,
+                    "title": title,
+                    "source_type": existing_doc.source_type,
+                    "section_ref": "General",
+                    "text": chunk.text,
+                    "chunk_index": chunk.chunk_index,
+                }
+                await knowledge_service.vector_retriever.upsert_vector(
+                    chunk_id=chunk.chunk_id, vector=vector, payload=payload, tenant_id=SEED_TENANT_ID
+                )
+        else:
+            if existing_doc:
+                await db.execute(delete(Document).filter(Document.doc_id == existing_doc.doc_id))
+                await db.commit()
+            try:
+                await knowledge_service.ingest(db=db, filepath=filepath, tenant_id=SEED_TENANT_ID, source_type="upload")
+                await db.commit()
+            except Exception as e:
+                logger.error(f"Failed to ingest document '{title}': {e}")
+                await db.rollback()

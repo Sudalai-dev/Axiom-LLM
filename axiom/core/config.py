@@ -54,18 +54,30 @@ class DatabaseConfig:
     ssl_mode: str = "prefer"
 
     @property
+    def _sqlite_path(self) -> str:
+        data_dir = os.getenv("AXIOM_DATA_DIR", "data")
+        os.makedirs(data_dir, exist_ok=True)
+        path = os.path.join(data_dir, "ocif_platform.db")
+        # SQLAlchemy sqlite URLs need forward slashes and, for a relative
+        # path, an explicit leading "./" to anchor it at the CWD.
+        path = path.replace("\\", "/")
+        if not os.path.isabs(path):
+            path = f"./{path}"
+        return path
+
+    @property
     def url(self) -> str:
         """Constructs SQLAlchemy-compatible database URL."""
         if self.password:
             return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-        return f"sqlite+aiosqlite:///./ocif_platform.db"
+        return f"sqlite+aiosqlite:///{self._sqlite_path}"
 
     @property
     def sync_url(self) -> str:
         """Synchronous URL for Alembic migrations."""
         if self.password:
             return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
-        return "sqlite:///./ocif_platform.db"
+        return f"sqlite:///{self._sqlite_path}"
 
 
 @dataclass(frozen=True)

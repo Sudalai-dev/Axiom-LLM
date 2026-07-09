@@ -14,8 +14,8 @@ import asyncio
 import logging
 from typing import Dict, Any, List, Callable, Awaitable
 
-from axiom.core.config import settings
-from axiom.core.observability import logger as obs_logger
+from core.config import settings
+from core.observability import logger as obs_logger
 
 logger = logging.getLogger("AxiomEventBus")
 

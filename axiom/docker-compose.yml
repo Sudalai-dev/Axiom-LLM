@@ -1,0 +1,31 @@
+services:
+  axiom:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axiom-platform:latest
+    container_name: axiom-platform
+    ports:
+      - "${AXIOM_PORT:-8000}:8000"
+    environment:
+      - OCIF_ENVIRONMENT=production
+      - AXIOM_DATA_DIR=/app/data
+      - OCIF_CORS_ORIGINS=${OCIF_CORS_ORIGINS:-http://localhost:8000}
+      - OCIF_LLM_DEFAULT_PROVIDER=${OCIF_LLM_DEFAULT_PROVIDER:-auto}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - OCIF_JWT_SECRET=${OCIF_JWT_SECRET:-}
+    volumes:
+      - axiom_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  axiom_data:
+    driver: local

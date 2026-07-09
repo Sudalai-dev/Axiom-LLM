@@ -7,27 +7,29 @@
     <meta name="description" content="Octagonal Cognitive Intelligence Framework — Enterprise AI Platform with governed decision-making, explainable AI, and human-in-the-loop controls.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
     <style>
         /* ================================================================
            OCIF Design System — Doc 15 Section 9
-           Premium dark glassmorphism theme with enterprise aesthetics
+           Premium Minimalist & Swiss Style B2B Slate-Navy theme
            ================================================================ */
 
         :root {
             /* Core palette */
-            --bg-primary: #0a0e1a;
-            --bg-secondary: #111827;
-            --bg-tertiary: #1a2035;
-            --bg-elevated: #1e2a42;
-            --bg-glass: rgba(17, 24, 39, 0.75);
-            --bg-glass-hover: rgba(26, 32, 53, 0.85);
+            --bg-primary: #0b0f19;
+            --bg-secondary: #131a2e;
+            --bg-tertiary: #1b2541;
+            --bg-elevated: #222d4f;
+            --bg-glass: rgba(19, 26, 46, 0.8);
+            --bg-glass-hover: rgba(27, 37, 65, 0.9);
 
             /* Accent colors */
-            --accent-primary: #6366f1;
-            --accent-primary-hover: #818cf8;
-            --accent-secondary: #8b5cf6;
-            --accent-glow: rgba(99, 102, 241, 0.15);
+            --accent-primary: #3b82f6;
+            --accent-primary-hover: #60a5fa;
+            --accent-secondary: #0ea5e9;
+            --accent-glow: rgba(59, 130, 246, 0.12);
             --accent-success: #10b981;
             --accent-warning: #f59e0b;
             --accent-danger: #ef4444;
@@ -39,21 +41,21 @@
             --confidence-low: #ef4444;     /* red <60% */
 
             /* Text */
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-tertiary: #64748b;
-            --text-inverse: #0a0e1a;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --text-inverse: #0b0f19;
 
             /* Borders */
-            --border-subtle: rgba(148, 163, 184, 0.1);
-            --border-default: rgba(148, 163, 184, 0.15);
-            --border-accent: rgba(99, 102, 241, 0.3);
+            --border-subtle: rgba(59, 130, 246, 0.08);
+            --border-default: rgba(59, 130, 246, 0.15);
+            --border-accent: rgba(59, 130, 246, 0.35);
 
             /* Shadows */
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
             --shadow-lg: 0 10px 30px rgba(0,0,0,0.5);
-            --shadow-glow: 0 0 20px var(--accent-glow);
+            --shadow-glow: 0 0 25px var(--accent-glow);
 
             /* Spacing */
             --space-xs: 4px;
@@ -70,7 +72,7 @@
             --radius-full: 9999px;
 
             /* Typography */
-            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
             --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
             /* Transitions */
@@ -100,8 +102,8 @@
             height: 100vh;
         }
 
-        button { cursor: pointer; font-family: inherit; border: none; outline: none; }
-        input, textarea, select { font-family: inherit; outline: none; }
+        button { cursor: pointer; font-family: var(--font-sans); border: none; outline: none; }
+        input, textarea, select { font-family: var(--font-sans); outline: none; }
         a { color: var(--accent-primary); text-decoration: none; }
 
         ::-webkit-scrollbar { width: 6px; }
@@ -531,6 +533,73 @@
         }
 
         /* Confidence Badge — Doc 15 Section 4 */
+        /* ================================================================
+           Rendered Solution Documents (markdown + mermaid)
+           ================================================================ */
+
+        .md-doc h1 { font-size: 1.35rem; margin: 12px 0 8px; color: var(--text-primary); border-bottom: 1px solid var(--border-default); padding-bottom: 6px; }
+        .md-doc h2 { font-size: 1.1rem; margin: 18px 0 6px; color: var(--accent-primary-hover); }
+        .md-doc h3 { font-size: 0.95rem; margin: 12px 0 4px; color: var(--text-primary); }
+        .md-doc p { margin: 6px 0; }
+        .md-doc ul, .md-doc ol { margin: 6px 0 6px 20px; }
+        .md-doc li { margin: 3px 0; }
+        .md-doc table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 0.85rem; display: block; overflow-x: auto; }
+        .md-doc th, .md-doc td { border: 1px solid var(--border-default); padding: 6px 10px; text-align: left; vertical-align: top; }
+        .md-doc th { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 600; }
+        .md-doc pre { background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm); margin: 8px 0; font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; }
+        .md-doc code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 0.85em; }
+        .md-doc pre code { background: transparent; padding: 0; }
+        .md-doc .mermaid-diagram { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; margin: 10px 0; overflow-x: auto; text-align: center; }
+        .md-doc .mermaid-diagram svg { max-width: 100%; height: auto; }
+        .md-doc blockquote { border-left: 3px solid var(--accent-primary); margin: 8px 0; padding: 4px 12px; color: var(--text-secondary); }
+
+        /* Developer mode toggle + trace timeline */
+        .dev-mode-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 0.78rem; color: var(--text-tertiary); }
+        .dev-mode-row input { accent-color: var(--accent-secondary); cursor: pointer; }
+        .dev-mode-row label { cursor: pointer; user-select: none; }
+        .dev-mode-row .dev-badge { background: rgba(139,92,246,0.15); color: var(--accent-secondary); border-radius: var(--radius-full); padding: 1px 8px; font-size: 0.7rem; }
+        .trace-engine-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); font-size: 0.78rem; }
+        .trace-engine-row .engine-name { font-family: var(--font-mono); color: var(--text-primary); }
+        .trace-engine-row .engine-ms { color: var(--text-tertiary); }
+        .trace-engine-status { border-radius: var(--radius-full); padding: 0 8px; font-size: 0.7rem; }
+        .trace-engine-status.completed { background: rgba(16,185,129,0.15); color: var(--accent-success); }
+        .trace-engine-status.skipped { background: rgba(148,163,184,0.15); color: var(--text-tertiary); }
+        .trace-engine-status.failed { background: rgba(239,68,68,0.15); color: var(--accent-danger); }
+        .octagon-diagram { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px; margin-bottom: 14px; text-align: center; }
+        .octagon-diagram svg { max-width: 100%; height: auto; }
+
+        /* Solution Map — the user-facing Octagonal Engineering Visualization */
+        .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; }
+        .solution-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .solution-map-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
+        .solution-map-hint { font-size: 0.72rem; color: var(--text-tertiary); }
+        .solution-map svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        .solution-map .solution-node { cursor: pointer; outline: none; }
+        .solution-map .solution-node:hover circle, .solution-map .solution-node:focus circle { stroke-width: 4; filter: drop-shadow(0 0 6px rgba(99,102,241,0.5)); }
+        .solution-map-docs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .solution-map-docs .doc-chip { font-size: 0.72rem; padding: 4px 10px; border-radius: var(--radius-full); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; border: 1px solid var(--border-subtle); }
+        .solution-map-docs .doc-chip:hover { color: var(--accent-primary-hover); border-color: var(--border-accent); }
+        .solution-map-docs .doc-chip-disabled { cursor: not-allowed; opacity: 0.5; }
+        .solution-map-docs .doc-chip-disabled:hover { color: var(--text-secondary); border-color: var(--border-subtle); }
+
+        /* Dashboard-first primary view */
+        .dashboard-summary { font-size: 0.92rem; }
+        .full-report-toggle { margin-top: 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+        .full-report-toggle summary { cursor: pointer; padding: 8px 12px; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); user-select: none; }
+        .full-report-toggle summary:hover { color: var(--accent-primary-hover); }
+        .full-report-toggle[open] summary { border-bottom: 1px solid var(--border-subtle); }
+        .full-report-toggle .message-body { padding: 12px; }
+        .download-center { margin-top: 8px; }
+        .download-center-label { font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+
+        .domain-modal-overlay { position: fixed; inset: 0; background: rgba(10,14,26,0.7); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+        .domain-modal { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); width: min(640px, 92vw); max-height: 82vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+        .domain-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); font-weight: 600; font-size: 1rem; }
+        .domain-modal-body { padding: 16px 18px; overflow-y: auto; font-size: 0.88rem; }
+        .domain-modal-body .domain-description { color: var(--text-secondary); margin-bottom: 12px; font-style: italic; }
+        .domain-modal-body .artifact-block { margin-bottom: 16px; }
+        .domain-modal-body .artifact-block h4 { font-size: 0.85rem; color: var(--accent-primary-hover); margin-bottom: 6px; }
+
         .confidence-badge {
             display: inline-flex; align-items: center; gap: 4px;
             padding: 2px 8px;
@@ -910,9 +979,19 @@
         }
 
         .empty-state-icon {
-            font-size: 3rem;
+            font-size: 4rem;
             margin-bottom: var(--space-md);
-            opacity: 0.3;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));
+            animation: pulse-glow 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 20px rgba(14, 165, 233, 0.6)); }
         }
 
         .empty-state-text {
@@ -1135,8 +1214,14 @@
                             </div>
                         </div>
                         <div class="chat-input-area">
+                            <div class="dev-mode-row hidden" id="dev-mode-row">
+                                <input type="checkbox" id="dev-mode-toggle" onchange="toggleDevMode(this.checked)">
+                                <label for="dev-mode-toggle">Developer Mode</label>
+                                <span class="dev-badge">admin</span>
+                                <span style="margin-left:auto;">reveals cognitive execution trace</span>
+                            </div>
                             <div class="chat-input-wrap">
-                                <textarea class="chat-input" id="chat-input" placeholder="Ask anything... (Shift+Enter for new line)" rows="1"></textarea>
+                                <textarea class="chat-input" id="chat-input" placeholder="Describe an engineering problem or use case... (Shift+Enter for new line)" rows="1"></textarea>
                                 <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()">➤</button>
                             </div>
                         </div>
@@ -1145,9 +1230,11 @@
                     <!-- Decision Trace Panel -->
                     <div class="chat-detail-panel" id="chat-detail-panel">
                         <div class="detail-section">
-                            <div class="detail-section-title">Decision Trace</div>
+                            <div class="detail-section-title">Cognitive Trace</div>
                             <div id="trace-content" class="text-sm text-secondary">
-                                Select a message to view its full L1-L8 decision trace, policy checks, and audit record.
+                                Enable Developer Mode (admin only), send a message, then select
+                                "View decision trace" to inspect the engine timeline, validation
+                                report, and confidence for that response.
                             </div>
                         </div>
                         <div class="detail-section">
@@ -1302,6 +1389,17 @@
         </main>
     </div>
 
+    <!-- Solution Domain Drill-down Modal -->
+    <div class="domain-modal-overlay hidden" id="domain-modal-overlay" onclick="if(event.target===this) closeDomainDrilldown()">
+        <div class="domain-modal">
+            <div class="domain-modal-header">
+                <span id="domain-modal-title">Domain</span>
+                <button class="btn btn-xs btn-secondary" onclick="closeDomainDrilldown()">✕</button>
+            </div>
+            <div class="domain-modal-body md-doc" id="domain-modal-body"></div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -1322,7 +1420,14 @@
             currentView: 'chat',
             userRole: 'platform_admin',
             username: 'admin',
+            devMode: false,
+            traces: {},       // correlation_id -> cognitive trace (developer mode only)
+            blueprints: {},   // blueprintId -> {octagonal_model, visualizations, implementation_roadmap, generated_documents}
         };
+
+        if (window.mermaid) {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+        }
 
         const API_BASE = window.location.port === '3000'
             ? 'http://127.0.0.1:8000/api/v1'
@@ -1391,6 +1496,9 @@
                 document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
                 document.getElementById('display-username').textContent = state.username;
                 document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                // Developer Mode is available to platform admins only
+                document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
 
                 showToast('Authenticated successfully', 'success');
                 loadDashboard();
@@ -1481,20 +1589,43 @@
             const typingId = showTypingIndicator();
 
             try {
-                const data = await api('POST', '/chat/messages', {
-                    session_id: state.sessionId,
-                    message: msg,
-                    attachments: []
-                });
+                if (state.devMode) {
+                    // Developer Mode: request the solution + cognitive trace
+                    const data = await api('POST', '/solution', {
+                        session_id: state.sessionId,
+                        message: msg,
+                        attachments: [],
+                        developer_mode: true
+                    });
+                    state.sessionId = data.session_id;
+                    removeTypingIndicator(typingId);
 
-                state.sessionId = data.session_id;
-                removeTypingIndicator(typingId);
+                    const dev = data.developer || {};
+                    if (dev.trace) state.traces[dev.correlation_id] = { ...dev.trace, confidence: dev.confidence };
 
-                appendMessage('assistant', data.response, {
-                    confidence: data.confidence,
-                    citations: data.citations || [],
-                    traceId: data.decision_trace_id
-                });
+                    const blueprintId = storeBlueprint(data);
+                    appendMessage('assistant', data.markdown, {
+                        confidence: dev.confidence,
+                        citations: data.citations || [],
+                        traceId: dev.trace ? dev.correlation_id : null,
+                        blueprintId
+                    });
+                } else {
+                    const data = await api('POST', '/chat/messages', {
+                        session_id: state.sessionId,
+                        message: msg,
+                        attachments: []
+                    });
+                    state.sessionId = data.session_id;
+                    removeTypingIndicator(typingId);
+
+                    const blueprintId = storeBlueprint(data);
+                    appendMessage('assistant', data.response, {
+                        confidence: data.confidence,
+                        citations: data.citations || [],
+                        blueprintId
+                    });
+                }
 
             } catch (err) {
                 removeTypingIndicator(typingId);
@@ -1504,6 +1635,22 @@
                 chatInput.focus();
             }
         };
+
+        function storeBlueprint(data) {
+            if (!data.octagonal_model || !data.visualizations) return null;
+            const blueprintId = 'bp-' + Math.random().toString(36).slice(2);
+            state.blueprints[blueprintId] = {
+                solutionId: data.solution_id || null,
+                octagonal_model: data.octagonal_model,
+                visualizations: data.visualizations,
+                implementation_roadmap: data.implementation_roadmap,
+                generated_documents: data.generated_documents || [],
+                dashboard: data.dashboard || null,
+                documents_catalog: data.documents_catalog || [],
+                export_manifest: data.export_manifest || []
+            };
+            return blueprintId;
+        }
 
         function appendMessage(role, content, meta = {}) {
             const div = document.createElement('div');
@@ -1538,20 +1685,245 @@
                 `;
             }
 
+            const isDoc = role === 'assistant';
+            const hasDashboard = Boolean(meta.blueprintId && state.blueprints[meta.blueprintId] && state.blueprints[meta.blueprintId].dashboard);
+
+            // Dashboard-first: an engineering response shows the short executive
+            // summary + the interactive Solution Map up front. The full 18-section
+            // report is not thrown away — it's one click away, collapsed by default.
+            let bodyHtml;
+            if (hasDashboard) {
+                const summary = state.blueprints[meta.blueprintId].dashboard.executive_summary || '';
+                bodyHtml = `<div class="dashboard-summary">${renderMarkdown(summary)}</div>`;
+            } else {
+                bodyHtml = isDoc ? renderMarkdown(content) : formatContent(content);
+            }
+
+            const solutionMapPlaceholder = meta.blueprintId
+                ? `<div class="solution-map" id="map-${meta.blueprintId}"></div>` : '';
+            const fullReportHtml = (isDoc && hasDashboard)
+                ? `<details class="full-report-toggle">
+                       <summary>📄 View Full Engineering Report</summary>
+                       <div class="message-body md-doc" id="report-${meta.blueprintId}"></div>
+                   </details>` : '';
+
             div.innerHTML = `
                 <div class="message-header">
                     <span class="message-sender">${sender}</span>
                     ${confidenceHtml}
                     <span class="message-time">${time}</span>
                 </div>
-                <div class="message-body">${formatContent(content)}</div>
+                <div class="message-body${isDoc ? ' md-doc' : ''}">${bodyHtml}</div>
+                ${solutionMapPlaceholder}
+                ${fullReportHtml}
                 ${citationsHtml}
                 ${actionsHtml}
             `;
 
             chatMessages.appendChild(div);
+            if (isDoc && !hasDashboard) renderMermaidIn(div);
+            if (isDoc && meta.citations && meta.citations.length > 0) updateCitationPanel(meta.citations);
+            if (meta.blueprintId) renderSolutionMap(meta.blueprintId);
+            if (fullReportHtml) {
+                const reportEl = document.getElementById('report-' + meta.blueprintId);
+                const toggle = div.querySelector('.full-report-toggle');
+                toggle.addEventListener('toggle', function onToggle() {
+                    if (toggle.open && !reportEl.dataset.rendered) {
+                        reportEl.innerHTML = renderMarkdown(content);
+                        renderMermaidIn(reportEl);
+                        reportEl.dataset.rendered = '1';
+                    }
+                });
+            }
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
+        // =====================================================================
+        // Octagonal Engineering Visualization — the solution's own domain map
+        // (shown to every user; unrelated to the admin-only cognitive trace)
+        // =====================================================================
+
+        function renderSolutionMap(blueprintId) {
+            const bp = state.blueprints[blueprintId];
+            const container = document.getElementById('map-' + blueprintId);
+            if (!bp || !container) return;
+
+            const legacyDocs = (bp.generated_documents || []).map(d =>
+                `<span class="doc-chip" onclick="downloadGeneratedDocument('${blueprintId}', '${d.type}')">⬇ ${escapeHtml(d.filename || d.type)}</span>`
+            ).join('');
+
+            // Download Center: on-demand document types + export formats,
+            // fetched from the server only when the user actually wants one —
+            // this is what keeps the primary response small.
+            const docCatalogChips = bp.solutionId ? (bp.documents_catalog || []).map(d =>
+                `<span class="doc-chip" title="${escapeHtml(d.description || '')}" onclick="downloadDocument('${blueprintId}', '${d.type}')">📄 ${escapeHtml(d.title)}</span>`
+            ).join('') : '';
+            const exportChips = bp.solutionId ? (bp.export_manifest || []).map(m =>
+                m.available
+                    ? `<span class="doc-chip" onclick="downloadExport('${blueprintId}', '${m.format}')">⬇ ${escapeHtml(m.format.toUpperCase())}</span>`
+                    : `<span class="doc-chip doc-chip-disabled" title="${escapeHtml(m.reason || 'Not available')}">🚫 ${escapeHtml(m.format.toUpperCase())}</span>`
+            ).join('') : '';
+
+            container.innerHTML = `
+                <div class="solution-map-header">
+                    <span class="solution-map-title">🔷 Solution Map — ${escapeHtml(bp.octagonal_model.title || 'Engineering Solution')}</span>
+                    <span class="solution-map-hint">Click a domain to explore</span>
+                </div>
+                ${bp.visualizations.svg}
+                ${legacyDocs ? `<div class="solution-map-docs">${legacyDocs}</div>` : ''}
+                ${docCatalogChips ? `<div class="download-center"><div class="download-center-label">Documents</div><div class="solution-map-docs">${docCatalogChips}</div></div>` : ''}
+                ${exportChips ? `<div class="download-center"><div class="download-center-label">Export</div><div class="solution-map-docs">${exportChips}</div></div>` : ''}
+            `;
+
+            container.querySelectorAll('.solution-node').forEach(node => {
+                const domain = node.getAttribute('data-domain');
+                const activate = () => openDomainDrilldown(blueprintId, domain);
+                node.addEventListener('click', activate);
+                node.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+            });
+        }
+
+        window.openDomainDrilldown = function(blueprintId, domain) {
+            const bp = state.blueprints[blueprintId];
+            if (!bp) return;
+            const node = (bp.octagonal_model.nodes || []).find(n => n.domain === domain);
+            if (!node) return;
+
+            document.getElementById('domain-modal-title').textContent = node.label;
+
+            const diagramsHtml = (node.diagrams || []).map((d, i) => {
+                const blockId = `diagram-${blueprintId}-${domain}-${i}`;
+                return `<div class="artifact-block"><h4>📐 ${escapeHtml(d.title)}</h4><pre><code class="language-mermaid" id="${blockId}">${escapeHtml(d.content)}</code></pre></div>`;
+            }).join('');
+
+            const artifactsHtml = (node.artifacts || []).map(a => {
+                let body = '';
+                if (a.type === 'text') {
+                    body = renderMarkdown(a.content || 'Not applicable.');
+                } else if (a.type === 'list' && Array.isArray(a.content)) {
+                    body = a.content.length
+                        ? '<ul>' + a.content.map(item => `<li>${escapeHtml(String(item))}</li>`).join('') + '</ul>'
+                        : '<p>None.</p>';
+                } else if (a.type === 'table' && Array.isArray(a.content)) {
+                    if (!a.content.length) {
+                        body = '<p>None.</p>';
+                    } else {
+                        const cols = Object.keys(a.content[0]);
+                        body = '<table><thead><tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr></thead><tbody>' +
+                            a.content.map(row => '<tr>' + cols.map(c => `<td>${escapeHtml(Array.isArray(row[c]) ? row[c].join(', ') : String(row[c] ?? ''))}</td>`).join('') + '</tr>').join('') +
+                            '</tbody></table>';
+                    }
+                }
+                return `<div class="artifact-block"><h4>${escapeHtml(a.title)}</h4>${body}</div>`;
+            }).join('');
+
+            document.getElementById('domain-modal-body').innerHTML = `
+                <div class="domain-description">${escapeHtml(node.description)}</div>
+                ${diagramsHtml}
+                ${artifactsHtml}
+            `;
+
+            const overlay = document.getElementById('domain-modal-overlay');
+            overlay.classList.remove('hidden');
+            renderMermaidIn(document.getElementById('domain-modal-body'));
+        };
+
+        window.closeDomainDrilldown = function() {
+            document.getElementById('domain-modal-overlay').classList.add('hidden');
+        };
+
+        function triggerBlobDownload(content, filename, mime) {
+            const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+            const blob = new Blob([text], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        window.downloadGeneratedDocument = function(blueprintId, type) {
+            const bp = state.blueprints[blueprintId];
+            if (!bp) return;
+            const doc = (bp.generated_documents || []).find(d => d.type === type);
+            if (!doc) return;
+            triggerBlobDownload(doc.content, doc.filename || `solution.${type === 'json' ? 'json' : 'md'}`, type === 'json' ? 'application/json' : 'text/markdown');
+        };
+
+        window.downloadDocument = async function(blueprintId, docType) {
+            const bp = state.blueprints[blueprintId];
+            if (!bp || !bp.solutionId) return;
+            try {
+                const doc = await api('GET', `/solutions/${bp.solutionId}/documents/${docType}`);
+                const mime = doc.type === 'openapi' ? 'application/json' : 'text/markdown';
+                triggerBlobDownload(doc.content, doc.filename, mime);
+                showToast(`${doc.title} downloaded`, 'success');
+            } catch (e) {
+                showToast('Failed to render document: ' + e.message, 'error');
+            }
+        };
+
+        window.downloadExport = async function(blueprintId, fmt) {
+            const bp = state.blueprints[blueprintId];
+            if (!bp || !bp.solutionId) return;
+            try {
+                const result = await api('GET', `/solutions/${bp.solutionId}/export/${fmt}`);
+                const mimeMap = { json: 'application/json', json_graph: 'application/json', reactflow: 'application/json', html: 'text/html', svg: 'image/svg+xml', markdown: 'text/markdown', mermaid: 'text/plain', plantuml: 'text/plain' };
+                triggerBlobDownload(result.content, result.filename, mimeMap[fmt] || 'text/plain');
+                showToast(`${fmt.toUpperCase()} exported`, 'success');
+            } catch (e) {
+                showToast('Export failed: ' + e.message, 'error');
+            }
+        };
+
+        function escapeHtml(text) {
+            return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function renderMarkdown(text) {
+            if (window.marked) {
+                try { return marked.parse(text); } catch (_) { /* fall through */ }
+            }
+            return formatContent(text);
+        }
+
+        async function renderMermaidIn(container) {
+            if (!window.mermaid) return;
+            const blocks = container.querySelectorAll('pre code.language-mermaid');
+            for (const code of blocks) {
+                const graph = code.textContent;
+                const id = 'mmd-' + Math.random().toString(36).slice(2);
+                try {
+                    const { svg } = await mermaid.render(id, graph);
+                    const holder = document.createElement('div');
+                    holder.className = 'mermaid-diagram';
+                    holder.innerHTML = svg;
+                    code.closest('pre').replaceWith(holder);
+                } catch (e) {
+                    // Leave the raw diagram source visible on syntax errors
+                    const orphan = document.getElementById('d' + id);
+                    if (orphan) orphan.remove();
+                }
+            }
+        }
+
+        function updateCitationPanel(citations) {
+            const el = document.getElementById('citation-content');
+            el.innerHTML = citations.map((c, i) =>
+                `<div style="margin-bottom:10px;">
+                    <strong>[${i + 1}] ${escapeHtml(c.title || 'Source')}</strong><br>
+                    <span style="color:var(--text-tertiary);">${escapeHtml(c.excerpt_ref || '')}</span>
+                </div>`
+            ).join('');
+        }
+
+        window.toggleDevMode = function(on) {
+            state.devMode = on;
+            showToast('Developer Mode ' + (on ? 'enabled — responses include the cognitive trace' : 'disabled'), 'info');
+        };
 
         function formatContent(text) {
             // Basic markdown-like formatting
@@ -1589,8 +1961,11 @@
         window.sendFeedback = async function(btn, rating) {
             try {
                 btn.classList.add(rating > 0 ? 'active-up' : 'active-down');
-                // In a full implementation, we'd send the turn_id
-                showToast('Feedback recorded', 'success');
+                await api('POST', '/feedback', {
+                    session_id: state.sessionId || 'unknown',
+                    rating: rating,
+                });
+                showToast('Feedback recorded — Axiom will factor this into future solutions', 'success');
             } catch(e) {
                 showToast('Failed to send feedback', 'error');
             }
@@ -1598,11 +1973,45 @@
 
         window.showTrace = function(traceId) {
             const content = document.getElementById('trace-content');
+            const trace = state.traces[traceId];
+            if (!trace) {
+                content.innerHTML = 'No cognitive trace captured for this message. Enable Developer Mode before sending to record one.';
+                return;
+            }
+
+            const timeline = (trace.engine_timeline || []).map(e =>
+                `<div class="trace-engine-row">
+                    <span class="engine-name">${escapeHtml(e.engine)}</span>
+                    <span class="trace-engine-status ${escapeHtml(e.status)}">${escapeHtml(e.status)}</span>
+                    <span class="engine-ms">${e.duration_ms} ms</span>
+                </div>`
+            ).join('');
+
+            const v = trace.validation_report;
+            const validationHtml = v
+                ? `<div style="margin:12px 0 4px;"><strong>Validation Report</strong><br>
+                    ${v.checks_performed.length} checks · ${v.corrections_made.length} corrections ·
+                    <span class="trace-engine-status ${v.passed ? 'completed' : 'failed'}">${v.passed ? 'passed' : 'failed'}</span></div>`
+                : '';
+
+            const pct = trace.confidence !== undefined ? Math.round(trace.confidence * 100) + '%' : '—';
+            const octagonHtml = trace.octagon_svg
+                ? `<div class="octagon-diagram">${trace.octagon_svg}</div>`
+                : '';
+
             content.innerHTML = `
-                <div style="margin-bottom:12px;"><strong>Audit Event ID:</strong><br><code style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent-info);">${traceId}</code></div>
-                <div style="margin-bottom:12px;"><strong>Pipeline Path:</strong><br>L1 → L2 → L3 → L4 → L5 → L6 → L7 → L8</div>
-                <div style="margin-bottom:12px;"><strong>Decision:</strong> <span class="status-badge status-approved">Auto Approved</span></div>
-                <div><strong>Policy Checks:</strong><br>✓ Hallucination check passed<br>✓ Risk score within threshold<br>✓ Business rules validated</div>
+                ${octagonHtml}
+                <div style="margin-bottom:10px;"><strong>Correlation ID</strong><br>
+                    <code style="font-family:var(--font-mono);font-size:0.75rem;color:var(--accent-info);">${escapeHtml(trace.correlation_id || traceId)}</code></div>
+                <div style="margin-bottom:10px;"><strong>Intent:</strong> ${escapeHtml(trace.intent || '—')}<br>
+                    <strong>Confidence:</strong> ${pct}<br>
+                    <strong>Provider:</strong> ${escapeHtml(trace.provider_used || '—')}</div>
+                <div style="margin-bottom:4px;"><strong>Octagonal Engine Timeline</strong></div>
+                ${timeline}
+                <div style="margin:12px 0 4px;"><strong>Entities</strong><br>${escapeHtml((trace.entities || []).join(', ') || '—')}</div>
+                <div style="margin:12px 0 4px;"><strong>Use Cases Analyzed:</strong> ${(trace.use_cases || []).length}</div>
+                <div style="margin:12px 0 4px;"><strong>Knowledge Sources:</strong> ${(trace.knowledge_sources || []).length}</div>
+                ${validationHtml}
             `;
         };
 

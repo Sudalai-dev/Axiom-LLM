@@ -11,9 +11,9 @@ Traces to:
 
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
-from axiom.core.config import settings
+from core.config import settings
 
 logger = logging.getLogger("AxiomTelemetry")
 

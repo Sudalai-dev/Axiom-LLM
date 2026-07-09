@@ -15,10 +15,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import Field
 
-from axiom.core.models.base import (
+from core.models.base import (
     OCIFBaseModel, RequestContext, new_uuid, utc_now,
 )
-from axiom.core.models.capture import CaptureEvent
 
 
 class EntityInfo(OCIFBaseModel):

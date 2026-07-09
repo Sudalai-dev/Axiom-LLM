@@ -17,9 +17,9 @@ import hmac
 import json
 import time
 from typing import Dict, Any, Optional, List
-from axiom.core.config import settings
-from axiom.core.exceptions import AuthenticationError, AuthorizationError
-from axiom.core.models.base import UserRole
+from core.config import settings
+from core.exceptions import AuthenticationError, AuthorizationError
+from core.models.base import UserRole
 
 
 # ===========================================================================

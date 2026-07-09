@@ -14,10 +14,10 @@ import logging
 from typing import AsyncGenerator
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from axiom.core.config import settings
+from core.config import settings
 
 logger = logging.getLogger("AxiomDatabase")
 
