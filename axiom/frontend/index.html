@@ -840,6 +840,21 @@
         .feedback-btn.active-up { color: var(--accent-success); border-color: var(--accent-success); }
         .feedback-btn.active-down { color: var(--accent-danger); border-color: var(--accent-danger); }
 
+        .edited-tag { font-size: 0.7rem; color: var(--text-tertiary); font-style: italic; }
+
+        .message-edit-textarea {
+            width: 100%;
+            min-height: 60px;
+            resize: vertical;
+            margin-bottom: var(--space-xs);
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+        }
+
+        .message-edit-actions {
+            display: flex; gap: var(--space-xs); justify-content: flex-end;
+        }
+
         /* Decision Trace Link */
         .trace-link {
             font-size: 0.75rem;
@@ -1771,6 +1786,8 @@
             devMode: false,
             traces: {},       // correlation_id -> cognitive trace (developer mode only)
             blueprints: {},   // blueprintId -> {octagonal_model, visualizations, implementation_roadmap, generated_documents}
+            messageSeq: 0,
+            messageContent: {}, // messageId -> raw (unescaped) text, for edit/delete
         };
 
         if (window.mermaid) {
@@ -2147,7 +2164,10 @@
 
         function appendMessage(role, content, meta = {}) {
             const div = document.createElement('div');
+            const msgId = 'msg-' + (++state.messageSeq);
             div.className = 'message message-' + role;
+            div.id = msgId;
+            state.messageContent[msgId] = content;
 
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const sender = role === 'user' ? 'You' : role === 'system' ? 'System' : 'AXIOM AI';
@@ -2162,20 +2182,32 @@
             let citationsHtml = '';
             if (meta.citations && meta.citations.length > 0) {
                 citationsHtml = '<div class="citations-row">' +
-                    meta.citations.map((c, i) => 
+                    meta.citations.map((c, i) =>
                         `<span class="citation-chip" title="${c.excerpt_ref || ''}">[${i+1}] ${c.title || 'Source'}</span>`
                     ).join('') + '</div>';
             }
 
+            const deleteBtnHtml = `<button class="feedback-btn" onclick="deleteMessage('${msgId}')" title="Delete">🗑</button>`;
+
             let actionsHtml = '';
-            if (role === 'assistant') {
+            if (role === 'user') {
+                actionsHtml = `
+                    <div class="message-actions">
+                        <button class="feedback-btn" onclick="startEditMessage('${msgId}')" title="Edit">✏️</button>
+                        ${deleteBtnHtml}
+                    </div>
+                `;
+            } else if (role === 'assistant') {
                 actionsHtml = `
                     <div class="message-actions">
                         <button class="feedback-btn" onclick="sendFeedback(this, 1)" title="Helpful">👍</button>
                         <button class="feedback-btn" onclick="sendFeedback(this, -1)" title="Not helpful">👎</button>
+                        ${deleteBtnHtml}
                         ${meta.traceId ? `<span class="trace-link" onclick="showTrace('${meta.traceId}')">View decision trace →</span>` : ''}
                     </div>
                 `;
+            } else {
+                actionsHtml = `<div class="message-actions">${deleteBtnHtml}</div>`;
             }
 
             const isDoc = role === 'assistant';
@@ -2205,8 +2237,9 @@
                     <span class="message-sender">${sender}</span>
                     ${confidenceHtml}
                     <span class="message-time">${time}</span>
+                    <span class="edited-tag hidden" id="edited-${msgId}">(edited)</span>
                 </div>
-                <div class="message-body${isDoc ? ' md-doc' : ''}">${bodyHtml}</div>
+                <div class="message-body${isDoc ? ' md-doc' : ''}" id="body-${msgId}">${bodyHtml}</div>
                 ${solutionMapPlaceholder}
                 ${fullReportHtml}
                 ${citationsHtml}
@@ -2230,6 +2263,68 @@
             }
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
+        // =====================================================================
+        // Message editing / deletion — client-side only: chat turns aren't
+        // persisted to a per-message backend record, so these just correct
+        // the visible transcript rather than calling an API.
+        // =====================================================================
+        window.deleteMessage = function(id) {
+            if (!confirm('Delete this message?')) return;
+            document.getElementById(id)?.remove();
+            delete state.messageContent[id];
+
+            if (!chatMessages.querySelector('.message')) {
+                chatMessages.innerHTML = `
+                    <div class="empty-state" id="chat-empty">
+                        <div class="empty-state-icon">◈</div>
+                        <div class="empty-state-text">
+                            Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
+                            Every response is governed, explainable, and auditable.
+                        </div>
+                    </div>
+                `;
+            }
+        };
+
+        window.startEditMessage = function(id) {
+            const bodyEl = document.getElementById('body-' + id);
+            if (!bodyEl) return;
+            bodyEl.dataset.viewHtml = bodyEl.innerHTML;
+            bodyEl.innerHTML = `
+                <div class="message-edit-row">
+                    <textarea class="form-input message-edit-textarea" id="edit-textarea-${id}">${escapeHtml(state.messageContent[id] || '')}</textarea>
+                    <div class="message-edit-actions">
+                        <button class="btn btn-primary btn-xs" onclick="saveEditMessage('${id}')">Save</button>
+                        <button class="btn btn-secondary btn-xs" onclick="cancelEditMessage('${id}')">Cancel</button>
+                    </div>
+                </div>
+            `;
+            const textarea = document.getElementById('edit-textarea-' + id);
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        };
+
+        window.cancelEditMessage = function(id) {
+            const bodyEl = document.getElementById('body-' + id);
+            if (!bodyEl || bodyEl.dataset.viewHtml === undefined) return;
+            bodyEl.innerHTML = bodyEl.dataset.viewHtml;
+            delete bodyEl.dataset.viewHtml;
+        };
+
+        window.saveEditMessage = function(id) {
+            const textarea = document.getElementById('edit-textarea-' + id);
+            const bodyEl = document.getElementById('body-' + id);
+            if (!textarea || !bodyEl) return;
+            const newText = textarea.value.trim();
+            if (!newText) return;
+
+            state.messageContent[id] = newText;
+            bodyEl.innerHTML = formatContent(newText);
+            delete bodyEl.dataset.viewHtml;
+
+            document.getElementById('edited-' + id)?.classList.remove('hidden');
+        };
 
         // =====================================================================
         // Octagonal Engineering Visualization — the solution's own domain map
