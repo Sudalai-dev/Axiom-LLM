@@ -624,7 +624,9 @@
         }
 
         .chat-history-item {
+            position: relative;
             padding: var(--space-sm) var(--space-md);
+            padding-right: 28px;
             border-radius: var(--radius-sm);
             cursor: pointer;
             transition: background var(--transition-fast);
@@ -645,6 +647,30 @@
             font-size: 0.7rem;
             color: var(--text-tertiary);
             margin-top: 2px;
+        }
+
+        .chat-history-delete {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            display: none;
+            align-items: center; justify-content: center;
+            width: 22px; height: 22px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .chat-history-item:hover .chat-history-delete { display: flex; }
+        .chat-history-delete:hover { color: var(--accent-danger); background: var(--bg-tertiary); }
+
+        .chat-history-empty {
+            padding: var(--space-md);
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            text-align: center;
         }
 
         /* Chat Messages Thread */
@@ -1566,12 +1592,7 @@
                         <div class="chat-history-header">
                             <button class="btn btn-secondary btn-sm w-full" onclick="newConversation()" style="width:100%">＋ New Conversation</button>
                         </div>
-                        <div class="chat-history-list" id="chat-history-list">
-                            <div class="chat-history-item active" data-session="default">
-                                <div class="title">New Conversation</div>
-                                <div class="meta">Just now</div>
-                            </div>
-                        </div>
+                        <div class="chat-history-list" id="chat-history-list"></div>
                     </div>
 
                     <!-- Message Thread -->
@@ -1806,7 +1827,12 @@
             blueprints: {},   // blueprintId -> {octagonal_model, visualizations, implementation_roadmap, generated_documents}
             messageSeq: 0,
             messageContent: {}, // messageId -> raw (unescaped) text, for edit/delete
+            conversationId: 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+            currentMessages: [],   // {msgId, role, content, meta} for the open conversation, mirrors the DOM
         };
+
+        loadConversationsFromStorage();
+        renderConversationList();
 
         if (window.mermaid) {
             mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
@@ -2122,7 +2148,7 @@
             if (emptyState) emptyState.remove();
 
             // Render user message
-            appendMessage('user', msg);
+            recordAndAppend('user', msg);
             chatInput.value = '';
             chatInput.style.height = 'auto';
             chatSendBtn.disabled = true;
@@ -2146,7 +2172,7 @@
                     if (dev.trace) state.traces[dev.correlation_id] = { ...dev.trace, confidence: dev.confidence };
 
                     const blueprintId = storeBlueprint(data);
-                    appendMessage('assistant', data.markdown, {
+                    recordAndAppend('assistant', data.markdown, {
                         confidence: dev.confidence,
                         citations: data.citations || [],
                         traceId: dev.trace ? dev.correlation_id : null,
@@ -2162,7 +2188,7 @@
                     removeTypingIndicator(typingId);
 
                     const blueprintId = storeBlueprint(data);
-                    appendMessage('assistant', data.response, {
+                    recordAndAppend('assistant', data.response, {
                         confidence: data.confidence,
                         citations: data.citations || [],
                         blueprintId
@@ -2171,7 +2197,7 @@
 
             } catch (err) {
                 removeTypingIndicator(typingId);
-                appendMessage('system', '⚠ ' + err.message, { isError: true });
+                recordAndAppend('system', '⚠ ' + err.message, { isError: true });
             } finally {
                 chatSendBtn.disabled = false;
                 chatInput.focus();
@@ -2294,7 +2320,132 @@
                 });
             }
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            return msgId;
         }
+
+        // =====================================================================
+        // Conversation history — client-side only (localStorage): the backend
+        // doesn't persist chat turns to a per-session record, so this is what
+        // makes "New Conversation" actually save the one you're leaving and
+        // lets you switch back to it later.
+        // =====================================================================
+        function timeAgo(iso) {
+            const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.round(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            const days = Math.round(hrs / 24);
+            if (days < 7) return days + 'd ago';
+            return new Date(iso).toLocaleDateString();
+        }
+
+        function loadConversationsFromStorage() {
+            try {
+                const raw = localStorage.getItem('axiom_conversations');
+                state.conversations = raw ? JSON.parse(raw) : [];
+            } catch (_) {
+                state.conversations = [];
+            }
+            state.conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        }
+
+        function saveConversationsToStorage() {
+            try {
+                localStorage.setItem('axiom_conversations', JSON.stringify(state.conversations));
+            } catch (_) { /* storage unavailable or full — history just won't persist */ }
+        }
+
+        function renderConversationList() {
+            const list = document.getElementById('chat-history-list');
+            if (!state.conversations.length) {
+                list.innerHTML = `<div class="chat-history-empty">No saved conversations yet.</div>`;
+                return;
+            }
+            list.innerHTML = state.conversations.map(c => `
+                <div class="chat-history-item${c.id === state.conversationId ? ' active' : ''}" onclick="switchConversation('${c.id}')">
+                    <div class="title">${escapeHtml(c.title || 'New Conversation')}</div>
+                    <div class="meta">${timeAgo(c.updatedAt)}</div>
+                    <button class="chat-history-delete" onclick="deleteConversation(event, '${c.id}')" title="Delete conversation" aria-label="Delete conversation">🗑</button>
+                </div>
+            `).join('');
+        }
+
+        function persistCurrentConversation() {
+            if (!state.currentMessages.length) {
+                // Deleted down to nothing — drop the stale saved record, if any.
+                const hadRecord = state.conversations.some(c => c.id === state.conversationId);
+                if (hadRecord) {
+                    state.conversations = state.conversations.filter(c => c.id !== state.conversationId);
+                    saveConversationsToStorage();
+                    renderConversationList();
+                }
+                return;
+            }
+            const firstUserMsg = state.currentMessages.find(m => m.role === 'user');
+            const title = firstUserMsg ? firstUserMsg.content.slice(0, 48) : 'New Conversation';
+            const record = {
+                id: state.conversationId,
+                sessionId: state.sessionId,
+                title,
+                updatedAt: new Date().toISOString(),
+                messages: state.currentMessages.map(m => ({ msgId: m.msgId, role: m.role, content: m.content, meta: m.meta })),
+            };
+            const idx = state.conversations.findIndex(c => c.id === state.conversationId);
+            if (idx >= 0) state.conversations[idx] = record;
+            else state.conversations.unshift(record);
+            state.conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+            saveConversationsToStorage();
+            renderConversationList();
+        }
+
+        function recordAndAppend(role, content, meta = {}) {
+            const msgId = appendMessage(role, content, meta);
+            state.currentMessages.push({ msgId, role, content, meta: { confidence: meta.confidence, citations: meta.citations } });
+            persistCurrentConversation();
+            return msgId;
+        }
+
+        window.switchConversation = function(convId) {
+            if (convId === state.conversationId) return;
+            persistCurrentConversation();
+
+            const record = state.conversations.find(c => c.id === convId);
+            if (!record) return;
+
+            state.conversationId = record.id;
+            state.sessionId = record.sessionId;
+            state.currentMessages = record.messages.map(m => ({ ...m }));
+
+            chatMessages.innerHTML = '';
+            record.messages.forEach(m => appendMessage(m.role, m.content, m.meta || {}));
+            if (!record.messages.length) {
+                chatMessages.innerHTML = `
+                    <div class="empty-state" id="chat-empty">
+                        <div class="empty-state-icon">◈</div>
+                        <div class="empty-state-text">
+                            Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
+                            Every response is governed, explainable, and auditable.
+                        </div>
+                    </div>
+                `;
+            }
+            renderConversationList();
+        };
+
+        window.deleteConversation = function(event, convId) {
+            event.stopPropagation();
+            if (!confirm('Delete this conversation? This cannot be undone.')) return;
+
+            state.conversations = state.conversations.filter(c => c.id !== convId);
+            saveConversationsToStorage();
+
+            if (convId === state.conversationId) {
+                window.newConversation();
+            } else {
+                renderConversationList();
+            }
+        };
 
         // =====================================================================
         // Message editing / deletion — client-side only: chat turns aren't
@@ -2305,6 +2456,8 @@
             if (!confirm('Delete this message?')) return;
             document.getElementById(id)?.remove();
             delete state.messageContent[id];
+            state.currentMessages = state.currentMessages.filter(m => m.msgId !== id);
+            persistCurrentConversation();
 
             if (!chatMessages.querySelector('.message')) {
                 chatMessages.innerHTML = `
@@ -2354,6 +2507,10 @@
             state.messageContent[id] = newText;
             bodyEl.innerHTML = formatContent(newText);
             delete bodyEl.dataset.viewHtml;
+
+            const rec = state.currentMessages.find(m => m.msgId === id);
+            if (rec) rec.content = newText;
+            persistCurrentConversation();
 
             document.getElementById('edited-' + id)?.classList.remove('hidden');
         };
@@ -2636,7 +2793,11 @@
         };
 
         window.newConversation = function() {
+            persistCurrentConversation();
+
             state.sessionId = null;
+            state.conversationId = 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            state.currentMessages = [];
             chatMessages.innerHTML = `
                 <div class="empty-state" id="chat-empty">
                     <div class="empty-state-icon">◈</div>
@@ -2646,6 +2807,7 @@
                     </div>
                 </div>
             `;
+            renderConversationList();
         };
 
         // =====================================================================
