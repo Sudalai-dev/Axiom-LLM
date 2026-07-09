@@ -257,9 +257,63 @@
 
         #app-shell {
             display: flex;
+            flex-direction: column;
             height: 100vh;
             overflow: hidden;
         }
+
+        .app-body {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* Top Status Bar — Doc 15 command-center strip */
+        .status-bar {
+            flex-shrink: 0;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: 0 var(--space-lg);
+            background: #050d0a;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+        }
+
+        .status-bar-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .status-bar-right {
+            margin-left: auto;
+            gap: var(--space-md);
+        }
+
+        .status-sep { color: var(--border-default); }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: var(--radius-full);
+            background: var(--accent-primary);
+            animation: status-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes status-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.6); opacity: 0.5; }
+        }
+
+        .status-value { color: var(--text-primary); font-weight: 700; }
+        .status-clock { color: var(--text-secondary); letter-spacing: 0.05em; }
 
         /* Sidebar Navigation */
         .sidebar {
@@ -336,6 +390,7 @@
             background: var(--accent-mint-whisper);
             color: var(--text-inverse);
             font-weight: 500;
+            box-shadow: inset 3px 0 0 var(--accent-primary);
         }
 
         .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
@@ -955,6 +1010,14 @@
             background: var(--bg-glass-hover);
         }
 
+        .approval-table tbody tr.risk-row-high {
+            box-shadow: inset 3px 0 0 var(--accent-danger);
+        }
+
+        .approval-table tbody tr.risk-row-medium {
+            box-shadow: inset 3px 0 0 var(--accent-warning);
+        }
+
         .approval-table td {
             padding: var(--space-md) var(--space-lg);
             border-bottom: 1px solid var(--border-subtle);
@@ -1180,7 +1243,7 @@
 
         .search-result-card:hover {
             border-color: var(--border-accent);
-            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
 
     </style>
@@ -1217,6 +1280,31 @@
          APP SHELL
          ================================================================ -->
     <div id="app-shell" class="hidden">
+        <!-- Top Status Bar -->
+        <div class="status-bar">
+            <div class="status-bar-group">
+                <span class="status-dot"></span>
+                <span>OCIF Enterprise AI Platform</span>
+            </div>
+            <span class="status-sep">|</span>
+            <div class="status-bar-group">
+                <span>🛡 Governance: Active</span>
+            </div>
+            <div class="status-bar-group status-bar-right">
+                <div class="status-bar-group">
+                    <span>Pending Approvals:</span>
+                    <span class="status-value" id="status-approval-count">0</span>
+                </div>
+                <span class="status-sep">|</span>
+                <div class="status-bar-group" id="status-role"></div>
+                <span class="status-sep">|</span>
+                <div class="status-bar-group">
+                    <span class="status-clock mono" id="status-clock">--:--:-- UTC</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-body">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -1474,6 +1562,7 @@
             </div>
 
         </main>
+        </div>
     </div>
 
     <!-- Solution Domain Drill-down Modal -->
@@ -1514,6 +1603,18 @@
 
         if (window.mermaid) {
             mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+        }
+
+        function tickStatusClock() {
+            const el = document.getElementById('status-clock');
+            if (el) el.textContent = new Date().toISOString().substr(11, 8) + ' UTC';
+        }
+        tickStatusClock();
+        setInterval(tickStatusClock, 1000);
+
+        function updateStatusApprovalCount(count) {
+            const el = document.getElementById('status-approval-count');
+            if (el) el.textContent = count;
         }
 
         const API_BASE = window.location.port === '3000'
@@ -1583,6 +1684,7 @@
                 document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
                 document.getElementById('display-username').textContent = state.username;
                 document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                document.getElementById('status-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
                 // Developer Mode is available to platform admins only
                 document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
@@ -2201,15 +2303,17 @@
                 if (!data || data.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No pending approvals.</div></div></td></tr>`;
                     document.getElementById('approval-count').classList.add('hidden');
+                    updateStatusApprovalCount(0);
                     return;
                 }
 
                 document.getElementById('approval-count').textContent = data.length;
                 document.getElementById('approval-count').classList.remove('hidden');
+                updateStatusApprovalCount(data.length);
 
                 tbody.innerHTML = data.map(a => {
                     const riskClass = a.risk_score >= 0.7 ? 'high' : a.risk_score >= 0.4 ? 'medium' : 'low';
-                    return `<tr>
+                    return `<tr class="risk-row-${riskClass}">
                         <td><code style="font-family:var(--font-mono);font-size:0.75rem;">${a.approval_id.substring(0,8)}...</code></td>
                         <td>${a.summary}</td>
                         <td><span class="risk-badge risk-${riskClass}">${(a.risk_score * 100).toFixed(0)}%</span></td>
