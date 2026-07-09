@@ -554,9 +554,10 @@
         .md-doc blockquote { border-left: 3px solid var(--accent-primary); margin: 8px 0; padding: 4px 12px; color: var(--text-secondary); }
 
         /* Developer mode toggle + trace timeline */
-        .dev-mode-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 0.78rem; color: var(--text-tertiary); }
-        .dev-mode-row input { accent-color: var(--accent-secondary); cursor: pointer; }
-        .dev-mode-row label { cursor: pointer; user-select: none; }
+        .dev-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 0.78rem; color: var(--text-tertiary); }
+        .dev-mode-row input { flex-shrink: 0; accent-color: var(--accent-secondary); cursor: pointer; }
+        .dev-mode-row label { flex-shrink: 0; white-space: nowrap; cursor: pointer; user-select: none; }
+        .dev-mode-row > span:last-child { flex: 1 1 auto; min-width: 160px; text-align: right; }
         .dev-mode-row .dev-badge { background: rgba(139,92,246,0.15); color: var(--accent-secondary); border-radius: var(--radius-full); padding: 1px 8px; font-size: 0.7rem; }
         .trace-engine-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); font-size: 0.78rem; }
         .trace-engine-row .engine-name { font-family: var(--font-mono); color: var(--text-primary); }
@@ -734,7 +735,8 @@
             );
             position: relative;
             flex: 1;
-            border-radius: var(--radius-full);
+            min-width: 0;
+            border-radius: 28px;
             background: var(--bg-glass);
             backdrop-filter: blur(16px);
             animation: rotate-gradient 5s infinite linear;
@@ -772,7 +774,7 @@
         .radiant-input-inner {
             position: relative;
             z-index: 1;
-            display: flex; align-items: flex-end; gap: var(--space-xs);
+            display: flex; align-items: center; gap: var(--space-xs);
             padding: 6px 6px 6px 14px;
             min-height: 56px;
         }
@@ -780,7 +782,6 @@
         .radiant-icon-btn {
             flex-shrink: 0;
             width: 36px; height: 36px;
-            margin-bottom: 2px;
             border-radius: var(--radius-full);
             display: flex; align-items: center; justify-content: center;
             color: var(--text-tertiary);
@@ -793,11 +794,13 @@
 
         .chat-input {
             flex: 1;
+            min-width: 0;
             padding: 15px 4px;
             background: transparent;
             border: none;
             color: var(--text-primary);
             font-size: 0.95rem;
+            line-height: 1.4;
             resize: none;
             min-height: 44px;
             max-height: 120px;
@@ -808,7 +811,6 @@
 
         .chat-send-btn {
             width: 40px; height: 40px;
-            margin-bottom: 2px;
             border-radius: var(--radius-full);
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
             color: white;
