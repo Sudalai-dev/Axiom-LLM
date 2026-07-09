@@ -697,7 +697,7 @@
             display: flex; gap: var(--space-sm);
         }
 
-        /* Chat Input Area — Radiant gradient-border pill (AXIOM brand theme) */
+        /* Chat Input Area — Radiant gradient-border pill (faithful rainbow reproduction) */
         .chat-input-area {
             padding: var(--space-md) var(--space-xl);
             border-top: 1px solid var(--border-subtle);
@@ -721,26 +721,29 @@
         }
 
         .radiant-input-shell {
-            --border-size: 2px;
+            --border-size: 3px;
             --radiant-gradient: conic-gradient(
                 from var(--rotation) at 50% 50% in oklab,
-                var(--accent-primary) 0%,
-                var(--accent-secondary) 33%,
-                var(--accent-success) 66%,
-                var(--accent-primary) 100%
+                oklch(0.63 0.2 251.22) 27%,
+                oklch(0.67 0.21 25.81) 33%,
+                oklch(0.9 0.19 93.93) 41%,
+                oklch(0.79 0.25 150.49) 49%,
+                oklch(0.63 0.2 251.22) 65%,
+                oklch(0.72 0.21 150.89) 93%,
+                oklch(0.63 0.2 251.22)
             );
             position: relative;
             flex: 1;
             border-radius: var(--radius-full);
             background: var(--bg-glass);
             backdrop-filter: blur(16px);
-            animation: rotate-gradient 6s infinite linear;
+            animation: rotate-gradient 5s infinite linear;
             transition: box-shadow var(--transition-normal);
         }
 
         .radiant-input-shell:hover,
         .radiant-input-shell:focus-within {
-            box-shadow: var(--shadow-glow);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.08);
         }
 
         .radiant-input-shell::before {
