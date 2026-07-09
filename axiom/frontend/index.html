@@ -145,9 +145,30 @@
             display: flex; align-items: center; justify-content: center;
             background: var(--bg-primary);
             z-index: 1000;
+            overflow: hidden;
+        }
+
+        .login-gradient-bg {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: scale(1.5);
+            animation: login-gradient-entrance 2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+        }
+
+        .login-gradient-canvas {
+            position: absolute;
+            inset: 0;
+        }
+
+        @keyframes login-gradient-entrance {
+            to { opacity: 1; transform: scale(1); }
         }
 
         .login-container {
+            position: relative;
+            z-index: 1;
             width: 420px;
             padding: var(--space-2xl);
             background: var(--bg-glass);
@@ -1254,6 +1275,9 @@
          LOGIN SCREEN
          ================================================================ -->
     <div id="login-screen">
+        <div class="login-gradient-bg" id="login-gradient-bg">
+            <div class="login-gradient-canvas" id="login-gradient-canvas"></div>
+        </div>
         <div class="login-container">
             <div class="login-logo">
                 <h1>◈ AXIOM</h1>
@@ -1605,6 +1629,47 @@
             mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
         }
 
+        // =====================================================================
+        // Login Screen — Animated Gradient Background (breathing radial glow)
+        // =====================================================================
+        (function() {
+            const canvas = document.getElementById('login-gradient-canvas');
+            if (!canvas) return;
+
+            const startingGap = 125;
+            const breathingRange = 5;
+            const animationSpeed = 0.02;
+            const topOffset = 0;
+            const gradientColors = ['#000a06', '#0a1a14', 'rgba(122,255,180,0.35)', '#7affb4', '#4dd699', '#0a1a14', '#000a06'];
+            const gradientStops = [35, 50, 60, 70, 80, 90, 100];
+
+            let width = startingGap;
+            let direction = 1;
+            let frame = null;
+
+            function tick() {
+                if (width >= startingGap + breathingRange) direction = -1;
+                if (width <= startingGap - breathingRange) direction = 1;
+                width += direction * animationSpeed;
+
+                const stopsString = gradientStops.map((stop, i) => `${gradientColors[i]} ${stop}%`).join(', ');
+                canvas.style.background = `radial-gradient(${width}% ${width + topOffset}% at 50% 20%, ${stopsString})`;
+
+                frame = requestAnimationFrame(tick);
+            }
+
+            window.startLoginGradient = function() {
+                if (frame !== null) return;
+                frame = requestAnimationFrame(tick);
+            };
+            window.stopLoginGradient = function() {
+                if (frame !== null) cancelAnimationFrame(frame);
+                frame = null;
+            };
+
+            window.startLoginGradient();
+        })();
+
         function tickStatusClock() {
             const el = document.getElementById('status-clock');
             if (el) el.textContent = new Date().toISOString().substr(11, 8) + ' UTC';
@@ -1680,6 +1745,7 @@
 
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app-shell').classList.remove('hidden');
+                window.stopLoginGradient();
 
                 document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
                 document.getElementById('display-username').textContent = state.username;
@@ -1703,6 +1769,7 @@
             state.sessionId = null;
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
+            window.startLoginGradient();
             document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
                 document.getElementById('chat-messages').innerHTML : '';
         };
