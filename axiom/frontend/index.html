@@ -1304,12 +1304,13 @@
                                     <div class="radiant-input-border"></div>
                                     <div class="radiant-input-inner">
                                         <button type="button" class="radiant-icon-btn" aria-label="Add attachment">＋</button>
-                                        <textarea class="chat-input" id="chat-input" placeholder="Describe an engineering problem or use case... (Shift+Enter for new line)" rows="1"></textarea>
+                                        <textarea class="chat-input" id="chat-input" placeholder="Ask AXIOM anything..." rows="1"></textarea>
                                         <button type="button" class="radiant-icon-btn" aria-label="Use microphone">🎤</button>
                                         <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
                                     </div>
                                 </div>
                             </div>
+                            <div style="text-align:center; font-size:0.7rem; color:var(--text-tertiary); margin-top:6px;">Shift+Enter for a new line</div>
                         </div>
                     </div>
 
@@ -1656,6 +1657,12 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
+
+        // Clicking/focusing an empty textarea can drop the caret wherever the
+        // click landed on the placeholder, making it look detached from the text.
+        ['focus', 'click'].forEach(evt => chatInput.addEventListener(evt, function() {
+            if (!this.value) this.setSelectionRange(0, 0);
+        }));
 
         window.sendMessage = async function() {
             const msg = chatInput.value.trim();
