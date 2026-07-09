@@ -1327,6 +1327,24 @@
         .toast.error { border-left: 3px solid var(--accent-danger); }
         .toast.info { border-left: 3px solid var(--accent-info); }
 
+        .toast-text { flex: 1; }
+
+        .toast-close {
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--text-tertiary);
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .toast-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+
         @keyframes toastIn {
             from { opacity: 0; transform: translateX(20px); }
             to { opacity: 1; transform: translateX(0); }
@@ -1962,9 +1980,23 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = 'toast ' + type;
-            toast.textContent = message;
+
+            const text = document.createElement('span');
+            text.className = 'toast-text';
+            text.textContent = message;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.setAttribute('aria-label', 'Dismiss notification');
+            closeBtn.innerHTML = '&times;';
+
+            toast.appendChild(text);
+            toast.appendChild(closeBtn);
             container.appendChild(toast);
-            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+
+            const dismiss = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); };
+            const timer = setTimeout(dismiss, 4000);
+            closeBtn.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
         };
 
         // =====================================================================
