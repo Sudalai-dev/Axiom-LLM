@@ -1387,6 +1387,20 @@
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Loading skeletons — Dashboard/Approvals show these immediately
+           instead of sitting blank until the fetch resolves */
+        .skeleton-block {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-elevated) 37%, var(--bg-tertiary) 63%);
+            background-size: 400% 100%;
+            animation: skeleton-shimmer 1.4s ease infinite;
+            border-radius: var(--radius-sm);
+        }
+
+        @keyframes skeleton-shimmer {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0 50%; }
+        }
+
         /* Knowledge Search View */
         .search-container {
             max-width: 700px;
@@ -2020,8 +2034,28 @@
             toast.appendChild(closeBtn);
             container.appendChild(toast);
 
-            const dismiss = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); };
-            const timer = setTimeout(dismiss, 4000);
+            const DURATION = 4000;
+            let remaining = DURATION;
+            let startedAt = Date.now();
+            let timer = setTimeout(dismiss, DURATION);
+
+            function dismiss() {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }
+
+            // Hover pauses the countdown (tracking actual elapsed time, not just
+            // resetting to the full duration) so a toast you're reading doesn't
+            // vanish out from under you.
+            toast.addEventListener('mouseenter', () => {
+                clearTimeout(timer);
+                remaining -= (Date.now() - startedAt);
+            });
+            toast.addEventListener('mouseleave', () => {
+                startedAt = Date.now();
+                timer = setTimeout(dismiss, Math.max(remaining, 300));
+            });
+
             closeBtn.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
         };
 
@@ -2813,8 +2847,22 @@
         // =====================================================================
         // Dashboard — Doc 15 Section 6
         // =====================================================================
+        function dashboardSkeletonCard() {
+            return `
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="skeleton-block" style="width:90px;height:11px;"></div>
+                        <div class="skeleton-block" style="width:36px;height:36px;"></div>
+                    </div>
+                    <div class="skeleton-block" style="width:70px;height:26px;margin-bottom:8px;"></div>
+                    <div class="skeleton-block" style="width:120px;height:10px;"></div>
+                </div>
+            `;
+        }
+
         window.loadDashboard = async function() {
             const grid = document.getElementById('dashboard-grid');
+            grid.innerHTML = dashboardSkeletonCard().repeat(6);
 
             try {
                 const data = await api('GET', '/dashboard/usage');
@@ -2883,8 +2931,21 @@
         // =====================================================================
         // Approvals — Doc 15 Section 5
         // =====================================================================
+        function approvalsSkeletonRow() {
+            return `
+                <tr>
+                    <td><div class="skeleton-block" style="width:70px;height:11px;"></div></td>
+                    <td><div class="skeleton-block" style="width:70%;height:11px;"></div></td>
+                    <td><div class="skeleton-block" style="width:46px;height:20px;border-radius:var(--radius-full);"></div></td>
+                    <td><div class="skeleton-block" style="width:90px;height:11px;"></div></td>
+                    <td><div class="skeleton-block" style="width:120px;height:24px;"></div></td>
+                </tr>
+            `;
+        }
+
         window.loadApprovals = async function() {
             const tbody = document.getElementById('approval-tbody');
+            tbody.innerHTML = approvalsSkeletonRow().repeat(4);
             try {
                 const data = await api('GET', '/approvals');
                 if (!data || data.length === 0) {
