@@ -25,6 +25,13 @@
             --bg-elevated: #161818;       /* Charcoal — modals, overlays */
             --bg-glass: rgba(10, 26, 20, 0.85);
             --bg-glass-hover: rgba(22, 24, 24, 0.92);
+            /* More see-through than --bg-glass, for the sidebar/history/
+               detail-panel columns specifically, so the ambient nebula's
+               movement is visible through them -- paired with saturate()/
+               brightness() on backdrop-filter (see .sidebar etc.) so the
+               raw neon color gets muted into a material tint instead of
+               reading as a bare colorful window. */
+            --panel-glass: rgba(10, 26, 20, 0.58);
 
             /* Accent colors — bichromatic: dark neutrals + a single mint */
             --accent-primary: #7affb4;        /* Electric Mint */
@@ -59,6 +66,12 @@
             --shadow-lg: none;
             --shadow-glow: none;
             --shadow-button-inset: rgba(1, 5, 27, 0.06) 0px 0px 0px 1px inset;
+
+            /* Raised/embossed 3D bevel — distinct from the "no elevation drop
+               shadow" rule above: this is an inset highlight+shadow pair (not
+               an outer lift shadow), matching the chat input ring's bevel. */
+            --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 2px rgba(0, 0, 0, 0.3);
+            --bevel-lifted: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
 
             /* Spacing */
             --space-xs: 4px;
@@ -153,17 +166,22 @@
            visible), so the same living backdrop follows the user in. */
         #ambient-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
 
-        .ambient-gradient-bg {
+        /* Ambient background — Celestial Sphere WebGL nebula, mounted once
+           and left running for the page's lifetime (same as the CSS
+           gradient/particle system it replaced). Opacity kept moderate so
+           it never fights with dense views like Dashboard/Approvals. */
+        .ambient-shader {
             position: absolute;
             inset: 0;
-            overflow: hidden;
-            opacity: 0.2;
+            opacity: 0.26;
+            /* Tone the raw shader output down at the source -- this is what
+               every panel's glass tint derives from, so fixing saturation/
+               brightness here (rather than per-panel) keeps the center
+               content and the sidebar/history/detail-panel consistent
+               instead of needing separate touch-ups on each. */
+            filter: saturate(0.45) brightness(0.75) contrast(0.95);
         }
-
-        .ambient-gradient-canvas {
-            position: absolute;
-            inset: 0;
-        }
+        .ambient-shader canvas { display: block; }
 
         /* Ambient background — accent grid lines (static: a CSS entrance
            animation here previously froze this element invisible in some
@@ -191,16 +209,6 @@
         .ambient-vline:nth-child(5)::after { animation-delay: .54s; }
         .ambient-vline:nth-child(6)::after { animation-delay: .66s; }
         @keyframes ambient-shimmer { 0% { opacity: 0; } 35% { opacity: .6; } 100% { opacity: 0; } }
-
-        /* Ambient background — rising particle field */
-        #ambient-particles {
-            position: absolute; inset: 0;
-            width: 100%; height: 100%;
-            opacity: 0.6;
-            mix-blend-mode: screen;
-            pointer-events: none;
-            z-index: 0;
-        }
 
         /* Login Screen — top brand bar */
         .login-header {
@@ -234,7 +242,7 @@
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-default);
             border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg), var(--shadow-glow);
+            box-shadow: var(--bevel-lifted);
         }
 
         .input-icon-wrap { position: relative; }
@@ -340,7 +348,7 @@
         .btn-primary {
             background: var(--accent-primary);
             color: var(--text-inverse);
-            box-shadow: var(--shadow-button-inset);
+            box-shadow: var(--shadow-button-inset), var(--bevel);
         }
 
         .btn-primary:hover {
@@ -353,14 +361,15 @@
             color: var(--text-primary);
             border: 1px solid var(--border-default);
             border-radius: var(--radius-md);
+            box-shadow: var(--bevel);
         }
 
         .btn-secondary:hover { background: var(--bg-elevated); border-color: var(--border-accent); }
 
-        .btn-danger { background: var(--accent-danger); color: white; }
+        .btn-danger { background: var(--accent-danger); color: white; box-shadow: var(--bevel); }
         .btn-danger:hover { opacity: 0.9; }
 
-        .btn-success { background: var(--accent-success); color: white; }
+        .btn-success { background: var(--accent-success); color: white; box-shadow: var(--bevel); }
         .btn-success:hover { opacity: 0.9; }
 
         .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
@@ -404,6 +413,7 @@
             padding: 0 var(--space-lg);
             background: #050d0a;
             border-bottom: 1px solid var(--border-subtle);
+            box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.03);
             font-size: 0.7rem;
             font-weight: 500;
             letter-spacing: 0.03em;
@@ -443,8 +453,10 @@
         /* Sidebar Navigation */
         .sidebar {
             width: var(--sidebar-width);
-            background: var(--bg-secondary);
+            background: var(--panel-glass);
+            backdrop-filter: blur(10px);
             border-right: 1px solid var(--border-subtle);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3), inset -2px 0 4px rgba(0, 0, 0, 0.3), 2px 0 10px rgba(0, 0, 0, 0.25);
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
@@ -515,7 +527,7 @@
             background: var(--accent-mint-whisper);
             color: var(--text-inverse);
             font-weight: 500;
-            box-shadow: inset 3px 0 0 var(--accent-primary);
+            box-shadow: inset 3px 0 0 var(--accent-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.08);
         }
 
         .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
@@ -607,8 +619,10 @@
         /* Chat History Sidebar */
         .chat-history {
             width: 260px;
-            background: var(--bg-secondary);
+            background: var(--panel-glass);
+            backdrop-filter: blur(10px);
             border-right: 1px solid var(--border-subtle);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3), inset -2px 0 4px rgba(0, 0, 0, 0.3), 2px 0 10px rgba(0, 0, 0, 0.25);
             display: flex; flex-direction: column;
             flex-shrink: 0;
         }
@@ -635,7 +649,7 @@
         }
 
         .chat-history-item:hover { background: var(--bg-elevated); }
-        .chat-history-item.active { background: rgba(122,255,180,0.1); border: 1px solid var(--border-accent); }
+        .chat-history-item.active { background: rgba(122,255,180,0.1); border: 1px solid var(--border-accent); box-shadow: var(--bevel); }
 
         .chat-history-item .title {
             font-size: 0.85rem;
@@ -731,12 +745,14 @@
             color: var(--text-primary);
             border: 1px solid var(--border-default);
             border-bottom-right-radius: var(--space-xs);
+            box-shadow: var(--bevel);
         }
 
         .message-assistant .message-body {
             background: var(--bg-elevated);
             border: 1px solid var(--border-subtle);
             border-bottom-left-radius: var(--space-xs);
+            box-shadow: var(--bevel);
         }
 
         /* Confidence Badge — Doc 15 Section 4 */
@@ -777,7 +793,7 @@
         .octagon-diagram svg { max-width: 100%; height: auto; }
 
         /* Solution Map — the user-facing Octagonal Engineering Visualization */
-        .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; }
+        .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; box-shadow: var(--bevel-lifted); }
         .solution-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
         .solution-map-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
         .solution-map-hint { font-size: 0.72rem; color: var(--text-tertiary); }
@@ -807,6 +823,35 @@
         .domain-modal-body .domain-description { color: var(--text-secondary); margin-bottom: 12px; font-style: italic; }
         .domain-modal-body .artifact-block { margin-bottom: 16px; }
         .domain-modal-body .artifact-block h4 { font-size: 0.85rem; color: var(--accent-primary-hover); margin-bottom: 6px; }
+
+        /* Confirm Modal — replaces the native browser confirm() dialog for
+           destructive actions (delete message/conversation) so it matches
+           the app's own styling instead of an unstyled OS popup. */
+        .confirm-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(10,14,26,0.7);
+            backdrop-filter: blur(2px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 300;
+        }
+        .confirm-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--bevel-lifted);
+            width: min(380px, 92vw);
+            padding: var(--space-lg);
+            animation: messageIn 0.15s ease;
+        }
+        .confirm-modal-message {
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            margin-bottom: var(--space-lg);
+        }
+        .confirm-modal-actions {
+            display: flex; justify-content: flex-end; gap: var(--space-sm);
+        }
 
         .confidence-badge {
             display: inline-flex; align-items: center; gap: 4px;
@@ -1062,8 +1107,10 @@
         /* Right Panel — Decision Trace */
         .chat-detail-panel {
             width: 320px;
-            background: var(--bg-secondary);
+            background: var(--panel-glass);
+            backdrop-filter: blur(10px);
             border-left: 1px solid var(--border-subtle);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3), inset 2px 0 4px rgba(0, 0, 0, 0.3), -2px 0 10px rgba(0, 0, 0, 0.25);
             overflow-y: auto;
             padding: var(--space-lg);
             flex-shrink: 0;
@@ -1071,6 +1118,17 @@
         }
 
         .chat-detail-panel.collapsed { width: 0; padding: 0; overflow: hidden; }
+
+        /* Full-viewport hero: while the chat is empty, everything but the
+           centered AXIOM hero + nebula collapses out of the way so the hero
+           fills the whole browser window. Restored the moment a real
+           message shows (see sendMessage/switchConversation). */
+        #app-shell.hero-fullscreen .status-bar,
+        #app-shell.hero-fullscreen .sidebar,
+        #app-shell.hero-fullscreen .chat-history,
+        #app-shell.hero-fullscreen .chat-detail-panel {
+            display: none;
+        }
 
         .detail-section {
             margin-bottom: var(--space-lg);
@@ -1102,12 +1160,13 @@
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-md);
             padding: var(--space-lg);
+            box-shadow: var(--bevel-lifted);
             transition: all var(--transition-normal);
         }
 
         .metric-card:hover {
             border-color: var(--border-accent);
-            box-shadow: var(--shadow-md), var(--shadow-glow);
+            box-shadow: var(--bevel-lifted);
             transform: translateY(-2px);
         }
 
@@ -1271,6 +1330,7 @@
             border-radius: var(--radius-md);
             padding: var(--space-lg);
             margin-bottom: var(--space-lg);
+            box-shadow: var(--bevel-lifted);
         }
 
         .admin-card-header {
@@ -1305,21 +1365,9 @@
         }
 
         /* The chat welcome panel should fill the whole message pane (not just
-           shrink-to-fit its icon+text) so the shader behind it reads as a full
-           backdrop rather than a small boxed-in tile. */
+           shrink-to-fit its icon+text) so the shared ambient nebula showing
+           through behind it reads as a full backdrop, not a small boxed tile. */
         #chat-empty { min-height: 100%; }
-
-        /* Chat welcome panel only: WebGL nebula backdrop behind the icon/text.
-           Absolutely positioned so it never disturbs the flex-centered layout
-           the other (non-shader) empty states already rely on. */
-        .chat-welcome-shader {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            opacity: 0.5;
-            pointer-events: none;
-        }
-        .chat-welcome-shader canvas { display: block; }
 
         .empty-state-icon, .empty-state-text {
             position: relative;
@@ -1345,6 +1393,42 @@
         .empty-state-text {
             font-size: 0.95rem;
             margin-bottom: var(--space-md);
+        }
+
+        /* Chat welcome panel — hero-scale title over the nebula, matching the
+           weight of the shader's own demo composition rather than a small
+           icon + caption floating in a large background. */
+        .chat-welcome-mark, .chat-welcome-title, .chat-welcome-subtitle {
+            position: relative;
+            z-index: 1;
+        }
+
+        .chat-welcome-mark {
+            font-size: 2.2rem;
+            margin-bottom: var(--space-sm);
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 10px rgba(122, 255, 180, 0.4));
+            animation: pulse-glow 3s infinite ease-in-out;
+        }
+
+        .chat-welcome-title {
+            font-size: 4.5rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            margin-bottom: var(--space-md);
+            color: var(--text-primary);
+        }
+
+        .chat-welcome-subtitle {
+            font-size: 1.05rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 460px;
+            line-height: 1.6;
         }
 
         /* Typing indicator */
@@ -1476,6 +1560,7 @@
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-md);
             padding: var(--space-lg);
+            box-shadow: var(--bevel-lifted);
             transition: all var(--transition-fast);
         }
 
@@ -1496,9 +1581,7 @@
          app shell (whichever is visible)
          ================================================================ -->
     <div id="ambient-background">
-        <div class="ambient-gradient-bg" id="ambient-gradient-bg">
-            <div class="ambient-gradient-canvas" id="ambient-gradient-canvas"></div>
-        </div>
+        <div class="ambient-shader" id="ambient-shader"></div>
 
         <div class="ambient-accent-lines">
             <div class="ambient-hline"></div>
@@ -1508,8 +1591,6 @@
             <div class="ambient-vline"></div>
             <div class="ambient-vline"></div>
         </div>
-
-        <canvas id="ambient-particles"></canvas>
     </div>
 
     <div id="login-screen">
@@ -1652,11 +1733,9 @@
                     <div class="chat-thread">
                         <div class="chat-messages" id="chat-messages">
                             <div class="empty-state" id="chat-empty">
-                                <div class="empty-state-icon">◈</div>
-                                <div class="empty-state-text">
-                                    Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
-                                    Every response is governed, explainable, and auditable.
-                                </div>
+                                <div class="chat-welcome-mark">◈</div>
+                                <h1 class="chat-welcome-title">AXIOM</h1>
+                                <p class="chat-welcome-subtitle">Your enterprise AI copilot — every response governed, explainable, and auditable.</p>
                             </div>
                         </div>
                         <div class="chat-input-area">
@@ -1855,6 +1934,17 @@
         </div>
     </div>
 
+    <!-- Confirm Modal (replaces native browser confirm()) -->
+    <div class="confirm-modal-overlay hidden" id="confirm-modal-overlay">
+        <div class="confirm-modal">
+            <div class="confirm-modal-message" id="confirm-modal-message"></div>
+            <div class="confirm-modal-actions">
+                <button class="btn btn-secondary btn-sm" id="confirm-modal-cancel">Cancel</button>
+                <button class="btn btn-danger btn-sm" id="confirm-modal-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -1892,91 +1982,148 @@
         }
 
         // =====================================================================
-        // Ambient Background — breathing gradient (shared: login + app shell)
+        // Ambient Background — Celestial Sphere WebGL nebula (shared: login +
+        // every app-shell view). Mounted once and left running for the
+        // page's lifetime, same as the CSS gradient/particle system it
+        // replaced -- there's exactly one instance, so no start/stop
+        // lifecycle is needed here (contrast with per-conversation WebGL
+        // instances, which would need explicit disposal).
         // =====================================================================
         (function() {
-            const canvas = document.getElementById('ambient-gradient-canvas');
-            if (!canvas) return;
+            const container = document.getElementById('ambient-shader');
+            if (!window.THREE || !container) return;
 
-            const startingGap = 125;
-            const breathingRange = 5;
-            const animationSpeed = 0.02;
-            const topOffset = 0;
-            const gradientColors = ['#000a06', '#0a1a14', 'rgba(122,255,180,0.35)', '#7affb4', '#4dd699', '#0a1a14', '#000a06'];
-            const gradientStops = [35, 50, 60, 70, 80, 90, 100];
+            try {
+                const hueCyclePeriodMs = 6000; // matches the chat input ring's `rotate-gradient 6s` cycle
+                const speed = 0.3;
+                const zoom = 1.4;
+                const particleSize = 3.0;
 
-            let width = startingGap;
-            let direction = 1;
+                const scene = new THREE.Scene();
+                const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                container.appendChild(renderer.domElement);
 
-            function tick() {
-                if (width >= startingGap + breathingRange) direction = -1;
-                if (width <= startingGap - breathingRange) direction = 1;
-                width += direction * animationSpeed;
-
-                const stopsString = gradientStops.map((stop, i) => `${gradientColors[i]} ${stop}%`).join(', ');
-                canvas.style.background = `radial-gradient(${width}% ${width + topOffset}% at 50% 20%, ${stopsString})`;
-
-                requestAnimationFrame(tick);
-            }
-
-            requestAnimationFrame(tick);
-        })();
-
-        // =====================================================================
-        // Ambient Background — rising particle field (shared: login + app shell)
-        // =====================================================================
-        (function() {
-            const canvas = document.getElementById('ambient-particles');
-            const ctx = canvas ? canvas.getContext('2d') : null;
-            if (!canvas || !ctx) return;
-
-            let particles = [];
-
-            function setSize() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-
-            function makeParticle() {
-                return {
-                    x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height,
-                    v: Math.random() * 0.25 + 0.05,
-                    o: Math.random() * 0.35 + 0.15,
-                    mint: Math.random() > 0.5,
-                };
-            }
-
-            function initParticles() {
-                particles = [];
-                const count = Math.floor((canvas.width * canvas.height) / 9000);
-                for (let i = 0; i < count; i++) particles.push(makeParticle());
-            }
-
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(p => {
-                    p.y -= p.v;
-                    if (p.y < 0) {
-                        p.x = Math.random() * canvas.width;
-                        p.y = canvas.height + Math.random() * 40;
-                        p.v = Math.random() * 0.25 + 0.05;
-                        p.o = Math.random() * 0.35 + 0.15;
+                const vertexShader = `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
-                    ctx.fillStyle = p.mint ? `rgba(122,255,180,${p.o})` : `rgba(227,255,239,${p.o})`;
-                    ctx.fillRect(p.x, p.y, 0.7, 2.2);
+                `;
+
+                const fragmentShader = `
+                    precision highp float;
+                    varying vec2 vUv;
+                    uniform vec2 u_resolution;
+                    uniform float u_time;
+                    uniform vec2 u_mouse;
+                    uniform float u_hue;
+                    uniform float u_zoom;
+                    uniform float u_particle_size;
+
+                    vec3 hsl2rgb(vec3 c) {
+                        vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
+                        return c.z * mix(vec3(1.0), rgb, c.y);
+                    }
+
+                    float random(vec2 st) {
+                        return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+                    }
+
+                    float noise(vec2 st) {
+                        vec2 i = floor(st);
+                        vec2 f = fract(st);
+                        float a = random(i);
+                        float b = random(i + vec2(1.0, 0.0));
+                        float c = random(i + vec2(0.0, 1.0));
+                        float d = random(i + vec2(1.0, 1.0));
+                        vec2 u = f * f * (3.0 - 2.0 * f);
+                        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.y * u.x;
+                    }
+
+                    float fbm(vec2 st) {
+                        float value = 0.0;
+                        float amplitude = 0.5;
+                        for (int i = 0; i < 6; i++) {
+                            value += amplitude * noise(st);
+                            st *= 2.0;
+                            amplitude *= 0.5;
+                        }
+                        return value;
+                    }
+
+                    void main() {
+                        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
+                        uv *= u_zoom;
+
+                        vec2 mouse_normalized = u_mouse / u_resolution;
+                        uv += (mouse_normalized - 0.5) * 0.8;
+
+                        float f = fbm(uv + vec2(u_time * 0.1, u_time * 0.05));
+                        float t = fbm(uv + f + vec2(u_time * 0.05, u_time * 0.02));
+
+                        float nebula = pow(t, 2.0);
+                        vec3 color = hsl2rgb(vec3(u_hue / 360.0 + nebula * 0.2, 0.7, 0.5));
+                        color *= nebula * 2.5;
+
+                        float star_val = random(vUv * 500.0);
+                        if (star_val > 0.998) {
+                            float star_brightness = (star_val - 0.998) / 0.002;
+                            color += vec3(star_brightness * u_particle_size);
+                        }
+
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `;
+
+                const material = new THREE.ShaderMaterial({
+                    vertexShader, fragmentShader,
+                    uniforms: {
+                        u_time: { value: 0.0 },
+                        u_resolution: { value: new THREE.Vector2() },
+                        u_mouse: { value: new THREE.Vector2() },
+                        u_hue: { value: 0 },
+                        u_zoom: { value: zoom },
+                        u_particle_size: { value: particleSize },
+                    },
+                    transparent: true,
                 });
-                requestAnimationFrame(draw);
+
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+                scene.add(mesh);
+
+                function resize() {
+                    const w = container.clientWidth, h = container.clientHeight;
+                    if (!w || !h) return;
+                    renderer.setSize(w, h);
+                    material.uniforms.u_resolution.value.set(w, h);
+                }
+
+                function onMouseMove(e) {
+                    const rect = container.getBoundingClientRect();
+                    material.uniforms.u_mouse.value.set(e.clientX - rect.left, container.clientHeight - (e.clientY - rect.top));
+                }
+
+                function animate() {
+                    material.uniforms.u_time.value += 0.005 * speed;
+                    // Sweep the same 0-360 hue cycle as the chat input's
+                    // rotating VIBGYOR ring, on the same 6s period, so the
+                    // backdrop and the search bar feel like one color system.
+                    material.uniforms.u_hue.value = (performance.now() % hueCyclePeriodMs) / hueCyclePeriodMs * 360;
+                    renderer.render(scene, camera);
+                    requestAnimationFrame(animate);
+                }
+
+                window.addEventListener('resize', resize);
+                window.addEventListener('mousemove', onMouseMove);
+                resize();
+                animate();
+            } catch (_) {
+                // WebGL unavailable/failed — the app still renders fine on
+                // its own flat background, this just degrades silently.
             }
-
-            window.addEventListener('resize', function() {
-                setSize();
-                initParticles();
-            });
-
-            setSize();
-            initParticles();
-            requestAnimationFrame(draw);
         })();
 
         // =====================================================================
@@ -2150,7 +2297,6 @@
         window.handleLogout = function() {
             state.token = null;
             state.sessionId = null;
-            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
             document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
@@ -2176,6 +2322,14 @@
             document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + view).classList.add('active');
 
+            // The full-viewport hero (sidebar/status-bar/detail-panel hidden)
+            // only makes sense while the Chat view itself is on screen and
+            // still empty -- otherwise navigating away would leave the user
+            // stranded with no sidebar to navigate back with.
+            document.getElementById('app-shell').classList.toggle(
+                'hero-fullscreen', view === 'chat' && !!document.getElementById('chat-empty')
+            );
+
             if (view === 'dashboard') loadDashboard();
             if (view === 'approvals') loadApprovals();
         }
@@ -2197,174 +2351,16 @@
         const chatMessages = document.getElementById('chat-messages');
         const chatSendBtn = document.getElementById('chat-send-btn');
 
-        // =====================================================================
-        // Chat Empty State — Celestial Sphere WebGL nebula backdrop.
-        // Only ever runs while the welcome panel is on screen (paused/disposed
-        // the moment a real message shows) — a raw WebGL context is too heavy
-        // to leave running behind the dense chat/dashboard/approvals views.
-        // =====================================================================
-        let stopCelestialShader = null;
-
-        function startCelestialShader(container) {
-            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
-            if (!window.THREE || !container) return;
-
-            try {
-                const hue = 150.0; // AXIOM electric mint, not the demo's default blue
-                const speed = 0.3;
-                const zoom = 1.4;
-                const particleSize = 3.0;
-
-                const scene = new THREE.Scene();
-                const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-                container.appendChild(renderer.domElement);
-
-                const vertexShader = `
-                    varying vec2 vUv;
-                    void main() {
-                        vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `;
-
-                const fragmentShader = `
-                    precision highp float;
-                    varying vec2 vUv;
-                    uniform vec2 u_resolution;
-                    uniform float u_time;
-                    uniform vec2 u_mouse;
-                    uniform float u_hue;
-                    uniform float u_zoom;
-                    uniform float u_particle_size;
-
-                    vec3 hsl2rgb(vec3 c) {
-                        vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
-                        return c.z * mix(vec3(1.0), rgb, c.y);
-                    }
-
-                    float random(vec2 st) {
-                        return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
-                    }
-
-                    float noise(vec2 st) {
-                        vec2 i = floor(st);
-                        vec2 f = fract(st);
-                        float a = random(i);
-                        float b = random(i + vec2(1.0, 0.0));
-                        float c = random(i + vec2(0.0, 1.0));
-                        float d = random(i + vec2(1.0, 1.0));
-                        vec2 u = f * f * (3.0 - 2.0 * f);
-                        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.y * u.x;
-                    }
-
-                    float fbm(vec2 st) {
-                        float value = 0.0;
-                        float amplitude = 0.5;
-                        for (int i = 0; i < 6; i++) {
-                            value += amplitude * noise(st);
-                            st *= 2.0;
-                            amplitude *= 0.5;
-                        }
-                        return value;
-                    }
-
-                    void main() {
-                        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
-                        uv *= u_zoom;
-
-                        vec2 mouse_normalized = u_mouse / u_resolution;
-                        uv += (mouse_normalized - 0.5) * 0.8;
-
-                        float f = fbm(uv + vec2(u_time * 0.1, u_time * 0.05));
-                        float t = fbm(uv + f + vec2(u_time * 0.05, u_time * 0.02));
-
-                        float nebula = pow(t, 2.0);
-                        vec3 color = hsl2rgb(vec3(u_hue / 360.0 + nebula * 0.2, 0.7, 0.5));
-                        color *= nebula * 2.5;
-
-                        float star_val = random(vUv * 500.0);
-                        if (star_val > 0.998) {
-                            float star_brightness = (star_val - 0.998) / 0.002;
-                            color += vec3(star_brightness * u_particle_size);
-                        }
-
-                        gl_FragColor = vec4(color, 1.0);
-                    }
-                `;
-
-                const material = new THREE.ShaderMaterial({
-                    vertexShader, fragmentShader,
-                    uniforms: {
-                        u_time: { value: 0.0 },
-                        u_resolution: { value: new THREE.Vector2() },
-                        u_mouse: { value: new THREE.Vector2() },
-                        u_hue: { value: hue },
-                        u_zoom: { value: zoom },
-                        u_particle_size: { value: particleSize },
-                    },
-                    transparent: true,
-                });
-
-                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
-                scene.add(mesh);
-
-                let frame = null;
-
-                function resize() {
-                    const w = container.clientWidth, h = container.clientHeight;
-                    if (!w || !h) return;
-                    renderer.setSize(w, h);
-                    material.uniforms.u_resolution.value.set(w, h);
-                }
-
-                function onMouseMove(e) {
-                    const rect = container.getBoundingClientRect();
-                    material.uniforms.u_mouse.value.set(e.clientX - rect.left, container.clientHeight - (e.clientY - rect.top));
-                }
-
-                function animate() {
-                    material.uniforms.u_time.value += 0.005 * speed;
-                    renderer.render(scene, camera);
-                    frame = requestAnimationFrame(animate);
-                }
-
-                window.addEventListener('resize', resize);
-                window.addEventListener('mousemove', onMouseMove);
-                resize();
-                animate();
-
-                stopCelestialShader = function() {
-                    window.removeEventListener('resize', resize);
-                    window.removeEventListener('mousemove', onMouseMove);
-                    if (frame !== null) cancelAnimationFrame(frame);
-                    if (renderer.domElement && renderer.domElement.parentNode) {
-                        renderer.domElement.parentNode.removeChild(renderer.domElement);
-                    }
-                    renderer.dispose();
-                    material.dispose();
-                    mesh.geometry.dispose();
-                };
-            } catch (_) {
-                // WebGL unavailable/failed — the welcome panel's icon and text
-                // still render fine on their own, so this degrades silently.
-            }
-        }
 
         function renderChatEmptyState() {
-            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             chatMessages.innerHTML = `
                 <div class="empty-state" id="chat-empty">
-                    <div class="chat-welcome-shader" id="chat-welcome-shader"></div>
-                    <div class="empty-state-icon">◈</div>
-                    <div class="empty-state-text">
-                        Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
-                        Every response is governed, explainable, and auditable.
-                    </div>
+                    <div class="chat-welcome-mark">◈</div>
+                    <h1 class="chat-welcome-title">AXIOM</h1>
+                    <p class="chat-welcome-subtitle">Your enterprise AI copilot — every response governed, explainable, and auditable.</p>
                 </div>
             `;
-            startCelestialShader(document.getElementById('chat-welcome-shader'));
+            document.getElementById('app-shell').classList.add('hero-fullscreen');
         }
 
         chatInput.addEventListener('keydown', function(e) {
@@ -2391,9 +2387,9 @@
             if (!msg) return;
 
             // Hide empty state
-            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             const emptyState = document.getElementById('chat-empty');
             if (emptyState) emptyState.remove();
+            document.getElementById('app-shell').classList.remove('hero-fullscreen');
 
             // Render user message
             recordAndAppend('user', msg);
@@ -2665,9 +2661,9 @@
             state.sessionId = record.sessionId;
             state.currentMessages = record.messages.map(m => ({ ...m }));
 
-            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             chatMessages.innerHTML = '';
             if (record.messages.length) {
+                document.getElementById('app-shell').classList.remove('hero-fullscreen');
                 record.messages.forEach(m => appendMessage(m.role, m.content, m.meta || {}));
             } else {
                 renderChatEmptyState();
@@ -2675,9 +2671,39 @@
             renderConversationList();
         };
 
-        window.deleteConversation = function(event, convId) {
+        // In-app confirm dialog — replaces the native browser confirm()
+        // popup (unstyled, breaks out of the app's look) for destructive
+        // actions. Returns a Promise<boolean>.
+        function confirmAction(message) {
+            return new Promise(resolve => {
+                const overlay = document.getElementById('confirm-modal-overlay');
+                const msgEl = document.getElementById('confirm-modal-message');
+                const cancelBtn = document.getElementById('confirm-modal-cancel');
+                const confirmBtn = document.getElementById('confirm-modal-confirm');
+
+                msgEl.textContent = message;
+                overlay.classList.remove('hidden');
+
+                function cleanup(result) {
+                    overlay.classList.add('hidden');
+                    cancelBtn.removeEventListener('click', onCancel);
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    overlay.removeEventListener('click', onOverlayClick);
+                    resolve(result);
+                }
+                function onCancel() { cleanup(false); }
+                function onConfirm() { cleanup(true); }
+                function onOverlayClick(e) { if (e.target === overlay) cleanup(false); }
+
+                cancelBtn.addEventListener('click', onCancel);
+                confirmBtn.addEventListener('click', onConfirm);
+                overlay.addEventListener('click', onOverlayClick);
+            });
+        }
+
+        window.deleteConversation = async function(event, convId) {
             event.stopPropagation();
-            if (!confirm('Delete this conversation? This cannot be undone.')) return;
+            if (!await confirmAction('Delete this conversation? This cannot be undone.')) return;
 
             state.conversations = state.conversations.filter(c => c.id !== convId);
             saveConversationsToStorage();
@@ -2694,8 +2720,8 @@
         // persisted to a per-message backend record, so these just correct
         // the visible transcript rather than calling an API.
         // =====================================================================
-        window.deleteMessage = function(id) {
-            if (!confirm('Delete this message?')) return;
+        window.deleteMessage = async function(id) {
+            if (!await confirmAction('Delete this message?')) return;
             document.getElementById(id)?.remove();
             delete state.messageContent[id];
             state.currentMessages = state.currentMessages.filter(m => m.msgId !== id);
