@@ -150,6 +150,56 @@ class MemoryFrame(OCIFBaseModel):
     feedback: List[str] = Field(default_factory=list)
 
 
+class ProjectUnderstandingFrame(OCIFBaseModel):
+    """
+    Deep project classification produced BEFORE Planning — the answer to
+    "what kind of project is this, really?" (industry/domain/system shape),
+    as opposed to ContextFrame's shallow intent + IT/IoT keyword extraction.
+    Planning and Reasoning consume this instead of reading raw request text
+    directly. Populated by a classifier that always has a rule-based
+    fallback (see ocif/engines/project_understanding.py), so this frame is
+    never None once Context has run and the request wasn't trivial.
+    """
+    industry: str = "general_software"
+    business_domain: str = ""
+    business_problem: str = ""
+    engineering_problem: str = ""
+    project_category: str = ""
+    application_category: str = ""
+    system_type: str = ""
+    architecture_style: str = ""
+    deployment_model: str = ""
+    technical_constraints: List[str] = Field(default_factory=list)
+    business_constraints: List[str] = Field(default_factory=list)
+    actors: List[str] = Field(default_factory=list)
+    technical_actors: List[str] = Field(default_factory=list)
+    physical_assets: List[str] = Field(default_factory=list)
+    logical_assets: List[str] = Field(default_factory=list)
+    domain_entities: List[str] = Field(default_factory=list)
+    relationships: List[str] = Field(default_factory=list)
+    workflows: List[str] = Field(default_factory=list)
+    data_flow: str = ""
+    control_flow: str = ""
+    external_systems: List[str] = Field(default_factory=list)
+    apis: List[str] = Field(default_factory=list)
+    databases: List[str] = Field(default_factory=list)
+    communication_protocols: List[str] = Field(default_factory=list)
+    sensors: List[str] = Field(default_factory=list)
+    devices: List[str] = Field(default_factory=list)
+    ai_components: List[str] = Field(default_factory=list)
+    cloud_components: List[str] = Field(default_factory=list)
+    edge_components: List[str] = Field(default_factory=list)
+    # Descriptive only — the document/diagram catalog is structurally fixed
+    # (see ocif/renderers/document_types.py); these do not filter it.
+    recommended_documents: List[str] = Field(default_factory=list)
+    recommended_diagrams: List[str] = Field(default_factory=list)
+    required_images: List[str] = Field(default_factory=list)
+    required_reports: List[str] = Field(default_factory=list)
+    domain_expert_persona: str = "Solution Architect"
+    confidence: float = 0.0
+    classification_method: str = "rule_based_fallback"  # or "llm"
+
+
 # ---------------------------------------------------------------------------
 # User-facing Solution Document (the ONLY externally visible artifact)
 # ---------------------------------------------------------------------------
@@ -280,6 +330,7 @@ class CognitiveTrace(OCIFBaseModel):
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = ""
     octagon_svg: str = ""
+    project_understanding: Optional[ProjectUnderstandingFrame] = None
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +355,7 @@ class CognitiveContext(OCIFBaseModel):
 
     perception: Optional[PerceptionFrame] = None
     context: Optional[ContextFrame] = None
+    project_understanding: Optional[ProjectUnderstandingFrame] = None
     plan: Optional[Plan] = None
     knowledge: Optional[KnowledgeFrame] = None
     memory: Optional[MemoryFrame] = None

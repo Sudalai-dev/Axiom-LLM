@@ -4,9 +4,14 @@ Planning Engine (Engine 3) — decomposes the problem into an ordered plan.
 Derives objectives, solution steps, the specialist agents required (Part E),
 whether knowledge retrieval is needed, and the requirement set (FR/NFR,
 constraints, assumptions) the solution will be validated against.
+
+Reads context.project_understanding (populated upstream by
+ocif/engines/project_understanding.py) alongside the shallower
+ContextFrame intent/entities — industry-aware agent assignment and NFRs
+come from there rather than only the narrow IT/IoT keyword lexicon.
 """
 
-from typing import List
+from typing import List, Optional, Tuple
 
 from ocif.engine import CognitiveEngine
 from ocif.frames import (
@@ -15,6 +20,7 @@ from ocif.frames import (
     EngineResult,
     Intent,
     Plan,
+    ProjectUnderstandingFrame,
     Requirement,
     SpecialistAgent,
 )
@@ -50,6 +56,33 @@ _ENTITY_AGENT_RULES = [
     ({"OAuth2", "JWT", "TLS", "RBAC", "SSO"}, SpecialistAgent.SECURITY),
 ]
 
+# Extra specialist agents by classified industry — mapped onto the existing
+# closed SpecialistAgent enum (no new agent types), so e.g. a hospital or
+# banking request pulls in Security/Documentation/Database attention that
+# the narrow tech-keyword lexicon alone would never trigger.
+_INDUSTRY_AGENT_RULES = {
+    "industrial_iot": [SpecialistAgent.IOT],
+    "healthcare": [SpecialistAgent.SECURITY, SpecialistAgent.DOCUMENTATION],
+    "education": [SpecialistAgent.SECURITY],
+    "banking_fintech": [SpecialistAgent.SECURITY, SpecialistAgent.DATABASE],
+    "automotive": [SpecialistAgent.IOT],
+    "agriculture": [SpecialistAgent.IOT],
+    "construction": [SpecialistAgent.DOCUMENTATION],
+    "retail_ecommerce": [SpecialistAgent.DATABASE],
+    "logistics_supply_chain": [SpecialistAgent.DATABASE],
+    "ai_ml_platform": [SpecialistAgent.RESEARCH],
+}
+
+# Extra NFRs by classified industry, appended to the 5 baseline NFRs —
+# keeps compliance/domain concerns from being silently generic.
+_INDUSTRY_NFR_EXTRA = {
+    "healthcare": [("Compliance", "Patient-identifiable data is encrypted at rest/in transit and every access is audit-logged (HIPAA-style compliance).")],
+    "education": [("Privacy", "Student records are visible only to their own faculty and guardians (FERPA-style data minimization).")],
+    "banking_fintech": [("Financial Integrity", "Money-movement operations are idempotent and reconciled against an append-only ledger; AML/KYC checks are enforced, not advisory.")],
+    "industrial_iot": [("Reliability", "Edge devices buffer telemetry under intermittent connectivity with at-least-once, deduplicated delivery.")],
+    "construction": [("Compliance", "Site safety inspection and incident records are immutable once logged, supporting regulatory audit.")],
+}
+
 
 class PlanningEngine(CognitiveEngine):
     name = EngineName.PLANNING
@@ -58,22 +91,30 @@ class PlanningEngine(CognitiveEngine):
         frame = context.context
         intent = frame.intent
         entities = frame.entities
+        understanding = context.project_understanding
         revision = (context.plan.revision + 1) if context.plan else 0
 
-        objectives = self._derive_objectives(frame.subject, intent, entities)
+        objectives = self._derive_objectives(frame.subject, intent, entities, understanding)
         steps = self._derive_steps(intent)
-        agents = self._assign_agents(intent, entities)
+        agents = self._assign_agents(intent, entities, understanding)
         # Knowledge retrieval is optional; reasoning is not. Retrieval is
-        # required when the request names concrete technologies or references
-        # prior documents/attachments worth grounding against.
-        required_knowledge = bool(entities) or bool(
-            context.perception and context.perception.attachments
+        # required when the request names concrete technologies, references
+        # prior documents/attachments worth grounding against, or when the
+        # request was classified into a real industry (not the generic
+        # fallback) — a hospital/school request has zero tech-keyword
+        # entities but still benefits from grounding against any
+        # tenant-uploaded domain documents, so it must not be silently
+        # skipped the way it was before project understanding existed.
+        required_knowledge = (
+            bool(entities)
+            or bool(context.perception and context.perception.attachments)
+            or bool(understanding and understanding.industry not in ("generic_software", ""))
         )
         if required_knowledge and SpecialistAgent.RESEARCH not in agents:
             agents.append(SpecialistAgent.RESEARCH)
         agents.append(SpecialistAgent.VALIDATION)
 
-        frs, nfrs = self._derive_requirements(frame)
+        frs, nfrs = self._derive_requirements(frame, understanding)
 
         context.plan = Plan(
             objectives=objectives,
@@ -111,7 +152,10 @@ class PlanningEngine(CognitiveEngine):
 
     # -- helpers ------------------------------------------------------------
 
-    def _derive_objectives(self, subject: str, intent: Intent, entities: List[str]) -> List[str]:
+    def _derive_objectives(
+        self, subject: str, intent: Intent, entities: List[str],
+        understanding: Optional[ProjectUnderstandingFrame] = None,
+    ) -> List[str]:
         objectives = [f"Deliver a complete, implementation-ready solution for: {subject}"]
         if entities:
             objectives.append(
@@ -123,6 +167,11 @@ class PlanningEngine(CognitiveEngine):
         ]
         if intent == Intent.AIOT_ENGINEERING:
             objectives.append("Ensure industrial-grade reliability for edge/device connectivity.")
+        if understanding and understanding.business_problem and understanding.industry not in ("generic_software", ""):
+            objectives.append(
+                f"Address the classified {understanding.business_domain or understanding.industry} "
+                f"business problem: {understanding.business_problem}"
+            )
         return objectives
 
     def _derive_steps(self, intent: Intent) -> List[str]:
@@ -139,15 +188,22 @@ class PlanningEngine(CognitiveEngine):
             base.insert(1, "Map the requested document type to its canonical structure.")
         return base
 
-    def _assign_agents(self, intent: Intent, entities: List[str]) -> List[SpecialistAgent]:
+    def _assign_agents(
+        self, intent: Intent, entities: List[str],
+        understanding: Optional[ProjectUnderstandingFrame] = None,
+    ) -> List[SpecialistAgent]:
         agents = list(_AGENTS_BY_INTENT.get(intent, _AGENTS_BY_INTENT[Intent.GENERAL_ENGINEERING]))
         entity_set = set(entities)
         for triggers, agent in _ENTITY_AGENT_RULES:
             if triggers & entity_set and agent not in agents:
                 agents.append(agent)
+        if understanding:
+            for agent in _INDUSTRY_AGENT_RULES.get(understanding.industry, []):
+                if agent not in agents:
+                    agents.append(agent)
         return agents
 
-    def _derive_requirements(self, frame) -> tuple:
+    def _derive_requirements(self, frame, understanding: Optional[ProjectUnderstandingFrame] = None) -> Tuple[list, list]:
         frs = [
             Requirement(
                 id=f"FR-{i + 1}",
@@ -168,4 +224,7 @@ class PlanningEngine(CognitiveEngine):
             Requirement(id="NFR-5", category="Maintainability",
                         requirement="Modular components with typed contracts, automated tests, and CI/CD gates."),
         ]
+        if understanding:
+            for i, (category, requirement) in enumerate(_INDUSTRY_NFR_EXTRA.get(understanding.industry, [])):
+                nfrs.append(Requirement(id=f"NFR-{6 + i}", category=category, requirement=requirement))
         return frs, nfrs

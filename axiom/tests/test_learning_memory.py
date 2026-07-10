@@ -101,6 +101,21 @@ def test_memory_engine_recalls_persisted_solution_across_instances(tmp_path):
     assert any("Prior validated solution" in entry for entry in ctx2.memory.learning)
 
 
+def test_reasoning_tolerates_missing_project_understanding(tmp_path):
+    """This file's manual engine chain (_run_engines_through_reasoning) never
+    calls ProjectUnderstandingEngine, so context.project_understanding stays
+    None — Reasoning/SolutionSynthesizer/_build_prompt must all degrade
+    gracefully to today's generic behavior rather than raising."""
+    store = make_store(tmp_path)
+    memory = MemoryEngine(learning_store=store)
+    ctx = CognitiveContext(task="Design a simple internal tool", tenant_id="t9", project="p9")
+    _run_engines_through_reasoning(ctx, memory)
+
+    assert ctx.project_understanding is None
+    assert ctx.validation is not None and ctx.validation.passed
+    assert ctx.reasoning.solution_draft.title
+
+
 def test_reasoning_confidence_increases_with_learning_recall(tmp_path):
     """Confidence should be at least as high when relevant learning memory
     is present, reflecting that Axiom has solved something similar before."""

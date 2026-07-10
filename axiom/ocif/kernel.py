@@ -1,12 +1,22 @@
 """
 Octagonal Kernel — executes the internal cognitive graph.
 
-    Perception -> Context -> Planning -> (Knowledge, iff plan requires)
-        -> Memory -> Reasoning -> Validation --fails--> regenerate / re-plan
+    Perception -> Context -> [Project Understanding] -> Planning
+        -> (Knowledge, iff plan requires) -> Memory -> Reasoning -> Validation
+                --fails--> regenerate / re-plan
                                        |
                                     passes
                                        v
                                   Experience -> Solution Document
+
+Project Understanding is a classification step (industry, business domain,
+system type, ...), not one of the 8 Octagonal engines — the "8" is a
+literal geometric invariant elsewhere (ocif/octagon.py, ocif/layout.py,
+core/engine_registry.py's register_cognitive_engines), so this runs as a
+plain classifier call rather than a formal CognitiveEngine, the same way
+Reasoning calls into SolutionSynthesizer without that being a separate
+engine either. Planning and Reasoning consume its output
+(context.project_understanding) instead of reading raw request text.
 
 Binding invariants enforced here:
   - No engine skips a downstream engine; Reasoning never emits directly.
@@ -37,6 +47,7 @@ from ocif.engines import (
     ReasoningEngine,
     ValidationEngine,
 )
+from ocif.engines.project_understanding import ProjectUnderstandingEngine
 from ocif.frames import (
     CognitiveContext,
     CognitiveTrace,
@@ -69,6 +80,7 @@ class OctagonalKernel:
         self,
         perception: Optional[PerceptionEngine] = None,
         context_engine: Optional[ContextEngine] = None,
+        project_understanding: Optional[ProjectUnderstandingEngine] = None,
         planning: Optional[PlanningEngine] = None,
         knowledge: Optional[KnowledgeEngine] = None,
         memory: Optional[MemoryEngine] = None,
@@ -78,6 +90,7 @@ class OctagonalKernel:
     ) -> None:
         self.perception = perception or PerceptionEngine()
         self.context_engine = context_engine or ContextEngine()
+        self.project_understanding = project_understanding or ProjectUnderstandingEngine()
         self.planning = planning or PlanningEngine()
         self.knowledge = knowledge or KnowledgeEngine()
         self.memory = memory or MemoryEngine()
@@ -135,6 +148,11 @@ class OctagonalKernel:
         # Trivial clarifications never reach Reasoning (permitted short-circuit).
         if context.context.is_trivial:
             return self._conversational(context, self._trivial_reply(message))
+
+        # Deep project/industry classification — runs once per conversation
+        # (cached), before Planning, so Planning/Reasoning consume a real
+        # understanding of what the project is instead of raw request text.
+        context.project_understanding = await self.project_understanding.classify(context)
 
         # 3-7. Planning -> Knowledge -> Memory -> Reasoning -> Validation,
         # with bounded fail-closed recovery: regenerate first, then re-plan.

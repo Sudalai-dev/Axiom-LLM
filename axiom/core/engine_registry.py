@@ -130,8 +130,16 @@ def build_octagonal_kernel(knowledge_service: Optional[Any] = None, learning_sto
     LearningStore is supplied, it backs the Memory Engine's persistent
     "learned from past conversations" recall — pass the same instance used
     elsewhere (e.g. the feedback endpoint) so both read/write one durable store.
+
+    One shared InferenceAdapter is constructed here and passed to both the
+    Reasoning Engine (final solution authoring) and the Project
+    Understanding classifier (upstream industry/domain classification) so
+    they share a single ModelRouter instance/circuit-breaker state instead
+    of each building their own.
     """
-    from ocif.engines import KnowledgeEngine, MemoryEngine
+    from ocif.engines import KnowledgeEngine, MemoryEngine, ReasoningEngine
+    from ocif.engines.project_understanding import ProjectUnderstandingEngine
+    from ocif.inference_adapter import InferenceAdapter
     from ocif.kernel import OctagonalKernel
 
     retriever = None
@@ -151,9 +159,12 @@ def build_octagonal_kernel(knowledge_service: Optional[Any] = None, learning_sto
                 })
             return results
 
+    inference = InferenceAdapter()
     kernel = OctagonalKernel(
+        project_understanding=ProjectUnderstandingEngine(inference=inference),
         knowledge=KnowledgeEngine(retriever=retriever),
         memory=MemoryEngine(learning_store=learning_store),
+        reasoning=ReasoningEngine(inference=inference),
     )
     kernel.initialize()
     return kernel

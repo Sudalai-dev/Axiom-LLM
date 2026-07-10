@@ -135,4 +135,5 @@ class ExperienceEngine(CognitiveEngine):
             tradeoffs=list(context.reasoning.tradeoffs) if context.reasoning else [],
             provider_used=context.reasoning.provider_used if context.reasoning else "",
             octagon_svg=build_octagon_svg(context.engine_trace, confidence=context.confidence),
+            project_understanding=context.project_understanding,
         )

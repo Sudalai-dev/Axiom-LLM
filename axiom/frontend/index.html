@@ -797,9 +797,13 @@
         .solution-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
         .solution-map-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
         .solution-map-hint { font-size: 0.72rem; color: var(--text-tertiary); }
-        .solution-map svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        .solution-map svg {
+            max-width: 100%; height: auto; display: block; margin: 0 auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+        }
         .solution-map .solution-node { cursor: pointer; outline: none; }
-        .solution-map .solution-node:hover circle, .solution-map .solution-node:focus circle { stroke-width: 4; filter: drop-shadow(0 0 6px rgba(99,102,241,0.5)); }
+        .solution-map .solution-node:hover circle, .solution-map .solution-node:focus circle { stroke-width: 4; filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.3)); }
         .solution-map-docs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         .solution-map-docs .doc-chip { font-size: 0.72rem; padding: 4px 10px; border-radius: var(--radius-full); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; border: 1px solid var(--border-subtle); }
         .solution-map-docs .doc-chip:hover { color: var(--accent-primary-hover); border-color: var(--border-accent); }
@@ -1072,6 +1076,49 @@
         }
 
         .radiant-icon-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+        .radiant-icon-btn.mic-listening {
+            color: var(--accent-danger);
+            background: rgba(255, 90, 90, 0.14);
+            animation: mic-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes mic-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 90, 0.35); }
+            50% { box-shadow: 0 0 0 6px rgba(255, 90, 90, 0); }
+        }
+
+        .attachment-chip-row {
+            display: flex; flex-wrap: wrap; gap: 6px;
+            max-width: 680px; width: 100%; margin: 0 auto 8px auto;
+        }
+        .attachment-chip-row.hidden { display: none; }
+        .attachment-chip {
+            display: flex; align-items: center; gap: 6px;
+            padding: 5px 8px 5px 10px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-full);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            box-shadow: var(--bevel);
+        }
+        .attachment-chip-remove {
+            width: 16px; height: 16px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: var(--radius-full);
+            color: var(--text-tertiary);
+            font-size: 0.85rem; line-height: 1;
+        }
+        .attachment-chip-remove:hover { background: var(--accent-danger); color: var(--text-inverse); }
+        .message-attachment-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            margin-top: 6px;
+            padding: 3px 8px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-full);
+            font-size: 0.72rem;
+            color: var(--text-tertiary);
+        }
 
         .chat-input {
             flex: 1;
@@ -1797,12 +1844,14 @@
                                 <span style="margin-left:auto;">reveals cognitive execution trace</span>
                             </div>
                             <div class="chat-input-wrap">
+                                <div class="attachment-chip-row hidden" id="attachment-chip-row"></div>
                                 <div class="radiant-input-shell">
                                     <div class="radiant-input-border"></div>
                                     <div class="radiant-input-inner">
-                                        <button type="button" class="radiant-icon-btn" aria-label="Add attachment">＋</button>
+                                        <input type="file" id="chat-file-input" hidden accept=".txt,.md,.markdown,.csv,.json,.log,.py,.js,.jsx,.ts,.tsx,.html,.css,.yaml,.yml,.xml,.sql,.ini,.cfg">
+                                        <button type="button" class="radiant-icon-btn" id="attach-btn" aria-label="Add attachment" title="Attach a text file">＋</button>
                                         <textarea class="chat-input" id="chat-input" placeholder="Ask AXIOM anything..." rows="1"></textarea>
-                                        <button type="button" class="radiant-icon-btn" aria-label="Use microphone">🎤</button>
+                                        <button type="button" class="radiant-icon-btn" id="mic-btn" aria-label="Use microphone" title="Voice input">🎤</button>
                                         <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
                                     </div>
                                 </div>
@@ -2023,6 +2072,8 @@
             messageContent: {}, // messageId -> raw (unescaped) text, for edit/delete
             conversationId: 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
             currentMessages: [],   // {msgId, role, content, meta} for the open conversation, mirrors the DOM
+            pendingAttachment: null, // {name, size, content} staged file, cleared once sent
+            listening: false,
         };
 
         loadConversationsFromStorage();
@@ -2455,9 +2506,123 @@
             if (!this.value) this.setSelectionRange(0, 0);
         }));
 
+        // --- File attachment -------------------------------------------------
+        // Scope is deliberately limited to plain-text files: they can be read
+        // and inlined into the prompt honestly. There's no server-side PDF/DOCX
+        // parser wired up, so silently accepting those would show an attached
+        // file whose content the model never actually sees.
+        const ATTACH_MAX_BYTES = 150 * 1024;
+        const chatFileInput = document.getElementById('chat-file-input');
+        const attachBtn = document.getElementById('attach-btn');
+        const chipRow = document.getElementById('attachment-chip-row');
+
+        attachBtn.addEventListener('click', () => chatFileInput.click());
+
+        chatFileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            this.value = '';
+            if (!file) return;
+
+            if (file.size > ATTACH_MAX_BYTES) {
+                showToast(`"${file.name}" is too large to attach (max ${Math.round(ATTACH_MAX_BYTES / 1024)}KB of text).`, 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onerror = () => showToast(`Couldn't read "${file.name}".`, 'error');
+            reader.onload = () => {
+                const content = String(reader.result || '');
+                state.pendingAttachment = { name: file.name, size: file.size, content };
+                renderAttachmentChip();
+            };
+            reader.readAsText(file);
+        });
+
+        function renderAttachmentChip() {
+            const att = state.pendingAttachment;
+            if (!att) {
+                chipRow.classList.add('hidden');
+                chipRow.innerHTML = '';
+                return;
+            }
+            const sizeKb = Math.max(1, Math.round(att.size / 1024));
+            chipRow.classList.remove('hidden');
+            chipRow.innerHTML = `
+                <span class="attachment-chip">
+                    📎 ${escapeHtml(att.name)} <span style="opacity:0.6;">(${sizeKb}KB)</span>
+                    <span class="attachment-chip-remove" onclick="clearPendingAttachment()" title="Remove">✕</span>
+                </span>
+            `;
+        }
+
+        window.clearPendingAttachment = function() {
+            state.pendingAttachment = null;
+            renderAttachmentChip();
+        };
+
+        // --- Voice input (Web Speech API) ------------------------------------
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const micBtn = document.getElementById('mic-btn');
+        let recognizer = null;
+
+        if (SpeechRecognitionCtor) {
+            recognizer = new SpeechRecognitionCtor();
+            recognizer.continuous = true;
+            recognizer.interimResults = false;
+            recognizer.lang = 'en-US';
+
+            recognizer.onresult = function(e) {
+                let transcript = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    if (e.results[i].isFinal) transcript += e.results[i][0].transcript;
+                }
+                if (!transcript) return;
+                const sep = chatInput.value && !/\s$/.test(chatInput.value) ? ' ' : '';
+                chatInput.value += sep + transcript.trim();
+                chatInput.dispatchEvent(new Event('input'));
+            };
+            recognizer.onerror = function(e) {
+                if (e.error === 'no-speech' || e.error === 'aborted') return;
+                showToast('Voice input error: ' + e.error, 'error');
+                stopListening();
+            };
+            recognizer.onend = function() {
+                if (state.listening) {
+                    // continuous mode can still end the session (e.g. silence
+                    // timeout) — restart transparently while the mic is toggled on
+                    try { recognizer.start(); } catch (_) { stopListening(); }
+                }
+            };
+        }
+
+        function stopListening() {
+            state.listening = false;
+            micBtn.classList.remove('mic-listening');
+            if (recognizer) { try { recognizer.stop(); } catch (_) {} }
+        }
+
+        micBtn.addEventListener('click', function() {
+            if (!SpeechRecognitionCtor) {
+                showToast('Voice input isn\'t supported in this browser — try Chrome or Edge.', 'info');
+                return;
+            }
+            if (state.listening) {
+                stopListening();
+                return;
+            }
+            state.listening = true;
+            micBtn.classList.add('mic-listening');
+            try {
+                recognizer.start();
+            } catch (_) {
+                // already-started errors from rapid clicks — ignore
+            }
+        });
+
         window.sendMessage = async function() {
             const msg = chatInput.value.trim();
-            if (!msg) return;
+            const attachment = state.pendingAttachment;
+            if (!msg && !attachment) return;
 
             // Hide empty state
             const emptyState = document.getElementById('chat-empty');
@@ -2465,10 +2630,24 @@
             document.getElementById('app-shell').classList.remove('hero-fullscreen');
             window.closeHeroHistoryFlyout?.();
 
-            // Render user message
-            recordAndAppend('user', msg);
+            if (state.listening) stopListening();
+
+            // The model only ever sees the `message` string (attachments[] is
+            // metadata-only server-side), so ground it for real by inlining the
+            // file's text directly into the outgoing message rather than just
+            // attaching an opaque reference the backend would ignore.
+            const outgoingMessage = attachment
+                ? `Attached file "${attachment.name}":\n---\n${attachment.content}\n---\n\n${msg}`
+                : msg;
+            const attachmentMeta = attachment ? [{ name: attachment.name, size: attachment.size, type: 'text' }] : [];
+
+            // Render user message (display stays clean; the raw file text isn't
+            // dumped into the visible transcript, just a small chip marker)
+            recordAndAppend('user', msg || `(sent "${attachment.name}")`, { attachmentName: attachment?.name });
             chatInput.value = '';
             chatInput.style.height = 'auto';
+            state.pendingAttachment = null;
+            renderAttachmentChip();
             chatSendBtn.disabled = true;
 
             // Show typing indicator
@@ -2479,8 +2658,8 @@
                     // Developer Mode: request the solution + cognitive trace
                     const data = await api('POST', '/solution', {
                         session_id: state.sessionId,
-                        message: msg,
-                        attachments: [],
+                        message: outgoingMessage,
+                        attachments: attachmentMeta,
                         developer_mode: true
                     });
                     state.sessionId = data.session_id;
@@ -2499,8 +2678,8 @@
                 } else {
                     const data = await api('POST', '/chat/messages', {
                         session_id: state.sessionId,
-                        message: msg,
-                        attachments: []
+                        message: outgoingMessage,
+                        attachments: attachmentMeta
                     });
                     state.sessionId = data.session_id;
                     removeTypingIndicator(typingId);
@@ -2608,6 +2787,9 @@
                        <div class="message-body md-doc" id="report-${meta.blueprintId}"></div>
                    </details>` : '';
 
+            const attachmentHtml = meta.attachmentName
+                ? `<span class="message-attachment-chip">📎 ${escapeHtml(meta.attachmentName)}</span>` : '';
+
             div.innerHTML = `
                 <div class="message-header">
                     <span class="message-sender">${sender}</span>
@@ -2616,6 +2798,7 @@
                     <span class="edited-tag hidden" id="edited-${msgId}">(edited)</span>
                 </div>
                 <div class="message-body${isDoc ? ' md-doc' : ''}" id="body-${msgId}">${bodyHtml}</div>
+                ${attachmentHtml}
                 ${solutionMapPlaceholder}
                 ${fullReportHtml}
                 ${citationsHtml}
@@ -2758,7 +2941,7 @@
 
         function recordAndAppend(role, content, meta = {}) {
             const msgId = appendMessage(role, content, meta);
-            state.currentMessages.push({ msgId, role, content, meta: { confidence: meta.confidence, citations: meta.citations } });
+            state.currentMessages.push({ msgId, role, content, meta: { confidence: meta.confidence, citations: meta.citations, attachmentName: meta.attachmentName } });
             persistCurrentConversation();
             return msgId;
         }
