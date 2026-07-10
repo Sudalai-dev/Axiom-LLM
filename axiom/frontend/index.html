@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <style>
         /* ================================================================
            OCIF Design System — Doc 15 Section 9
@@ -1294,11 +1295,30 @@
            ================================================================ */
 
         .empty-state {
+            position: relative;
+            overflow: hidden;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             padding: var(--space-2xl);
             text-align: center;
             color: var(--text-tertiary);
+        }
+
+        /* Chat welcome panel only: WebGL nebula backdrop behind the icon/text.
+           Absolutely positioned so it never disturbs the flex-centered layout
+           the other (non-shader) empty states already rely on. */
+        .chat-welcome-shader {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .chat-welcome-shader canvas { display: block; }
+
+        .empty-state-icon, .empty-state-text {
+            position: relative;
+            z-index: 1;
         }
 
         .empty-state-icon {
@@ -2111,6 +2131,9 @@
                 document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
 
                 showToast('Authenticated successfully', 'success');
+                if (!document.getElementById('chat-messages').querySelector('.message')) {
+                    renderChatEmptyState();
+                }
                 loadDashboard();
             } catch (err) {
                 errorEl.textContent = err.message;
@@ -2122,6 +2145,7 @@
         window.handleLogout = function() {
             state.token = null;
             state.sessionId = null;
+            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
             document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
@@ -2168,6 +2192,176 @@
         const chatMessages = document.getElementById('chat-messages');
         const chatSendBtn = document.getElementById('chat-send-btn');
 
+        // =====================================================================
+        // Chat Empty State — Celestial Sphere WebGL nebula backdrop.
+        // Only ever runs while the welcome panel is on screen (paused/disposed
+        // the moment a real message shows) — a raw WebGL context is too heavy
+        // to leave running behind the dense chat/dashboard/approvals views.
+        // =====================================================================
+        let stopCelestialShader = null;
+
+        function startCelestialShader(container) {
+            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
+            if (!window.THREE || !container) return;
+
+            try {
+                const hue = 150.0; // AXIOM electric mint, not the demo's default blue
+                const speed = 0.3;
+                const zoom = 1.4;
+                const particleSize = 3.0;
+
+                const scene = new THREE.Scene();
+                const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                container.appendChild(renderer.domElement);
+
+                const vertexShader = `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `;
+
+                const fragmentShader = `
+                    precision highp float;
+                    varying vec2 vUv;
+                    uniform vec2 u_resolution;
+                    uniform float u_time;
+                    uniform vec2 u_mouse;
+                    uniform float u_hue;
+                    uniform float u_zoom;
+                    uniform float u_particle_size;
+
+                    vec3 hsl2rgb(vec3 c) {
+                        vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
+                        return c.z * mix(vec3(1.0), rgb, c.y);
+                    }
+
+                    float random(vec2 st) {
+                        return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+                    }
+
+                    float noise(vec2 st) {
+                        vec2 i = floor(st);
+                        vec2 f = fract(st);
+                        float a = random(i);
+                        float b = random(i + vec2(1.0, 0.0));
+                        float c = random(i + vec2(0.0, 1.0));
+                        float d = random(i + vec2(1.0, 1.0));
+                        vec2 u = f * f * (3.0 - 2.0 * f);
+                        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.y * u.x;
+                    }
+
+                    float fbm(vec2 st) {
+                        float value = 0.0;
+                        float amplitude = 0.5;
+                        for (int i = 0; i < 6; i++) {
+                            value += amplitude * noise(st);
+                            st *= 2.0;
+                            amplitude *= 0.5;
+                        }
+                        return value;
+                    }
+
+                    void main() {
+                        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
+                        uv *= u_zoom;
+
+                        vec2 mouse_normalized = u_mouse / u_resolution;
+                        uv += (mouse_normalized - 0.5) * 0.8;
+
+                        float f = fbm(uv + vec2(u_time * 0.1, u_time * 0.05));
+                        float t = fbm(uv + f + vec2(u_time * 0.05, u_time * 0.02));
+
+                        float nebula = pow(t, 2.0);
+                        vec3 color = hsl2rgb(vec3(u_hue / 360.0 + nebula * 0.2, 0.7, 0.5));
+                        color *= nebula * 2.5;
+
+                        float star_val = random(vUv * 500.0);
+                        if (star_val > 0.998) {
+                            float star_brightness = (star_val - 0.998) / 0.002;
+                            color += vec3(star_brightness * u_particle_size);
+                        }
+
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `;
+
+                const material = new THREE.ShaderMaterial({
+                    vertexShader, fragmentShader,
+                    uniforms: {
+                        u_time: { value: 0.0 },
+                        u_resolution: { value: new THREE.Vector2() },
+                        u_mouse: { value: new THREE.Vector2() },
+                        u_hue: { value: hue },
+                        u_zoom: { value: zoom },
+                        u_particle_size: { value: particleSize },
+                    },
+                    transparent: true,
+                });
+
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+                scene.add(mesh);
+
+                let frame = null;
+
+                function resize() {
+                    const w = container.clientWidth, h = container.clientHeight;
+                    if (!w || !h) return;
+                    renderer.setSize(w, h);
+                    material.uniforms.u_resolution.value.set(w, h);
+                }
+
+                function onMouseMove(e) {
+                    const rect = container.getBoundingClientRect();
+                    material.uniforms.u_mouse.value.set(e.clientX - rect.left, container.clientHeight - (e.clientY - rect.top));
+                }
+
+                function animate() {
+                    material.uniforms.u_time.value += 0.005 * speed;
+                    renderer.render(scene, camera);
+                    frame = requestAnimationFrame(animate);
+                }
+
+                window.addEventListener('resize', resize);
+                window.addEventListener('mousemove', onMouseMove);
+                resize();
+                animate();
+
+                stopCelestialShader = function() {
+                    window.removeEventListener('resize', resize);
+                    window.removeEventListener('mousemove', onMouseMove);
+                    if (frame !== null) cancelAnimationFrame(frame);
+                    if (renderer.domElement && renderer.domElement.parentNode) {
+                        renderer.domElement.parentNode.removeChild(renderer.domElement);
+                    }
+                    renderer.dispose();
+                    material.dispose();
+                    mesh.geometry.dispose();
+                };
+            } catch (_) {
+                // WebGL unavailable/failed — the welcome panel's icon and text
+                // still render fine on their own, so this degrades silently.
+            }
+        }
+
+        function renderChatEmptyState() {
+            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
+            chatMessages.innerHTML = `
+                <div class="empty-state" id="chat-empty">
+                    <div class="chat-welcome-shader" id="chat-welcome-shader"></div>
+                    <div class="empty-state-icon">◈</div>
+                    <div class="empty-state-text">
+                        Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
+                        Every response is governed, explainable, and auditable.
+                    </div>
+                </div>
+            `;
+            startCelestialShader(document.getElementById('chat-welcome-shader'));
+        }
+
         chatInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -2192,6 +2386,7 @@
             if (!msg) return;
 
             // Hide empty state
+            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             const emptyState = document.getElementById('chat-empty');
             if (emptyState) emptyState.remove();
 
@@ -2465,18 +2660,12 @@
             state.sessionId = record.sessionId;
             state.currentMessages = record.messages.map(m => ({ ...m }));
 
+            if (stopCelestialShader) { stopCelestialShader(); stopCelestialShader = null; }
             chatMessages.innerHTML = '';
-            record.messages.forEach(m => appendMessage(m.role, m.content, m.meta || {}));
-            if (!record.messages.length) {
-                chatMessages.innerHTML = `
-                    <div class="empty-state" id="chat-empty">
-                        <div class="empty-state-icon">◈</div>
-                        <div class="empty-state-text">
-                            Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
-                            Every response is governed, explainable, and auditable.
-                        </div>
-                    </div>
-                `;
+            if (record.messages.length) {
+                record.messages.forEach(m => appendMessage(m.role, m.content, m.meta || {}));
+            } else {
+                renderChatEmptyState();
             }
             renderConversationList();
         };
@@ -2508,15 +2697,7 @@
             persistCurrentConversation();
 
             if (!chatMessages.querySelector('.message')) {
-                chatMessages.innerHTML = `
-                    <div class="empty-state" id="chat-empty">
-                        <div class="empty-state-icon">◈</div>
-                        <div class="empty-state-text">
-                            Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
-                            Every response is governed, explainable, and auditable.
-                        </div>
-                    </div>
-                `;
+                renderChatEmptyState();
             }
         };
 
@@ -2846,15 +3027,7 @@
             state.sessionId = null;
             state.conversationId = 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             state.currentMessages = [];
-            chatMessages.innerHTML = `
-                <div class="empty-state" id="chat-empty">
-                    <div class="empty-state-icon">◈</div>
-                    <div class="empty-state-text">
-                        Welcome to <strong>AXIOM</strong> — your enterprise AI copilot.<br>
-                        Every response is governed, explainable, and auditable.
-                    </div>
-                </div>
-            `;
+            renderChatEmptyState();
             renderConversationList();
         };
 
