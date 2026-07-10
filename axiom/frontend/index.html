@@ -1130,6 +1130,38 @@
             display: none;
         }
 
+        /* Floating history access during hero-fullscreen -- keeps saved
+           conversations reachable without permanently reintroducing the
+           .chat-history column (which would break the full-viewport look). */
+        .hero-history-toggle {
+            display: none;
+            position: fixed; top: 16px; left: 16px; z-index: 50;
+            align-items: center; justify-content: center;
+            width: 36px; height: 36px;
+            background: var(--panel-glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            box-shadow: var(--bevel);
+            transition: all var(--transition-fast);
+        }
+        #app-shell.hero-fullscreen .hero-history-toggle { display: flex; }
+        .hero-history-toggle:hover { color: var(--text-primary); border-color: var(--border-accent); }
+
+        .hero-history-flyout {
+            position: fixed; top: 60px; left: 16px; z-index: 50;
+            width: 280px; max-height: 70vh;
+            display: flex; flex-direction: column;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--bevel-lifted);
+            overflow: hidden;
+        }
+        .hero-history-flyout-header { padding: var(--space-sm); border-bottom: 1px solid var(--border-subtle); }
+        .hero-history-flyout-list { overflow-y: auto; padding: var(--space-sm); }
+
         .detail-section {
             margin-bottom: var(--space-lg);
         }
@@ -1645,6 +1677,19 @@
          APP SHELL
          ================================================================ -->
     <div id="app-shell" class="hidden">
+        <!-- Floating conversation-history access for the full-viewport empty-
+             state hero, which otherwise hides the sidebar/.chat-history
+             entirely and leaves saved conversations unreachable. -->
+        <button class="hero-history-toggle" id="hero-history-toggle" aria-label="Conversation history" title="Conversation history">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </button>
+        <div class="hero-history-flyout hidden" id="hero-history-flyout">
+            <div class="hero-history-flyout-header">
+                <button class="btn btn-secondary btn-sm w-full" onclick="newConversation()">＋ New Conversation</button>
+            </div>
+            <div class="hero-history-flyout-list" id="hero-history-flyout-list"></div>
+        </div>
+
         <!-- Top Status Bar -->
         <div class="status-bar">
             <div class="status-bar-group">
@@ -1976,6 +2021,28 @@
 
         loadConversationsFromStorage();
         renderConversationList();
+
+        // Floating history flyout (hero-fullscreen only, see CSS) — toggles
+        // open/closed, and closes on an outside click.
+        (function() {
+            const toggleBtn = document.getElementById('hero-history-toggle');
+            const flyout = document.getElementById('hero-history-flyout');
+            if (!toggleBtn || !flyout) return;
+
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                flyout.classList.toggle('hidden');
+            });
+            document.addEventListener('click', function(e) {
+                if (!flyout.classList.contains('hidden') && !flyout.contains(e.target) && e.target !== toggleBtn) {
+                    flyout.classList.add('hidden');
+                }
+            });
+
+            window.closeHeroHistoryFlyout = function() {
+                flyout.classList.add('hidden');
+            };
+        })();
 
         if (window.mermaid) {
             mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
@@ -2390,6 +2457,7 @@
             const emptyState = document.getElementById('chat-empty');
             if (emptyState) emptyState.remove();
             document.getElementById('app-shell').classList.remove('hero-fullscreen');
+            window.closeHeroHistoryFlyout?.();
 
             // Render user message
             recordAndAppend('user', msg);
@@ -2594,25 +2662,64 @@
             state.conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         }
 
+        let storageSaveFailing = false;
+
         function saveConversationsToStorage() {
             try {
                 localStorage.setItem('axiom_conversations', JSON.stringify(state.conversations));
-            } catch (_) { /* storage unavailable or full — history just won't persist */ }
+                storageSaveFailing = false; // recovered -- allow the warning to fire again if it fails later
+                return;
+            } catch (err) {
+                // Most likely QuotaExceededError from unbounded conversation growth.
+                // Progressively drop the oldest conversations (array is sorted
+                // newest-first) and retry -- a single fixed-ratio cut isn't
+                // reliable since we don't know how much space is actually
+                // needed, and rounds to a no-op for small arrays anyway.
+                const original = state.conversations;
+                let keepCount = original.length;
+                while (keepCount > 1) {
+                    keepCount = Math.max(1, keepCount - Math.ceil(keepCount / 3));
+                    try {
+                        const trimmed = original.slice(0, keepCount);
+                        localStorage.setItem('axiom_conversations', JSON.stringify(trimmed));
+                        state.conversations = trimmed;
+                        renderConversationList();
+                        if (!storageSaveFailing) {
+                            storageSaveFailing = true;
+                            showToast('Browser storage was full — trimmed your oldest saved conversations to make room.', 'info');
+                        }
+                        return;
+                    } catch (_) { /* still too big -- shrink further */ }
+                }
+                if (!storageSaveFailing) {
+                    storageSaveFailing = true;
+                    showToast('Conversation history could not be saved (browser storage is full or unavailable). This chat still works, but it won\'t be there next time.', 'error');
+                }
+            }
         }
 
-        function renderConversationList() {
-            const list = document.getElementById('chat-history-list');
+        function conversationListHtml() {
             if (!state.conversations.length) {
-                list.innerHTML = `<div class="chat-history-empty">No saved conversations yet.</div>`;
-                return;
+                return `<div class="chat-history-empty">No saved conversations yet.</div>`;
             }
-            list.innerHTML = state.conversations.map(c => `
+            return state.conversations.map(c => `
                 <div class="chat-history-item${c.id === state.conversationId ? ' active' : ''}" onclick="switchConversation('${c.id}')">
                     <div class="title">${escapeHtml(c.title || 'New Conversation')}</div>
                     <div class="meta">${timeAgo(c.updatedAt)}</div>
                     <button class="chat-history-delete" onclick="deleteConversation(event, '${c.id}')" title="Delete conversation" aria-label="Delete conversation">🗑</button>
                 </div>
             `).join('');
+        }
+
+        // Renders into both the normal sidebar list and the floating flyout
+        // used during the full-viewport empty-state hero (see hero-fullscreen)
+        // so conversation history stays reachable even when that hides the
+        // regular .chat-history column.
+        function renderConversationList() {
+            const html = conversationListHtml();
+            document.getElementById('chat-history-list').innerHTML = html;
+            const flyoutList = document.getElementById('hero-history-flyout-list');
+            if (flyoutList) flyoutList.innerHTML = html;
         }
 
         function persistCurrentConversation() {
@@ -2651,6 +2758,7 @@
         }
 
         window.switchConversation = function(convId) {
+            window.closeHeroHistoryFlyout?.();
             if (convId === state.conversationId) return;
             persistCurrentConversation();
 
