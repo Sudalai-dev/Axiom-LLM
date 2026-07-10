@@ -945,14 +945,19 @@
         }
 
         .radiant-input-shell {
-            --border-size: 2px;
+            --border-size: 3px;
+            /* VIBGYOR ring — Violet, Indigo, Blue, Green, Yellow, Orange, Red,
+               looping back to Violet for a seamless spin. */
             --radiant-gradient: conic-gradient(
-                from var(--rotation) at 50% 50% in oklab,
-                var(--accent-primary) 0%,
-                var(--accent-mint-whisper) 25%,
-                var(--accent-primary) 50%,
-                #0f3a2b 75%,
-                var(--accent-primary) 100%
+                from var(--rotation) at 50% 50%,
+                #8b00ff 0%,
+                #4b0082 14.28%,
+                #0000ff 28.57%,
+                #00ff00 42.85%,
+                #ffff00 57.14%,
+                #ff7f00 71.42%,
+                #ff0000 85.71%,
+                #8b00ff 100%
             );
             position: relative;
             flex: 1;
@@ -992,6 +997,13 @@
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             pointer-events: none;
+            /* Embossed 3D bevel: drop-shadow follows the ring's actual masked
+               shape (unlike box-shadow, which would just box the whole pill) —
+               a light source from the top-left gives it a raised, chrome-like
+               edge instead of a flat printed ring. */
+            filter:
+                drop-shadow(-1px -1px 0.5px rgba(255, 255, 255, 0.55))
+                drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.65));
         }
 
         .radiant-input-inner {
