@@ -1304,6 +1304,11 @@
             color: var(--text-tertiary);
         }
 
+        /* The chat welcome panel should fill the whole message pane (not just
+           shrink-to-fit its icon+text) so the shader behind it reads as a full
+           backdrop rather than a small boxed-in tile. */
+        #chat-empty { min-height: 100%; }
+
         /* Chat welcome panel only: WebGL nebula backdrop behind the icon/text.
            Absolutely positioned so it never disturbs the flex-centered layout
            the other (non-shader) empty states already rely on. */
