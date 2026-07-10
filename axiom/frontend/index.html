@@ -1137,17 +1137,23 @@
             display: none;
             position: fixed; top: 16px; left: 16px; z-index: 50;
             align-items: center; justify-content: center;
-            width: 36px; height: 36px;
-            background: var(--panel-glass);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-subtle);
+            width: 38px; height: 38px;
+            /* Solid, not glass -- this needs to read clearly as a button
+               against a moving, unpredictably-colored nebula backdrop,
+               not blend into it like the panels intentionally do. */
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-accent);
             border-radius: var(--radius-full);
-            color: var(--text-secondary);
-            box-shadow: var(--bevel);
+            color: var(--accent-primary);
+            box-shadow: var(--bevel), 0 0 12px rgba(122, 255, 180, 0.2);
             transition: all var(--transition-fast);
         }
         #app-shell.hero-fullscreen .hero-history-toggle { display: flex; }
-        .hero-history-toggle:hover { color: var(--text-primary); border-color: var(--border-accent); }
+        .hero-history-toggle:hover {
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+            box-shadow: var(--bevel), 0 0 16px rgba(122, 255, 180, 0.4);
+        }
 
         .hero-history-flyout {
             position: fixed; top: 60px; left: 16px; z-index: 50;
@@ -3314,6 +3320,70 @@
                 showToast(err.message, 'error');
             }
         };
+
+        // =====================================================================
+        // Knowledge Search — real vector search over the tenant's ingested
+        // knowledge base (same embed -> search_vectors path the chat engine
+        // uses for citations), via GET /knowledge/search.
+        // =====================================================================
+        const knowledgeSearchInput = document.getElementById('knowledge-search-input');
+        const knowledgeResults = document.getElementById('knowledge-results');
+
+        function knowledgeResultsSkeleton() {
+            return Array(3).fill(`
+                <div class="search-result-card">
+                    <div class="skeleton-block" style="width:50%;height:13px;margin-bottom:10px;"></div>
+                    <div class="skeleton-block" style="width:100%;height:11px;margin-bottom:6px;"></div>
+                    <div class="skeleton-block" style="width:80%;height:11px;"></div>
+                </div>
+            `).join('');
+        }
+
+        async function runKnowledgeSearch(query) {
+            const trimmed = query.trim();
+            if (!trimmed) {
+                knowledgeResults.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-text">Search across all indexed documents, policies, and knowledge sources.</div>
+                    </div>
+                `;
+                return;
+            }
+            knowledgeResults.innerHTML = knowledgeResultsSkeleton();
+            try {
+                const data = await api('GET', `/knowledge/search?q=${encodeURIComponent(trimmed)}`);
+                if (!data.results || !data.results.length) {
+                    knowledgeResults.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔍</div>
+                            <div class="empty-state-text">No results for "${escapeHtml(trimmed)}".</div>
+                        </div>
+                    `;
+                    return;
+                }
+                knowledgeResults.innerHTML = data.results.map(r => `
+                    <div class="search-result-card">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;">
+                            <strong>${escapeHtml(r.title)}</strong>
+                            ${r.score !== undefined && r.score !== null ? `<span class="text-xs text-tertiary">Relevance ${Math.round(r.score * 100)}%</span>` : ''}
+                        </div>
+                        <div class="text-sm text-secondary">${escapeHtml(r.excerpt)}${r.excerpt.length >= 400 ? '…' : ''}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                knowledgeResults.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-text">${escapeHtml(err.message)}</div></div>`;
+            }
+        }
+
+        if (knowledgeSearchInput) {
+            knowledgeSearchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runKnowledgeSearch(this.value);
+                }
+            });
+        }
 
         // =====================================================================
         // Admin Console — Doc 15 Section 7

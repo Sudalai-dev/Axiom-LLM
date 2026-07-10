@@ -5,10 +5,10 @@ router mounted by axiom.api.gateway.create_gateway_app().
 
 from fastapi import APIRouter
 
-from api.routes import admin, approvals, auth, chat, dashboard, documents, feedback, solution
+from api.routes import admin, approvals, auth, chat, dashboard, documents, feedback, knowledge, solution
 
 router = APIRouter()
-for module in (auth, chat, solution, feedback, dashboard, documents, approvals, admin):
+for module in (auth, chat, solution, feedback, dashboard, documents, approvals, admin, knowledge):
     router.include_router(module.router)
 
 __all__ = ["router"]
