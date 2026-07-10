@@ -958,8 +958,10 @@
             flex: 1;
             min-width: 0;
             border-radius: 28px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(16px);
+            /* Solid, near-opaque fill — the animated ambient background sits
+               behind this whole view, and a translucent/blurred fill let it
+               bleed through and wash out the input text's contrast. */
+            background: rgba(5, 13, 10, 0.97);
             animation: rotate-gradient 6s infinite linear;
             transition: box-shadow var(--transition-normal);
         }
@@ -977,7 +979,7 @@
             background: var(--radiant-gradient);
             z-index: -1;
             filter: blur(8px);
-            opacity: 0.55;
+            opacity: 0.35;
         }
 
         .radiant-input-border {
