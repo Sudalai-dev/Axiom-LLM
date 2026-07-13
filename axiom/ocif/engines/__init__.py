@@ -7,7 +7,11 @@ from ocif.engines.project_understanding import ProjectUnderstandingEngine
 from ocif.engines.planning import PlanningEngine
 from ocif.engines.knowledge import KnowledgeEngine
 from ocif.engines.memory import MemoryEngine
-from ocif.engines.reasoning import ReasoningEngine
+from ocif.engines.engineering_intelligence import EngineeringIntelligenceEngine
+
+# Alias for backward compatibility with 8-layer octagon structures and tests
+ReasoningEngine = EngineeringIntelligenceEngine
+
 from ocif.engines.validation import ValidationEngine
 from ocif.engines.experience import ExperienceEngine
 
@@ -18,6 +22,7 @@ __all__ = [
     "PlanningEngine",
     "KnowledgeEngine",
     "MemoryEngine",
+    "EngineeringIntelligenceEngine",
     "ReasoningEngine",
     "ValidationEngine",
     "ExperienceEngine",

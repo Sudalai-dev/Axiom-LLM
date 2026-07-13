@@ -136,4 +136,5 @@ class ExperienceEngine(CognitiveEngine):
             provider_used=context.reasoning.provider_used if context.reasoning else "",
             octagon_svg=build_octagon_svg(context.engine_trace, confidence=context.confidence),
             project_understanding=context.project_understanding,
+            engineering_intelligence=dict(context.metadata.get("engineering_intelligence", {})),
         )

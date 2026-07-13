@@ -108,12 +108,12 @@ def register_cognitive_engines(registry: "EngineRegistry") -> None:
     from ocif.engine import CognitiveEngine
     from ocif.engines import (
         ContextEngine, ExperienceEngine, KnowledgeEngine, MemoryEngine,
-        PerceptionEngine, PlanningEngine, ReasoningEngine, ValidationEngine,
+        PerceptionEngine, PlanningEngine, EngineeringIntelligenceEngine, ValidationEngine,
     )
 
     for engine_cls in (
         PerceptionEngine, ContextEngine, PlanningEngine, KnowledgeEngine,
-        MemoryEngine, ReasoningEngine, ValidationEngine, ExperienceEngine,
+        MemoryEngine, EngineeringIntelligenceEngine, ValidationEngine, ExperienceEngine,
     ):
         if not issubclass(engine_cls, CognitiveEngine):
             raise TypeError(
@@ -122,7 +122,11 @@ def register_cognitive_engines(registry: "EngineRegistry") -> None:
         registry.register(engine_cls, engine_cls)
 
 
-def build_octagonal_kernel(knowledge_service: Optional[Any] = None, learning_store: Optional[Any] = None):
+def build_octagonal_kernel(
+    knowledge_service: Optional[Any] = None,
+    learning_store: Optional[Any] = None,
+    knowledge_platform: Optional[Any] = None,
+):
     """
     Factory assembling the OctagonalKernel with platform infrastructure:
     when a KnowledgeService is supplied, its embedder + vector store back the
@@ -137,7 +141,7 @@ def build_octagonal_kernel(knowledge_service: Optional[Any] = None, learning_sto
     they share a single ModelRouter instance/circuit-breaker state instead
     of each building their own.
     """
-    from ocif.engines import KnowledgeEngine, MemoryEngine, ReasoningEngine
+    from ocif.engines import KnowledgeEngine, MemoryEngine, EngineeringIntelligenceEngine
     from ocif.engines.project_understanding import ProjectUnderstandingEngine
     from ocif.inference_adapter import InferenceAdapter
     from ocif.kernel import OctagonalKernel
@@ -164,7 +168,7 @@ def build_octagonal_kernel(knowledge_service: Optional[Any] = None, learning_sto
         project_understanding=ProjectUnderstandingEngine(inference=inference),
         knowledge=KnowledgeEngine(retriever=retriever),
         memory=MemoryEngine(learning_store=learning_store),
-        reasoning=ReasoningEngine(inference=inference),
+        reasoning=EngineeringIntelligenceEngine(inference=inference, knowledge_platform=knowledge_platform),
     )
     kernel.initialize()
     return kernel

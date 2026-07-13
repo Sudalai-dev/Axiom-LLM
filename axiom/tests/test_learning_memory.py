@@ -7,7 +7,7 @@ from ocif.engines.memory import MemoryEngine
 from ocif.engines.perception import PerceptionEngine
 from ocif.engines.context import ContextEngine
 from ocif.engines.planning import PlanningEngine
-from ocif.engines.reasoning import ReasoningEngine
+from ocif.engines import ReasoningEngine
 from ocif.engines.validation import ValidationEngine
 from ocif.frames import CognitiveContext
 

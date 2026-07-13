@@ -331,6 +331,10 @@ class CognitiveTrace(OCIFBaseModel):
     provider_used: str = ""
     octagon_svg: str = ""
     project_understanding: Optional[ProjectUnderstandingFrame] = None
+    # Engineering Intelligence pipeline provenance (intent/domains/experts plus
+    # Knowledge Platform usage: assembled packs, standards, rules). Developer/
+    # admin-only, like the rest of the trace — never in user responses.
+    engineering_intelligence: Dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
