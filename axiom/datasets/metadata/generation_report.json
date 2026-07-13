@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-07-13T05:14:25Z",
+  "total_records": 2000,
+  "total_time_seconds": 0.24,
+  "datasets": [
+    {
+      "dataset": "07_solution_blueprints",
+      "status": "success",
+      "record_count": 500,
+      "generation_time_s": 0.02,
+      "validation_errors": 28,
+      "formats_written": [
+        "json",
+        "jsonl",
+        "sqlite"
+      ]
+    },
+    {
+      "dataset": "12_aiot",
+      "status": "success",
+      "record_count": 500,
+      "generation_time_s": 0.01,
+      "validation_errors": 104,
+      "formats_written": [
+        "json",
+        "jsonl",
+        "sqlite"
+      ]
+    },
+    {
+      "dataset": "13_mechanical",
+      "status": "success",
+      "record_count": 500,
+      "generation_time_s": 0.0,
+      "validation_errors": 160,
+      "formats_written": [
+        "json",
+        "jsonl",
+        "sqlite"
+      ]
+    },
+    {
+      "dataset": "22_failure_analysis",
+      "status": "success",
+      "record_count": 500,
+      "generation_time_s": 0.01,
+      "validation_errors": 0,
+      "formats_written": [
+        "json",
+        "jsonl",
+        "sqlite"
+      ]
+    }
+  ]
+}

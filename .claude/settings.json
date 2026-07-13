@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr *)",
+      "Bash(git fetch *)",
+      "Bash(curl -s \"https://api.github.com/repos/Sudalai-dev/Axiom-LLM/pulls?state=all&head=Sudalai-dev:Backend-RW\")",
+      "Bash(curl -s \"https://api.github.com/repos/Sudalai-dev/Axiom-LLM/pulls?state=all\")",
+      "Bash(curl -s \"https://api.github.com/repos/Sudalai-dev/Axiom-LLM\")"
+    ]
+  }
+}

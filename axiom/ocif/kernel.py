@@ -44,7 +44,7 @@ from ocif.engines import (
     MemoryEngine,
     PerceptionEngine,
     PlanningEngine,
-    ReasoningEngine,
+    EngineeringIntelligenceEngine,
     ValidationEngine,
 )
 from ocif.engines.project_understanding import ProjectUnderstandingEngine
@@ -84,7 +84,7 @@ class OctagonalKernel:
         planning: Optional[PlanningEngine] = None,
         knowledge: Optional[KnowledgeEngine] = None,
         memory: Optional[MemoryEngine] = None,
-        reasoning: Optional[ReasoningEngine] = None,
+        reasoning: Optional[EngineeringIntelligenceEngine] = None,
         validation: Optional[ValidationEngine] = None,
         experience: Optional[ExperienceEngine] = None,
     ) -> None:
@@ -94,7 +94,7 @@ class OctagonalKernel:
         self.planning = planning or PlanningEngine()
         self.knowledge = knowledge or KnowledgeEngine()
         self.memory = memory or MemoryEngine()
-        self.reasoning = reasoning or ReasoningEngine()
+        self.reasoning = reasoning or EngineeringIntelligenceEngine()
         self.validation = validation or ValidationEngine()
         self.experience = experience or ExperienceEngine()
 
