@@ -3382,7 +3382,10 @@
             state.sessionId = null;
             state.conversationId = 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             state.currentMessages = [];
-            renderChatEmptyState();
+            // Keep whatever page chrome (sidebar/history/status-bar) was
+            // already visible instead of dropping onto the full-viewport
+            // landing hero — same reasoning as deleteConversation() above.
+            renderChatEmptyState(false);
             renderConversationList();
         };
 
