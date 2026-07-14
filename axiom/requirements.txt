@@ -8,6 +8,16 @@ aiosqlite>=0.20.0
 httpx==0.28.1
 python-dotenv>=1.0.0
 
+# Multimodal Project Understanding (Phase 6) — real parsers for uploaded
+# project files. Every call site catches ImportError and degrades to an
+# empty extraction (never crashes) if one of these is missing, matching the
+# existing fail-soft pattern in datasets/ingestion.py.
+PyMuPDF>=1.24.0        # PDF text extraction (imported as `fitz`)
+python-docx>=1.1.0     # DOCX text extraction
+python-pptx>=0.6.23    # PPTX text extraction
+openpyxl>=3.1.0        # XLSX text extraction
+Pillow>=10.0.0         # Image metadata (dimensions/format) — no OCR/vision
+
 # Optional infra extras — the platform runs fully offline without these
 # (in-memory rate limiting / vector store fallbacks activate automatically)
 # redis==5.0.7

@@ -15,9 +15,12 @@ of how this pipeline is wired into a route.
 
 from typing import Any, Dict
 
+from dataclasses import asdict
+
 from ocif.documents import build_generated_documents
 from ocif.frames import SolutionDocument
 from ocif.presentation import PresentationEngine
+from ocif.project_diagrams import build_project_diagrams
 from ocif.roadmap import build_implementation_roadmap
 from ocif.solution_mapping import SolutionMappingEngine
 from ocif.visualization import OctagonalVisualizationEngine
@@ -35,10 +38,14 @@ def build_solution_response(doc: SolutionDocument, markdown: str) -> Dict[str, A
     implementation_roadmap = build_implementation_roadmap(doc.implementation_roadmap)
     generated_documents = build_generated_documents(doc, markdown)
 
-    return PresentationEngine.assemble(
+    package = PresentationEngine.assemble(
         solution_blueprint=doc.model_dump(),
         octagonal_model=octagonal_model,
         visualizations=visualizations,
         implementation_roadmap=implementation_roadmap,
         generated_documents=generated_documents,
     )
+    # Additive field (Phase 3 — Diagram Intelligence): 8 project-specific
+    # diagram types, one per pipeline stage. See ocif/project_diagrams.py.
+    package["project_diagrams"] = [asdict(d) for d in build_project_diagrams(doc)]
+    return package

@@ -52,7 +52,7 @@ def test_intent_analyzer():
 
 def test_domain_classifier():
     classifier = DomainClassifier()
-    
+
     # Test multi-domain classification
     domains = classifier.classify("An MQTT telemetry feed writing to a PostgreSQL database with anomaly detection")
     assert "Industrial IoT" in domains
@@ -60,6 +60,55 @@ def test_domain_classifier():
     assert "Database Engineering" in domains
     # Anomaly detection matches Artificial Intelligence
     assert "Artificial Intelligence" in domains
+
+
+def test_domain_classifier_baseline_unchanged_with_no_understanding():
+    classifier = DomainClassifier()
+    assert classifier.classify("Please help me with something vague") == ["Software Engineering"]
+
+
+def test_domain_classifier_uses_project_understanding_signals():
+    """
+    Frame-derived signals (populated by Project Understanding, see
+    ocif/engines/project_understanding.py) should contribute domains even
+    when the raw message text itself has no matching keyword — this is the
+    duplicate-classification reduction from Phase 1.
+    """
+    classifier = DomainClassifier()
+    understanding = ProjectUnderstandingFrame(
+        industry="industrial_iot",
+        communication_protocols=["MQTT"],
+        ai_components=["Anomaly detection model"],
+        databases=["TimescaleDB time-series store"],
+    )
+    domains = classifier.classify("Build something for the plant.", understanding)
+    assert "Industrial IoT" in domains
+    assert "Artificial Intelligence" in domains
+    assert "Database Engineering" in domains
+
+    # Keyword scan still contributes independently (union, not replacement).
+    domains2 = classifier.classify("A Kubernetes deployment pipeline with docker", understanding=None)
+    assert "DevOps" in domains2
+
+
+def test_domain_classifier_frame_signals_do_not_false_positive():
+    """
+    A healthcare project's HL7/FHIR protocols and a generic 'relational
+    store' description must not be mistaken for Industrial IoT / Database
+    Engineering signals just because *some* protocol/database is listed.
+    """
+    classifier = DomainClassifier()
+    understanding = ProjectUnderstandingFrame(
+        industry="healthcare",
+        communication_protocols=["HL7", "FHIR REST"],
+        databases=["Encrypted relational store (PHI)"],
+    )
+    domains = classifier.classify(
+        "We run a hospital and need to manage patient appointments and doctor schedules.",
+        understanding,
+    )
+    assert "Industrial IoT" not in domains
+    assert "Database Engineering" not in domains
 
 
 def test_industry_classifier():

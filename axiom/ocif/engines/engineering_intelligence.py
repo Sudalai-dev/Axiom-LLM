@@ -13,7 +13,10 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from dataclasses import asdict
+
 from ocif.engine import CognitiveEngine
+from ocif.engines.generation_planner import GenerationPlanner
 from ocif.engines.industry_patterns import IndustryPattern, select_pattern, PATTERNS_BY_KEY
 from ocif.frames import (
     CognitiveContext,
@@ -144,12 +147,38 @@ class DomainClassifier:
         "DevOps": ["docker", "kubernetes", "k8s", "ci/cd", "deployment", "pipeline", "cloud", "aws", "azure"]
     }
 
-    def classify(self, message: str) -> List[str]:
+    def classify(self, message: str, understanding: Optional[ProjectUnderstandingFrame] = None) -> List[str]:
         lowered = message.lower()
         matched = []
         for domain, keywords in self.DOMAIN_RULES.items():
             if any(kw in lowered for kw in keywords):
                 matched.append(domain)
+
+        # Reuse signals Project Understanding already derived (see
+        # ocif/engines/project_understanding.py) instead of re-scanning raw
+        # text blind to what's already known about the project. Runs the
+        # SAME keyword rules against the frame's own technical-vocabulary
+        # fields — not a separate "any value present" heuristic, since e.g.
+        # HL7/FHIR (healthcare protocols) or a generic "relational store"
+        # description must not be mistaken for Industrial IoT / Database
+        # Engineering signals just because *some* protocol/database is
+        # listed. Deliberately excludes physical_assets/sensors/devices:
+        # those are free-form domain-noun lists (e.g. "Infusion pump") that
+        # collide with DOMAIN_RULES' short generic keywords (e.g. "pump")
+        # designed for scanning prose, not curated asset names.
+        if understanding is not None:
+            frame_evidence = " ".join(
+                understanding.communication_protocols
+                + understanding.ai_components
+                + understanding.databases
+                + understanding.cloud_components
+                + understanding.edge_components
+            ).lower()
+            if frame_evidence:
+                for domain, keywords in self.DOMAIN_RULES.items():
+                    if domain not in matched and any(kw in frame_evidence for kw in keywords):
+                        matched.append(domain)
+
         if not matched:
             matched.append("Software Engineering")  # baseline domain
         return matched
@@ -170,6 +199,12 @@ class IndustryClassifier:
         "retail_ecommerce": ("Retail & Commerce", ["PCI-DSS standard", "CPA/GDPR compliance"]),
         "logistics_supply_chain": ("Logistics & Supply Chain", ["GS1 barcode standards", "ISO 28000 security for supply chain"]),
         "ai_ml_platform": ("AI Platform & Engineering", ["EU AI Act compliance", "NIST AI Risk Management Framework"]),
+        "hvac": ("HVAC & Building Climate Control", ["ASHRAE 90.1 energy efficiency standard", "AHRI equipment certification standards"]),
+        "insurance": ("Insurance", ["NAIC Model Regulations", "Solvency II (EU)", "IFRS 17 insurance contracts standard"]),
+        "government": ("Government & Public Sector", ["FedRAMP compliance (cloud)", "FISMA security controls", "Section 508 accessibility"]),
+        "manufacturing": ("Manufacturing", ["ISO 9001 quality management", "ISA-95 enterprise-control integration", "OSHA workplace safety"]),
+        "smart_building": ("Smart Building & Facility Automation", ["ASHRAE Guideline 36", "BACnet/IP interoperability standard", "LEED sustainability certification"]),
+        "esg": ("ESG & Sustainability Reporting", ["GRI (Global Reporting Initiative) standards", "TCFD climate disclosure framework", "CSRD (EU Corporate Sustainability Reporting Directive)"]),
         "generic_software": ("General Technology", ["SOC 2 Type II controls", "GDPR privacy rules"])
     }
 
@@ -727,6 +762,7 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         self.use_case_expander = UseCaseExpander()
         self.blueprint_optimizer = BlueprintOptimizer()
         self.synthesizer = SolutionSynthesizer()
+        self.generation_planner = GenerationPlanner()
 
     async def _run(self, context: CognitiveContext) -> EngineResult:
         frame = context.context
@@ -742,7 +778,7 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         intent = self.intent_analyzer.analyze(raw_task, context.intent or "general_engineering")
         
         # Classify Domains & Experts
-        domains = self.domain_classifier.classify(raw_task)
+        domains = self.domain_classifier.classify(raw_task, understanding)
         experts = self.expert_selector.select(domains)
         
         # Classify Industry & Standards
@@ -774,6 +810,12 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         diagrams = self.diagram_planner.plan(domains, intent)
         deliverables = self.deliverable_planner.plan(intent)
 
+        # Dynamic Planning Engine (Phase 5) — decides what SHOULD be
+        # generated (documents/diagrams/reports/images/architecture) before
+        # generation begins, from Project Intelligence alone. Advisory only:
+        # does not filter the existing fixed document/diagram catalogs.
+        generation_plan = self.generation_planner.plan(understanding, select_pattern(understanding))
+
         # Expand Use Case Metadata
         expanded = self.use_case_expander.expand(raw_task, domains, industry_name)
 
@@ -787,6 +829,7 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             "diagrams": diagrams,
             "deliverables": deliverables,
             "expanded": expanded,
+            "generation_plan": asdict(generation_plan),
             # Provenance: proves knowledge came from the platform, not the
             # hardcoded dict (developer-trace only, never user-facing).
             "knowledge_source": "platform" if (self.knowledge_platform is not None and packs) else "hardcoded_fallback",

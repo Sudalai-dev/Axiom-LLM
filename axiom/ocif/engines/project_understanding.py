@@ -32,6 +32,7 @@ import re
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
+from ocif.engines.domain_profiles import get_domain_profile
 from ocif.frames import CognitiveContext, ProjectUnderstandingFrame
 from ocif.inference_adapter import InferenceAdapter
 
@@ -89,6 +90,34 @@ _INDUSTRY_KEYWORDS: Dict[str, List[str]] = {
     "logistics_supply_chain": [
         "logistics", "shipment", "supply chain", "freight", "fleet routing",
         "package tracking", "courier", "dispatch", "delivery route",
+    ],
+    "hvac": [
+        "hvac", "air handling unit", "chiller", "thermostat", "duct", "ventilation",
+        "cooling tower", "air conditioning", "heat pump", "damper", "refrigerant",
+    ],
+    "insurance": [
+        "insurance", "policyholder", "insurance claim", "underwriting", "premium",
+        "actuarial", "insurer", "deductible", "policy renewal", "claims adjuster",
+    ],
+    "energy": [
+        "power grid", "substation", "smart meter", "utility company", "renewable energy",
+        "solar farm", "wind farm", "energy consumption", "grid outage", "power transformer",
+    ],
+    "government": [
+        "citizen services", "government agency", "public sector", "permit application",
+        "public records", "municipal", "compliance filing", "civic portal", "government portal",
+    ],
+    "manufacturing": [
+        "production line", "work order", "quality control", "erp system", "mes system",
+        "assembly line", "bill of materials", "shop floor schedule", "manufacturing plant",
+    ],
+    "smart_building": [
+        "building automation", "occupancy sensor", "access control system", "bms",
+        "building management system", "smart building", "energy management system", "facility management",
+    ],
+    "esg": [
+        "esg", "sustainability report", "carbon footprint", "emissions tracking",
+        "environmental report", "governance report", "social responsibility", "net zero", "esg compliance",
     ],
 }
 
@@ -275,6 +304,141 @@ _INDUSTRY_DEFAULTS: Dict[str, Dict[str, Any]] = {
         recommended_documents=["Shipment Tracking Architecture", "Fleet Routing Report"],
         recommended_diagrams=["Shipment tracking sequence diagram"],
     ),
+    "hvac": dict(
+        business_domain="HVAC / Building Climate Control",
+        project_category="Climate Control & Energy Optimization",
+        application_category="HVAC AIoT Platform",
+        system_type="Edge-to-cloud HVAC monitoring and control system",
+        architecture_style="Event-driven, edge-to-cloud",
+        deployment_model="Hybrid (building controller + cloud)",
+        domain_expert_persona="HVAC Systems Architect",
+        technical_constraints=["Real-time setpoint control latency", "Legacy BACnet/Modbus device integration"],
+        business_constraints=["Energy cost reduction", "Occupant comfort compliance"],
+        technical_actors=["Building Controller", "Climate Analytics Service", "Alerting Service"],
+        domain_entities=["Air Handling Unit", "Zone", "Setpoint", "Fault Alert"],
+        workflows=["Sensor telemetry ingestion", "Setpoint evaluation", "Fault detection and escalation"],
+        external_systems=["Building Management System (BMS)"],
+        databases=["Time-series store", "Relational configuration store"],
+        communication_protocols=["BACnet", "Modbus", "MQTT"],
+        sensors=["Temperature", "Humidity", "CO2", "Airflow"],
+        devices=["Air handling unit controller", "Zone thermostat"],
+        recommended_documents=["HVAC System Architecture", "Energy Optimization Report"],
+        recommended_diagrams=["Zone control sequence diagram", "HVAC topology diagram"],
+    ),
+    "insurance": dict(
+        business_domain="Insurance / Policy & Claims Management",
+        project_category="Policy Administration & Claims Processing",
+        application_category="Insurance Platform",
+        system_type="Policy, underwriting, and claims management system",
+        architecture_style="Layered service architecture with actuarial rules engine",
+        deployment_model="Cloud, regulatory-isolated environment",
+        domain_expert_persona="Insurance Solutions Architect",
+        technical_constraints=["Actuarial rules versioning", "Auditable claims decisioning"],
+        business_constraints=["Regulatory compliance", "Fraud prevention"],
+        technical_actors=["Policy Service", "Claims Adjudication Service", "Underwriting Rules Engine"],
+        domain_entities=["Policy", "Claim", "Policyholder", "Premium"],
+        workflows=["Policy issuance", "Premium calculation", "Claim submission", "Claim adjudication"],
+        external_systems=["Payment processor", "Third-party actuarial data provider"],
+        databases=["Relational policy/claims store"],
+        recommended_documents=["Claims Workflow Architecture", "Underwriting Rules Report"],
+        recommended_diagrams=["Claims adjudication sequence diagram", "Policy/claim ER diagram"],
+    ),
+    "energy": dict(
+        business_domain="Energy / Utilities & Grid Operations",
+        project_category="Grid Monitoring & Energy Management",
+        application_category="Energy AIoT Platform",
+        system_type="Edge-to-cloud grid telemetry and demand management system",
+        architecture_style="Event-driven, edge-to-cloud",
+        deployment_model="Hybrid (substation gateway + cloud)",
+        domain_expert_persona="Energy Systems Architect",
+        technical_constraints=["Grid-critical real-time latency", "NERC-CIP segregation of OT/IT networks"],
+        business_constraints=["Regulatory compliance (grid reliability standards)", "Outage minimization"],
+        technical_actors=["Substation Gateway", "Grid Analytics Service", "Demand Response Engine"],
+        domain_entities=["Smart Meter", "Substation", "Outage Event", "Load Reading"],
+        workflows=["Meter telemetry ingestion", "Load forecasting", "Outage detection and escalation"],
+        external_systems=["SCADA/grid control systems"],
+        databases=["Time-series store", "Relational grid asset store"],
+        communication_protocols=["DNP3", "MQTT", "OPC-UA"],
+        sensors=["Voltage", "Current", "Power factor"],
+        devices=["Smart meter", "Substation gateway"],
+        recommended_documents=["Grid Telemetry Architecture", "Outage Response Report"],
+        recommended_diagrams=["Grid telemetry sequence diagram", "Substation topology diagram"],
+    ),
+    "government": dict(
+        business_domain="Government / Public Sector Services",
+        project_category="Citizen Services & Records Management",
+        application_category="Government Services Platform",
+        system_type="Citizen-facing service and records management system",
+        architecture_style="Layered service architecture with strict accessibility/compliance controls",
+        deployment_model="Government cloud (FedRAMP-style) or on-prem municipal network",
+        domain_expert_persona="Government Solutions Architect",
+        technical_constraints=["Accessibility compliance (Section 508-style)", "Long-term records retention"],
+        business_constraints=["Regulatory compliance", "Public transparency requirements"],
+        technical_actors=["Citizen Portal Service", "Records Management Service", "Permit/Application Engine"],
+        domain_entities=["Citizen", "Application", "Permit", "Public Record"],
+        workflows=["Application submission", "Permit review", "Public record request"],
+        external_systems=["Government identity verification service"],
+        databases=["Relational records store"],
+        recommended_documents=["Citizen Services Architecture", "Records Retention Report"],
+        recommended_diagrams=["Application review sequence diagram", "Records ER diagram"],
+    ),
+    "manufacturing": dict(
+        business_domain="Manufacturing / Production Operations",
+        project_category="Production Planning & Quality Management",
+        application_category="Manufacturing Execution Platform",
+        system_type="Shop-floor production and quality management system",
+        architecture_style="Layered service architecture with MES/ERP integration",
+        deployment_model="Hybrid (shop-floor systems + cloud)",
+        domain_expert_persona="Manufacturing Systems Architect",
+        technical_constraints=["Real-time shop-floor data capture", "ERP/MES integration"],
+        business_constraints=["Production throughput targets", "Quality/defect-rate control"],
+        technical_actors=["MES Integration Service", "Quality Control Service", "Production Scheduling Service"],
+        domain_entities=["Work Order", "Production Line", "Quality Inspection", "Bill of Materials"],
+        workflows=["Work order scheduling", "Production tracking", "Quality inspection", "Defect escalation"],
+        external_systems=["ERP system", "MES system"],
+        databases=["Relational production store"],
+        recommended_documents=["Production Workflow Architecture", "Quality Control Report"],
+        recommended_diagrams=["Production line sequence diagram", "Work order ER diagram"],
+    ),
+    "smart_building": dict(
+        business_domain="Smart Building / Facility Automation",
+        project_category="Building Automation & Occupancy Management",
+        application_category="Smart Building AIoT Platform",
+        system_type="Edge-to-cloud building automation and energy management system",
+        architecture_style="Event-driven, edge-to-cloud",
+        deployment_model="Hybrid (building controller + cloud)",
+        domain_expert_persona="Smart Building Systems Architect",
+        technical_constraints=["Legacy BACnet/Modbus device integration", "Real-time access control latency"],
+        business_constraints=["Energy cost reduction", "Occupant safety and comfort"],
+        technical_actors=["Building Automation Controller", "Occupancy Analytics Service", "Access Control Service"],
+        domain_entities=["Zone", "Occupancy Sensor", "Access Event", "Energy Reading"],
+        workflows=["Occupancy telemetry ingestion", "Energy optimization", "Access control evaluation"],
+        external_systems=["Building Management System (BMS)"],
+        databases=["Time-series store", "Relational configuration store"],
+        communication_protocols=["BACnet", "MQTT", "Zigbee"],
+        sensors=["Occupancy", "Temperature", "Light level"],
+        devices=["Building controller", "Access control reader"],
+        recommended_documents=["Building Automation Architecture", "Energy Management Report"],
+        recommended_diagrams=["Occupancy telemetry sequence diagram", "Building automation topology diagram"],
+    ),
+    "esg": dict(
+        business_domain="ESG / Sustainability & Compliance Reporting",
+        project_category="Sustainability Metrics & Compliance Reporting",
+        application_category="ESG Reporting Platform",
+        system_type="Sustainability data aggregation and compliance reporting system",
+        architecture_style="Layered service architecture with data aggregation pipeline",
+        deployment_model="Cloud",
+        domain_expert_persona="ESG Solutions Architect",
+        technical_constraints=["Multi-source data aggregation", "Auditable reporting trail"],
+        business_constraints=["Regulatory disclosure requirements", "Data accuracy for public reporting"],
+        technical_actors=["Data Aggregation Service", "Reporting Engine", "Compliance Audit Service"],
+        domain_entities=["Emission Record", "Sustainability Metric", "Compliance Report", "Data Source"],
+        workflows=["Data source ingestion", "Metric aggregation", "Report generation", "Compliance audit"],
+        external_systems=["Third-party emissions data provider"],
+        databases=["Relational metrics store"],
+        recommended_documents=["ESG Data Architecture", "Sustainability Compliance Report"],
+        recommended_diagrams=["Data aggregation sequence diagram", "ESG metrics ER diagram"],
+    ),
     "ai_ml_platform": dict(
         business_domain="AI / Machine Learning Platform",
         project_category="AI Inference & Retrieval System",
@@ -330,6 +494,30 @@ def _score_industry(lowered_text: str) -> Optional[str]:
     return best_key
 
 
+_DETECTION_FIELDS = (
+    "physical_assets", "logical_assets", "sensors", "devices",
+    "communication_protocols", "apis", "databases", "ai_components",
+    "cloud_components", "edge_components",
+)
+
+
+def _build_relationships(entities: List[str], actors: List[str], workflows: List[str]) -> List[str]:
+    """
+    Deterministic relationship templating from already-known entities/actors/
+    workflows — no fabrication beyond what the frame itself already asserts.
+    Only used by the offline fallback; the LLM path supplies relationships
+    directly as part of its structured response.
+    """
+    relationships: List[str] = []
+    if actors and entities:
+        relationships.append(f"{actors[0]} manages {entities[0]}")
+    for left, right in zip(entities, entities[1:]):
+        relationships.append(f"{left} relates to {right}")
+    if workflows and entities:
+        relationships.append(f"{workflows[0]} operates on {entities[0]}")
+    return relationships
+
+
 def classify_rule_based(context: CognitiveContext) -> ProjectUnderstandingFrame:
     """Offline fallback classifier — never raises, never returns an empty stub."""
     text = context.perception.normalized_text if context.perception else (context.task or "")
@@ -362,6 +550,24 @@ def classify_rule_based(context: CognitiveContext) -> ProjectUnderstandingFrame:
         "classification_method": "rule_based_fallback",
     }
     data.update({k: v for k, v in defaults.items() if k not in data})
+
+    # Fill remaining detection fields (assets/sensors/devices/protocols/APIs/
+    # databases/...) from the shared DomainProfile registry so the offline
+    # path is never thinner than the LLM path on these fields — see
+    # ocif/engines/domain_profiles.py.
+    profile = get_domain_profile(industry)
+    for detection_field in _DETECTION_FIELDS:
+        if not data.get(detection_field):
+            profile_value = getattr(profile, detection_field)
+            if profile_value:
+                data[detection_field] = list(profile_value)
+
+    data["relationships"] = _build_relationships(
+        entities=data.get("domain_entities", []),
+        actors=data["actors"],
+        workflows=data.get("workflows", []),
+    )
+
     return ProjectUnderstandingFrame(**data)
 
 
@@ -373,7 +579,8 @@ _CLASSIFICATION_JSON_INSTRUCTION = (
     "Respond ONLY with a JSON object (no prose outside the JSON) with these keys: "
     '{"industry": str (a short slug like "healthcare", "industrial_iot", "education", '
     '"banking_fintech", "automotive", "construction", "agriculture", "retail_ecommerce", '
-    '"logistics_supply_chain", "ai_ml_platform", "event_driven_platform", or "generic_software" '
+    '"logistics_supply_chain", "ai_ml_platform", "event_driven_platform", "hvac", "insurance", '
+    '"energy", "government", "manufacturing", "smart_building", "esg", or "generic_software" '
     'if truly none fit — invent a new short slug only if the project genuinely belongs to none '
     'of these), "business_domain": str, "business_problem": str, "engineering_problem": str, '
     '"project_category": str, "application_category": str, "system_type": str, '

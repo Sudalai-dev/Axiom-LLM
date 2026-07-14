@@ -2476,7 +2476,7 @@
         const chatSendBtn = document.getElementById('chat-send-btn');
 
 
-        function renderChatEmptyState() {
+        function renderChatEmptyState(fullscreen = true) {
             chatMessages.innerHTML = `
                 <div class="empty-state" id="chat-empty">
                     <div class="chat-welcome-mark">◈</div>
@@ -2484,7 +2484,12 @@
                     <p class="chat-welcome-subtitle">Your enterprise AI copilot — every response governed, explainable, and auditable.</p>
                 </div>
             `;
-            document.getElementById('app-shell').classList.add('hero-fullscreen');
+            // fullscreen=false keeps the sidebar/history/status-bar visible —
+            // used when emptiness is a side-effect of an action taken from
+            // within the chat page itself (e.g. deleting the active
+            // conversation), so the user stays on that page instead of being
+            // dropped onto the full-viewport landing hero.
+            document.getElementById('app-shell').classList.toggle('hero-fullscreen', fullscreen);
         }
 
         chatInput.addEventListener('keydown', function(e) {
@@ -2946,14 +2951,11 @@
             return msgId;
         }
 
-        window.switchConversation = function(convId) {
-            window.closeHeroHistoryFlyout?.();
-            if (convId === state.conversationId) return;
-            persistCurrentConversation();
-
-            const record = state.conversations.find(c => c.id === convId);
-            if (!record) return;
-
+        // Loads a saved conversation record into view. Does NOT persist
+        // whatever was previously on screen — callers decide that (switching
+        // saves the outgoing conversation; deleting must NOT, or the just-
+        // deleted conversation would be silently resurrected).
+        function activateConversationRecord(record) {
             state.conversationId = record.id;
             state.sessionId = record.sessionId;
             state.currentMessages = record.messages.map(m => ({ ...m }));
@@ -2965,6 +2967,17 @@
             } else {
                 renderChatEmptyState();
             }
+        }
+
+        window.switchConversation = function(convId) {
+            window.closeHeroHistoryFlyout?.();
+            if (convId === state.conversationId) return;
+            persistCurrentConversation();
+
+            const record = state.conversations.find(c => c.id === convId);
+            if (!record) return;
+
+            activateConversationRecord(record);
             renderConversationList();
         };
 
@@ -3006,10 +3019,24 @@
             saveConversationsToStorage();
 
             if (convId === state.conversationId) {
-                window.newConversation();
-            } else {
-                renderConversationList();
+                // Deleting the conversation you're currently viewing should
+                // keep you on the chat page, not drop you onto the
+                // full-viewport "New Conversation" landing hero (which would
+                // also hide the history sidebar you were just using). Prefer
+                // showing the next most recent saved conversation; only fall
+                // back to a blank one if none remain, and even then keep the
+                // normal page chrome visible instead of going fullscreen.
+                const next = state.conversations[0];
+                if (next) {
+                    activateConversationRecord(next);
+                } else {
+                    state.sessionId = null;
+                    state.conversationId = 'conv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                    state.currentMessages = [];
+                    renderChatEmptyState(false);
+                }
             }
+            renderConversationList();
         };
 
         // =====================================================================

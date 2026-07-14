@@ -720,6 +720,423 @@ LOGISTICS_SUPPLY_CHAIN = IndustryPattern(
     roadmap_phase2_focus="Implement shipment lifecycle and the fleet assignment/tracking ingestion pipeline.",
 )
 
+HVAC = IndustryPattern(
+    key="hvac",
+    name="Building Climate Control AIoT Architecture",
+    components=[
+        ("Building Controller", "Aggregates zone telemetry and issues setpoint commands to air handling units."),
+        ("MQTT Broker", "Pub/sub backbone for zone sensor telemetry and control commands."),
+        ("Climate Analytics Service", "Evaluates zone conditions against setpoints and detects faults."),
+        ("Time-Series Store", "Persists zone telemetry for trend analysis and energy reporting."),
+        ("Application API", "REST/WebSocket service exposing zone state, setpoints, and faults."),
+        ("Web Dashboard", "Facility operator visualization and setpoint administration UI."),
+    ],
+    stack=[
+        ("Device Connectivity", "BACnet/Modbus gateway to MQTT bridge", "Bridges legacy building protocols into a uniform pub/sub backbone."),
+        ("Edge Runtime", "Python edge agent", "Uniform packaging for building controllers."),
+        ("Time-Series Storage", "TimescaleDB (PostgreSQL extension)", "Efficient storage for zone telemetry history."),
+        ("Application API", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Frontend", "React + TypeScript", "Real-time zone dashboard with setpoint controls."),
+        ("Orchestration", "Docker Compose -> Kubernetes", "Compose for development, K8s for production scale."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    ZONE ||--o{ READING : emits\n"
+        "    ZONE ||--o{ FAULT_ALERT : triggers\n"
+        "    ZONE }o--|| AIR_HANDLING_UNIT : served_by\n"
+        "    ZONE {\n        uuid zone_id PK\n        string name\n        double setpoint\n    }\n"
+        "    READING {\n        uuid zone_id FK\n        timestamptz ts\n        string metric\n        double value\n    }\n"
+        "    FAULT_ALERT {\n        uuid alert_id PK\n        uuid zone_id FK\n        string severity\n        timestamptz raised_at\n    }"
+    ),
+    er_notes=(
+        "Zone readings are stored in a TimescaleDB hypertable partitioned by time; setpoints and "
+        "fault alerts live in standard PostgreSQL tables linked to zones and air handling units."
+    ),
+    api_rows=[
+        "| GET | /api/v1/zones | List zones with current setpoint and status |",
+        "| POST | /api/v1/zones/{id}/setpoint | Update a zone's target setpoint |",
+        "| GET | /api/v1/zones/{id}/readings?from&to | Historical zone telemetry |",
+        "| GET | /api/v1/faults?state=open | Active HVAC fault alerts |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant Se as Zone Sensor\n"
+        "    participant C as Building Controller\n"
+        "    participant B as MQTT Broker\n"
+        "    participant An as Climate Analytics\n"
+        "    participant U as Dashboard\n"
+        "    Se->>C: zone reading\n"
+        "    C->>B: publish telemetry\n"
+        "    B->>An: consume + evaluate setpoint\n"
+        "    alt fault detected\n"
+        "        An->>U: raise fault alert\n"
+        "    end\n"
+        "    U->>C: adjust setpoint via API"
+    ),
+    workflow_narrative=(
+        "The primary flow is zone telemetry ingestion -> setpoint evaluation -> fault detection, "
+        "with facility operators adjusting setpoints through the dashboard and API."
+    ),
+    roadmap_phase2_focus="Implement zone telemetry ingestion and the setpoint/fault-detection pipeline.",
+    future_extra=["Predictive energy-optimization models trained on accumulated zone telemetry."],
+)
+
+INSURANCE = IndustryPattern(
+    key="insurance",
+    name="Policy Administration & Claims Processing Architecture",
+    components=[
+        ("API Gateway", "Authentication, routing, rate limiting."),
+        ("Policy Service", "Owns policy issuance, renewal, and premium calculation."),
+        ("Claims Service", "Manages claim submission, adjudication, and payout status."),
+        ("Underwriting Rules Engine", "Evaluates risk and applies actuarial rules to policy applications."),
+        ("Fraud Detection Service", "Scores claims for anomalous patterns before payout."),
+        ("Web Portal", "Role-scoped views for policyholders, agents, and adjusters."),
+    ],
+    stack=[
+        ("Backend", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Database", "PostgreSQL", "ACID guarantees for policy/claims records; mature operations."),
+        ("Rules Engine", "Python rules engine (versioned actuarial tables)", "Auditable, versionable underwriting decisions."),
+        ("Cache", "Redis", "Session store and rate quoting cache."),
+        ("Frontend", "React + TypeScript", "Type-safe policyholder/agent/adjuster UI."),
+        ("Packaging", "Docker + Kubernetes", "Isolated, auditable deployment for regulatory compliance."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    POLICYHOLDER ||--o{ POLICY : holds\n"
+        "    POLICY ||--o{ CLAIM : generates\n"
+        "    POLICY ||--o{ PREMIUM_PAYMENT : requires\n"
+        "    POLICYHOLDER {\n        uuid policyholder_id PK\n        string name\n    }\n"
+        "    POLICY {\n        uuid policy_id PK\n        uuid policyholder_id FK\n        string status\n        numeric premium\n    }\n"
+        "    CLAIM {\n        uuid claim_id PK\n        uuid policy_id FK\n        string status\n        numeric amount_claimed\n    }"
+    ),
+    er_notes=(
+        "PostgreSQL is the system of record for policies and claims; claim adjudication decisions "
+        "are append-only audit records so disputes can be reconciled against an immutable trail."
+    ),
+    api_rows=[
+        "| POST | /api/v1/policies | Issue a new policy (subject to underwriting) |",
+        "| GET | /api/v1/policies/{id} | Fetch policy status and premium schedule |",
+        "| POST | /api/v1/claims | Submit a claim |",
+        "| GET | /api/v1/claims/{id} | Claim adjudication status |",
+        "| POST | /api/v1/claims/{id}/adjudicate | Adjudicate a claim (adjuster action) |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant Ph as Policyholder\n"
+        "    participant P as Policy Service\n"
+        "    participant Cl as Claims Service\n"
+        "    participant Fr as Fraud Detection\n"
+        "    participant Ad as Adjuster\n"
+        "    Ph->>Cl: submit claim\n"
+        "    Cl->>Fr: score claim for fraud risk\n"
+        "    alt flagged\n"
+        "        Fr->>Ad: route for manual review\n"
+        "    else clear\n"
+        "        Cl->>Ad: route for adjudication\n"
+        "    end\n"
+        "    Ad->>Ph: adjudication decision + payout"
+    ),
+    workflow_narrative=(
+        "The primary flow is claim submission -> fraud scoring -> adjudication -> payout, with "
+        "flagged claims routed to manual review before any decision is finalized."
+    ),
+    roadmap_phase2_focus="Implement policy issuance and the claims submission/adjudication flow.",
+    risks_extra=[
+        ("Fraudulent claim payout", "medium", "high",
+         "Automated fraud scoring on every claim; flagged claims require manual adjuster review before payout."),
+    ],
+)
+
+ENERGY = IndustryPattern(
+    key="energy",
+    name="Grid Telemetry & Demand Management Architecture",
+    components=[
+        ("Substation Gateway", "Aggregates meter/grid telemetry with store-and-forward buffering."),
+        ("MQTT/DNP3 Bridge", "Bridges grid protocols into a uniform pub/sub backbone."),
+        ("Grid Analytics Service", "Evaluates load/voltage telemetry, forecasts demand, detects outages."),
+        ("Time-Series Store", "Persists raw and aggregated grid telemetry."),
+        ("Demand Response Engine", "Issues load-shedding/demand-response signals during peak conditions."),
+        ("Web Dashboard", "Grid operator visualization and outage management UI."),
+    ],
+    stack=[
+        ("Device Connectivity", "DNP3/MQTT gateway", "Industry-standard grid telemetry protocols bridged into pub/sub."),
+        ("Edge Runtime", "Python edge agent", "Uniform packaging on substation gateways."),
+        ("Time-Series Storage", "TimescaleDB (PostgreSQL extension)", "Efficient storage for grid telemetry history."),
+        ("Application API", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Frontend", "React + TypeScript", "Real-time grid map and outage dashboard."),
+        ("Orchestration", "Docker Compose -> Kubernetes", "Compose for development, K8s for production scale."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    SUBSTATION ||--o{ SMART_METER : monitors\n"
+        "    SMART_METER ||--o{ LOAD_READING : emits\n"
+        "    SUBSTATION ||--o{ OUTAGE_EVENT : reports\n"
+        "    SUBSTATION {\n        uuid substation_id PK\n        string name\n        string status\n    }\n"
+        "    LOAD_READING {\n        uuid meter_id FK\n        timestamptz ts\n        double voltage\n        double current\n    }\n"
+        "    OUTAGE_EVENT {\n        uuid outage_id PK\n        uuid substation_id FK\n        timestamptz started_at\n        string status\n    }"
+    ),
+    er_notes=(
+        "Load readings are stored in a TimescaleDB hypertable partitioned by time; substation and "
+        "outage records live in standard PostgreSQL tables with OT/IT network segregation enforced "
+        "at the gateway boundary (NERC-CIP style)."
+    ),
+    api_rows=[
+        "| GET | /api/v1/substations | List substations with current status |",
+        "| GET | /api/v1/meters/{id}/readings?from&to | Historical meter load readings |",
+        "| GET | /api/v1/outages?state=open | Active outage events |",
+        "| POST | /api/v1/demand-response/events | Trigger a demand-response event |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant M as Smart Meter\n"
+        "    participant G as Substation Gateway\n"
+        "    participant An as Grid Analytics\n"
+        "    participant Dr as Demand Response Engine\n"
+        "    participant U as Dashboard\n"
+        "    M->>G: load telemetry\n"
+        "    G->>An: forward + evaluate\n"
+        "    alt peak demand or outage\n"
+        "        An->>Dr: trigger response / raise outage alert\n"
+        "        Dr->>U: push notification\n"
+        "    end"
+    ),
+    workflow_narrative=(
+        "The primary flow is meter telemetry ingestion -> load evaluation -> demand response or "
+        "outage escalation, with strict OT/IT network segregation for grid-critical control paths."
+    ),
+    security_extra=(
+        "\n- **OT/IT segregation:** grid control protocols (DNP3) terminate at the substation "
+        "gateway; nothing on the OT network is directly internet-reachable (NERC-CIP alignment)."
+    ),
+    roadmap_phase2_focus="Implement meter telemetry ingestion and the load-forecasting/outage-detection pipeline.",
+    future_extra=["Demand forecasting models trained on accumulated load telemetry."],
+)
+
+GOVERNMENT = IndustryPattern(
+    key="government",
+    name="Citizen Services & Records Management Architecture",
+    components=[
+        ("Citizen Portal", "Public-facing application/permit submission and status tracking."),
+        ("Records Management Service", "Owns public records with retention and disclosure controls."),
+        ("Permit/Application Engine", "Drives application review workflow across agency staff."),
+        ("Identity Verification Service", "Verifies citizen identity for sensitive transactions."),
+        ("Web Portal", "Accessible (Section 508-style) citizen and staff views."),
+    ],
+    stack=[
+        ("Backend", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Database", "PostgreSQL", "ACID guarantees for records/permits; mature operations."),
+        ("Identity", "Government identity verification integration", "Trusted citizen identity assurance."),
+        ("Frontend", "React + TypeScript", "Accessibility-compliant citizen/staff UI."),
+        ("Packaging", "Docker + Kubernetes (government cloud)", "Isolated, auditable deployment for compliance."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    CITIZEN ||--o{ APPLICATION : submits\n"
+        "    APPLICATION ||--o{ PERMIT : results_in\n"
+        "    CITIZEN ||--o{ PUBLIC_RECORD_REQUEST : files\n"
+        "    CITIZEN {\n        uuid citizen_id PK\n        string name\n    }\n"
+        "    APPLICATION {\n        uuid application_id PK\n        uuid citizen_id FK\n        string type\n        string status\n    }\n"
+        "    PERMIT {\n        uuid permit_id PK\n        uuid application_id FK\n        date issued_at\n        date expires_at\n    }"
+    ),
+    er_notes=(
+        "PostgreSQL is the system of record for applications, permits, and public records; every "
+        "table carries a retention policy and disclosure-audit trail supporting transparency requirements."
+    ),
+    api_rows=[
+        "| POST | /api/v1/applications | Submit a permit/service application |",
+        "| GET | /api/v1/applications/{id} | Application review status |",
+        "| GET | /api/v1/permits/{id} | Permit details and validity |",
+        "| POST | /api/v1/records/requests | File a public records request |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant Ci as Citizen\n"
+        "    participant P as Citizen Portal\n"
+        "    participant A as Application Engine\n"
+        "    participant S as Agency Staff\n"
+        "    Ci->>P: submit application\n"
+        "    P->>A: route for review\n"
+        "    A->>S: assign to reviewer\n"
+        "    S->>A: decision (approve/deny)\n"
+        "    A->>Ci: notify decision + issue permit"
+    ),
+    workflow_narrative=(
+        "The primary flow is application submission -> agency review -> decision -> permit issuance, "
+        "with every step logged for public transparency and audit."
+    ),
+    security_extra="\n- **Accessibility & transparency:** citizen-facing UI meets accessibility standards; decision records are immutable once finalized.",
+    roadmap_phase2_focus="Implement application submission and the agency review/decision workflow.",
+)
+
+MANUFACTURING = IndustryPattern(
+    key="manufacturing",
+    name="Production Operations & Quality Management Architecture",
+    components=[
+        ("MES Integration Service", "Bridges shop-floor equipment and ERP/MES systems."),
+        ("Production Scheduling Service", "Plans and tracks work orders across production lines."),
+        ("Quality Control Service", "Records inspections and manages defect escalation."),
+        ("Application API", "REST service exposing work order, production, and quality data."),
+        ("Web Dashboard", "Shop-floor and management visualization UI."),
+    ],
+    stack=[
+        ("Backend", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Shop-Floor Connectivity", "OPC-UA/Modbus gateway", "Standard industrial protocols for PLC/equipment integration."),
+        ("Database", "PostgreSQL", "ACID guarantees for work orders/quality records."),
+        ("Frontend", "React + TypeScript", "Real-time shop-floor and management dashboard."),
+        ("Orchestration", "Docker Compose -> Kubernetes", "Scales production-tracking workers independently."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    WORK_ORDER ||--o{ PRODUCTION_EVENT : generates\n"
+        "    WORK_ORDER ||--o{ QUALITY_INSPECTION : undergoes\n"
+        "    WORK_ORDER }o--|| PRODUCTION_LINE : scheduled_on\n"
+        "    WORK_ORDER {\n        uuid work_order_id PK\n        string status\n        int quantity\n    }\n"
+        "    QUALITY_INSPECTION {\n        uuid inspection_id PK\n        uuid work_order_id FK\n        string result\n    }\n"
+        "    PRODUCTION_LINE {\n        uuid line_id PK\n        string name\n        string status\n    }"
+    ),
+    er_notes=(
+        "PostgreSQL is the system of record for work orders, production events, and quality "
+        "inspections; production-line telemetry can be layered onto a time-series store at scale."
+    ),
+    api_rows=[
+        "| GET | /api/v1/work-orders | List work orders with status |",
+        "| POST | /api/v1/work-orders/{id}/events | Record a production event |",
+        "| POST | /api/v1/work-orders/{id}/inspections | Log a quality inspection |",
+        "| GET | /api/v1/production-lines/{id}/status | Production line status |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant Pl as Planner\n"
+        "    participant S as Scheduling Service\n"
+        "    participant L as Production Line\n"
+        "    participant Q as Quality Control\n"
+        "    Pl->>S: create work order\n"
+        "    S->>L: schedule on production line\n"
+        "    L->>S: report production events\n"
+        "    L->>Q: submit for quality inspection\n"
+        "    alt defect found\n"
+        "        Q->>Pl: escalate defect\n"
+        "    end"
+    ),
+    workflow_narrative=(
+        "The primary flow is work order creation -> scheduling -> production tracking -> quality "
+        "inspection, with defects escalated back to planning immediately."
+    ),
+    roadmap_phase2_focus="Implement work order scheduling and the production tracking/quality inspection flow.",
+)
+
+SMART_BUILDING = IndustryPattern(
+    key="smart_building",
+    name="Building Automation & Occupancy Management Architecture",
+    components=[
+        ("Building Automation Controller", "Aggregates occupancy/energy telemetry and issues automation commands."),
+        ("MQTT Broker", "Pub/sub backbone for building sensor telemetry."),
+        ("Occupancy Analytics Service", "Evaluates occupancy patterns for energy and space optimization."),
+        ("Access Control Service", "Evaluates access-badge events against permissions."),
+        ("Web Dashboard", "Facility operator visualization and administration UI."),
+    ],
+    stack=[
+        ("Device Connectivity", "BACnet/Zigbee gateway to MQTT bridge", "Bridges legacy building protocols into a uniform pub/sub backbone."),
+        ("Edge Runtime", "Python edge agent", "Uniform packaging for building controllers."),
+        ("Time-Series Storage", "TimescaleDB (PostgreSQL extension)", "Efficient storage for occupancy/energy telemetry history."),
+        ("Application API", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Frontend", "React + TypeScript", "Real-time building dashboard with zone overlays."),
+        ("Orchestration", "Docker Compose -> Kubernetes", "Compose for development, K8s for production scale."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    ZONE ||--o{ OCCUPANCY_READING : emits\n"
+        "    ZONE ||--o{ ACCESS_EVENT : records\n"
+        "    ZONE ||--o{ ENERGY_READING : emits\n"
+        "    ZONE {\n        uuid zone_id PK\n        string name\n    }\n"
+        "    ACCESS_EVENT {\n        uuid event_id PK\n        uuid zone_id FK\n        string badge_id\n        timestamptz ts\n    }\n"
+        "    ENERGY_READING {\n        uuid zone_id FK\n        timestamptz ts\n        double kwh\n    }"
+    ),
+    er_notes=(
+        "Occupancy and energy readings are stored in a TimescaleDB hypertable partitioned by time; "
+        "access events live in a standard PostgreSQL table with immutable audit logging."
+    ),
+    api_rows=[
+        "| GET | /api/v1/zones | List zones with occupancy and energy status |",
+        "| GET | /api/v1/zones/{id}/access-events | Access event history for a zone |",
+        "| GET | /api/v1/zones/{id}/energy?from&to | Historical energy consumption |",
+        "| POST | /api/v1/access/evaluate | Evaluate an access-badge event |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant Se as Occupancy Sensor\n"
+        "    participant C as Building Controller\n"
+        "    participant B as MQTT Broker\n"
+        "    participant An as Occupancy Analytics\n"
+        "    participant A as Access Control\n"
+        "    Se->>C: occupancy reading\n"
+        "    C->>B: publish telemetry\n"
+        "    B->>An: consume + optimize energy usage\n"
+        "    A->>C: badge scan event\n"
+        "    C->>A: evaluate access permission"
+    ),
+    workflow_narrative=(
+        "The primary flow is occupancy/energy telemetry ingestion -> optimization, running alongside "
+        "access-control evaluation for every badge scan."
+    ),
+    roadmap_phase2_focus="Implement occupancy/energy telemetry ingestion and the access-control evaluation pipeline.",
+    future_extra=["Space-utilization optimization models trained on accumulated occupancy telemetry."],
+)
+
+ESG = IndustryPattern(
+    key="esg",
+    name="Sustainability Data & Compliance Reporting Architecture",
+    components=[
+        ("Data Aggregation Service", "Ingests emissions/sustainability data from multiple internal and external sources."),
+        ("Reporting Engine", "Compiles aggregated metrics into standards-aligned sustainability reports."),
+        ("Compliance Audit Service", "Tracks report submissions against regulatory disclosure deadlines."),
+        ("Application API", "REST service exposing metrics, reports, and audit status."),
+        ("Web Dashboard", "Sustainability team visualization and reporting UI."),
+    ],
+    stack=[
+        ("Backend", "FastAPI (Python)", "Async-first, typed contracts, OpenAPI out of the box."),
+        ("Database", "PostgreSQL", "ACID guarantees for metrics/report records; mature operations."),
+        ("Data Integration", "Scheduled ETL connectors", "Aggregates data from multiple internal/external sources into one metrics store."),
+        ("Frontend", "React + TypeScript", "Type-safe sustainability reporting UI."),
+        ("Packaging", "Docker + docker-compose", "Reproducible environments from dev to prod."),
+    ],
+    er_diagram=(
+        "erDiagram\n"
+        "    DATA_SOURCE ||--o{ EMISSION_RECORD : provides\n"
+        "    EMISSION_RECORD ||--o{ SUSTAINABILITY_METRIC : aggregates_into\n"
+        "    SUSTAINABILITY_METRIC ||--o{ COMPLIANCE_REPORT : included_in\n"
+        "    EMISSION_RECORD {\n        uuid record_id PK\n        uuid source_id FK\n        double co2e\n        timestamptz recorded_at\n    }\n"
+        "    COMPLIANCE_REPORT {\n        uuid report_id PK\n        string standard\n        string status\n        date due_date\n    }"
+    ),
+    er_notes=(
+        "PostgreSQL is the system of record for raw emission records, aggregated metrics, and "
+        "compliance reports; every report carries a full audit trail back to its source records."
+    ),
+    api_rows=[
+        "| POST | /api/v1/data-sources/{id}/records | Ingest an emissions/sustainability data record |",
+        "| GET | /api/v1/metrics | Aggregated sustainability metrics |",
+        "| POST | /api/v1/reports | Generate a compliance report for a standard |",
+        "| GET | /api/v1/reports/{id}/audit | Audit trail for a report |",
+    ],
+    workflow_diagram=(
+        "sequenceDiagram\n"
+        "    participant D as Data Source\n"
+        "    participant Ag as Aggregation Service\n"
+        "    participant R as Reporting Engine\n"
+        "    participant C as Compliance Audit\n"
+        "    D->>Ag: emissions/sustainability data\n"
+        "    Ag->>Ag: aggregate into metrics\n"
+        "    R->>Ag: request metrics for reporting period\n"
+        "    R->>C: submit compiled report\n"
+        "    C->>R: confirm submission against deadline"
+    ),
+    workflow_narrative=(
+        "The primary flow is multi-source data ingestion -> metric aggregation -> report generation -> "
+        "compliance audit, with every reported figure traceable back to its source records."
+    ),
+    roadmap_phase2_focus="Implement data source ingestion and the metric aggregation/report generation pipeline.",
+)
+
 AI_ML_PLATFORM = IndustryPattern(
     key="ai_ml_platform",
     name="AI Inference & Retrieval Pipeline Architecture",
@@ -813,6 +1230,7 @@ PATTERNS_BY_KEY = {
         GENERIC_SOFTWARE, INDUSTRIAL_IOT, HEALTHCARE, EDUCATION, BANKING_FINTECH,
         AUTOMOTIVE, CONSTRUCTION, AGRICULTURE, RETAIL_ECOMMERCE,
         LOGISTICS_SUPPLY_CHAIN, AI_ML_PLATFORM, EVENT_DRIVEN_PLATFORM,
+        HVAC, INSURANCE, ENERGY, GOVERNMENT, MANUFACTURING, SMART_BUILDING, ESG,
     )
 }
 
