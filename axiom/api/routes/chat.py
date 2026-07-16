@@ -12,7 +12,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from api.middleware.auth import resolve_security_context
-from api.routes.deps import is_developer, kernel
+from api.routes.deps import (
+    DEFAULT_PROJECT, gate_agent_request, is_developer, kernel, record_agent_usage,
+)
 from core.models.base import RequestContext, new_uuid
 from ocif.frames import SolutionDocument
 from ocif.renderers import PresentationRenderer
@@ -58,14 +60,21 @@ async def chat_message(
     """
     session_id = req.session_id or new_uuid()
 
+    # Freemium gate: blocks (402) when a free user is out of daily quota and
+    # returns which provider to serve this request with (OpenCode for free).
+    provider_override = await gate_agent_request(req_ctx)
+
     output = await kernel.process(
         message=req.message,
         user_id=req_ctx.user.user_id,
         tenant_id=req_ctx.tenant.tenant_id,
-        project="default",
+        project=DEFAULT_PROJECT,
         conversation_id=session_id,
         attachments=req.attachments,
+        provider_override=provider_override,
     )
+
+    await record_agent_usage(req_ctx, output)
 
     response = ChatResponse(
         session_id=session_id,

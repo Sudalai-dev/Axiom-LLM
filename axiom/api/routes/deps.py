@@ -6,7 +6,10 @@ or knowledge service, so the platform has exactly one OctagonalKernel and one
 KnowledgeService instance per process.
 """
 
+from typing import Optional
+
 from core.engine_registry import build_octagonal_kernel
+from core.entitlement import EntitlementService
 from core.models.base import RequestContext, UserRole
 from ecosystem import KnowledgePlatform
 from knowledge.service import KnowledgeService
@@ -14,6 +17,10 @@ from memory.learning_store import LearningStore
 
 # Singleton services (constructed once at import-time)
 knowledge_service = KnowledgeService()
+
+# Freemium entitlement — the daily free-chat quota state machine shared by the
+# chat/solution gate and the billing routes.
+entitlement = EntitlementService()
 
 # Durable "learned from past conversations" store — shared by the kernel's
 # Memory Engine (recall + persist) and the feedback route (explicit ratings).
@@ -33,6 +40,13 @@ kernel = build_octagonal_kernel(
     knowledge_platform=knowledge_platform,
 )
 
+# Learning-memory project bucket. The durable learning store is keyed by
+# (tenant_id, project); a single stable bucket per deployment lets the Memory
+# Engine recall a tenant's earlier solutions across conversations. Named here
+# (rather than the literal "default" repeated in each route) so the scope is
+# defined in one place.
+DEFAULT_PROJECT = "default"
+
 # Local-dev single-tenant seed identifiers (see routes/seed.py)
 SEED_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 SEED_USER_ID = "00000000-0000-0000-0000-000000000002"
@@ -44,3 +58,61 @@ def is_developer(req_ctx: RequestContext) -> bool:
     role = req_ctx.user.role
     role_value = role.value if hasattr(role, "value") else role
     return role_value == UserRole.PLATFORM_ADMIN.value
+
+
+def _role_value(req_ctx: RequestContext) -> str:
+    role = req_ctx.user.role
+    return role.value if hasattr(role, "value") else str(role)
+
+
+async def gate_agent_request(req_ctx: RequestContext) -> Optional[str]:
+    """Enforces the freemium quota before an agent call.
+
+    Raises :class:`PaymentRequiredError` (HTTP 402) when a free user has used
+    their daily allowance. Returns the ``provider_override`` to route this
+    request with: ``"opencode"`` for free-tier users (free agents), ``None``
+    for paid/privileged users (platform's configured provider).
+    """
+    from core.config import settings
+    from core.exceptions import PaymentRequiredError
+
+    # Per-tenant rate limiting (token bucket). Previously implemented but never
+    # invoked — enforced here on the expensive agent endpoints. Raises
+    # RateLimitExceededError (429) mapped by the gateway's RFC 7807 handler.
+    from api.middleware.rate_limiter import rate_limiter
+    rate_limiter.check_rate_limit(req_ctx.tenant.tenant_id, req_ctx.tenant.rate_limit_tier)
+
+    decision = await entitlement.evaluate(
+        req_ctx.user.user_id, req_ctx.tenant.tenant_id, _role_value(req_ctx)
+    )
+    if not decision.allowed:
+        raise PaymentRequiredError(
+            detail=(
+                f"You've used your {decision.free_chats_per_day} free chats for "
+                "today. Upgrade to keep going, or wait for your daily quota to renew."
+            ),
+            renews_at=decision.renews_at,
+            free_chats_per_day=decision.free_chats_per_day,
+            price_usd=settings.entitlement.paid_plan_price_usd,
+        )
+    return decision.provider_hint or None
+
+
+async def record_agent_usage(req_ctx: RequestContext, output) -> None:
+    """Records quota consumption + usage metrics after a billable agent call.
+
+    Only non-conversational (real solution) outputs consume quota — trivial
+    clarifications are free and never decrement the daily allowance.
+    """
+    if getattr(output, "is_conversational", False):
+        return
+    await entitlement.record_agent_call(
+        req_ctx.user.user_id, req_ctx.tenant.tenant_id, _role_value(req_ctx)
+    )
+    # Usage metering (tokens/cost) is recorded by the metering helper (Phase 5).
+    try:
+        from api.routes.usage import record_solution_usage
+        await record_solution_usage(req_ctx, output)
+    except Exception:
+        # Metering must never break the request path.
+        pass

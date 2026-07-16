@@ -16,9 +16,13 @@ from pathlib import Path
 from sqlalchemy import delete, select
 
 from api.routes.deps import SEED_TENANT_ID, SEED_USER_ID, SEED_USERNAME, knowledge_service
+from core.config import settings
 from core.models.base import IngestionStatus
+from core.security import hash_password
 from storage.database import AsyncSessionLocal, async_engine
-from storage.models import Base, Document, DocumentChunk, Policy, Tenant, Tool, User
+from storage.models import (
+    Base, Document, DocumentChunk, Policy, Subscription, Tenant, Tool, User,
+)
 
 logger = logging.getLogger("AxiomSeed")
 
@@ -28,6 +32,7 @@ async def ensure_seed_data() -> None:
     async with async_engine.begin() as conn:
         # Create tables if missing (dev convenience — production uses migrations)
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_schema_columns(conn)
 
     async with AsyncSessionLocal() as db:
         await _seed_tenant_and_admin(db)
@@ -36,11 +41,39 @@ async def ensure_seed_data() -> None:
         await _bootstrap_knowledge_base(db)
 
 
+async def _ensure_schema_columns(conn) -> None:
+    """Adds columns introduced after the initial release to an existing SQLite DB.
+
+    ``Base.metadata.create_all`` creates missing tables but never ALTERs an
+    existing one, so a database seeded before the freemium layer existed would
+    be missing ``users.hashed_password``. This lightweight, idempotent
+    migration closes that gap for local/dev SQLite; production uses real
+    migrations (Alembic) and skips this.
+    """
+    if "sqlite" not in str(async_engine.url):
+        return
+    result = await conn.exec_driver_sql("PRAGMA table_info(users)")
+    columns = {row[1] for row in result.fetchall()}
+    if "hashed_password" not in columns:
+        await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255)")
+        logger.info("Migrated users table: added hashed_password column.")
+
+
 async def _seed_tenant_and_admin(db) -> None:
+    admin_hash = hash_password(settings.entitlement.admin_password)
+
     existing = (await db.execute(
         select(User).filter(User.user_id == SEED_USER_ID)
     )).scalars().first()
+
     if existing:
+        # Backfill the password for admins seeded before the auth rework so the
+        # account remains usable after upgrading. (Idempotent: only sets it once.)
+        if not existing.hashed_password:
+            existing.hashed_password = admin_hash
+            await db.commit()
+            logger.info("Backfilled admin password hash.")
+        await _ensure_subscription(db, SEED_USER_ID, plan="paid")
         return
 
     db.add(Tenant(
@@ -56,9 +89,23 @@ async def _seed_tenant_and_admin(db) -> None:
         email="admin@axiom.local",
         role="platform_admin",
         department="Engineering",
+        hashed_password=admin_hash,
     ))
     await db.commit()
+    # Admin is unlimited (paid) so the freemium cap never blocks operators.
+    await _ensure_subscription(db, SEED_USER_ID, plan="paid")
     logger.info("Seeded default tenant and admin user.")
+
+
+async def _ensure_subscription(db, user_id: str, plan: str) -> None:
+    """Ensures a user has a Subscription row (idempotent)."""
+    existing = (await db.execute(
+        select(Subscription).filter(Subscription.user_id == user_id)
+    )).scalars().first()
+    if existing:
+        return
+    db.add(Subscription(user_id=user_id, tenant_id=SEED_TENANT_ID, plan=plan, free_chats_used=0))
+    await db.commit()
 
 
 async def _seed_default_policy(db) -> None:

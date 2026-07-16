@@ -42,6 +42,8 @@ class ProjectDiagram:
     diagram_type: str
     title: str
     mermaid: str
+    domain: str = ""       # human-facing octagon domain label
+    caption: str = ""      # one-line purpose (keeps the diagram-first UI text-light)
 
 
 def _extract_mermaid(text: str) -> str:
@@ -67,6 +69,12 @@ def _state_machine(doc: SolutionDocument) -> str:
     for i, ph in enumerate(phases):
         label = _esc(ph.phase) or f"Phase {i + 1}"
         lines.append(f'    state "{label}" as {ids[i]}')
+        # Attach each phase's first concrete deliverable as a state description.
+        # This is what varies per project (pattern-specific roadmap focus), so
+        # the perception state machine is no longer identical across use cases.
+        first_item = ph.items[0] if ph.items else ""
+        if first_item:
+            lines.append(f"    {ids[i]} : {_esc(first_item)[:70]}")
     lines.append(f"    [*] --> {ids[0]}")
     for a, b in zip(ids, ids[1:]):
         lines.append(f"    {a} --> {b}")
@@ -94,15 +102,26 @@ def _ingestion_flow(doc: SolutionDocument) -> str:
 
 
 def _data_flow_diagram(doc: SolutionDocument) -> str:
-    lines = [
-        "flowchart LR",
-        '    client["Client"]',
-        '    api["API Layer"]',
-        '    svc["Application Service"]',
-        '    db["Data Store"]',
-        "    client --> api --> svc --> db",
-        "    db --> svc --> api --> client",
-    ]
+    lines = ["flowchart LR", '    client["Client"]', '    api["API Layer"]']
+    # Route the flow through the solution's ACTUAL technology-stack layers, which
+    # differ per project — so an IoT telemetry DFD and a banking-ledger DFD are
+    # genuinely different, not one shared client->api->svc->db template.
+    prev = "api"
+    stack_nodes = 0
+    for i, tc in enumerate(doc.technology_stack[:4]):
+        nid = f"n{i}"
+        lines.append(f'    {nid}["{_esc(tc.layer)}: {_esc(tc.choice)}"]')
+        lines.append(f"    {prev} --> {nid}")
+        prev = nid
+        stack_nodes += 1
+    if stack_nodes == 0:
+        lines.append('    svc["Application Service"]')
+        lines.append("    api --> svc")
+        prev = "svc"
+    lines.append('    db["Data Store"]')
+    lines.append("    client --> api")
+    lines.append(f"    {prev} --> db")
+    lines.append(f"    db --> {prev}")
     endpoints = [
         line.strip() for line in (doc.api_design or "").splitlines()
         if line.strip().startswith("|") and line.count("|") >= 3
@@ -185,15 +204,18 @@ def _user_navigation_flow(doc: SolutionDocument) -> str:
     return "\n".join(lines)
 
 
+# (stage, diagram_type, builder, octagon domain label, one-line caption).
+# The domain label + caption keep the diagram-first UI informative with almost
+# no prose — one line per diagram instead of an 18-section report.
 _STAGE_DIAGRAM_BUILDERS = [
-    ("perception", "State Machine", _state_machine),
-    ("context", "Ingestion Flow", _ingestion_flow),
-    ("planning", "Data Flow Diagram", _data_flow_diagram),
-    ("knowledge", "ER Diagram", _er_diagram),
-    ("memory", "Sequence Diagram", _sequence_diagram),
-    ("reasoning", "UML Class Diagram", _uml_class_diagram),
-    ("validation", "Mind Map", _mind_map),
-    ("experience", "User Navigation Flow", _user_navigation_flow),
+    ("perception", "State Machine", _state_machine, "Perception", "Delivery lifecycle & phase states"),
+    ("context", "Ingestion Flow", _ingestion_flow, "Context", "Actors feeding into the system stack"),
+    ("planning", "Data Flow Diagram", _data_flow_diagram, "Planning", "End-to-end data flow across the stack"),
+    ("knowledge", "ER Diagram", _er_diagram, "Knowledge", "Core data model — entities & relationships"),
+    ("memory", "Sequence Diagram", _sequence_diagram, "Memory", "Runtime interaction sequence"),
+    ("reasoning", "UML Class Diagram", _uml_class_diagram, "Reasoning", "Solution architecture & technology choices"),
+    ("validation", "Mind Map", _mind_map, "Validation", "Risks, testing & monitoring coverage"),
+    ("experience", "User Navigation Flow", _user_navigation_flow, "Experience", "User navigation & operational journey"),
 ]
 
 
@@ -203,7 +225,7 @@ def build_project_diagrams(doc: SolutionDocument) -> List[ProjectDiagram]:
     and validated on the document (roadmap, actors, tech stack, risks, or
     mermaid blocks already embedded by the industry-specific synthesizer)."""
     diagrams = []
-    for stage, diagram_type, builder in _STAGE_DIAGRAM_BUILDERS:
+    for stage, diagram_type, builder, domain, caption in _STAGE_DIAGRAM_BUILDERS:
         mermaid = builder(doc)
         diagrams.append(
             ProjectDiagram(
@@ -211,6 +233,8 @@ def build_project_diagrams(doc: SolutionDocument) -> List[ProjectDiagram]:
                 diagram_type=diagram_type,
                 title=f"{diagram_type} — {doc.title}",
                 mermaid=mermaid,
+                domain=domain,
+                caption=caption,
             )
         )
     return diagrams

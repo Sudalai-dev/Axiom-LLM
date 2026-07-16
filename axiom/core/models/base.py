@@ -130,6 +130,7 @@ class LLMProvider(str, Enum):
     CLAUDE = "claude"
     GEMINI = "gemini"
     LLAMA = "llama"
+    OPENCODE = "opencode"  # local free-tier agent runtime (freemium plan)
     AUTO = "auto"
 
 

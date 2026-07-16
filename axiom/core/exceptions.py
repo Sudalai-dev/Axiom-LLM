@@ -184,6 +184,43 @@ class RateLimitExceededError(OCIFError):
 
 
 # ---------------------------------------------------------------------------
+# Monetization / Entitlement (freemium layer)
+# ---------------------------------------------------------------------------
+
+class PaymentRequiredError(OCIFError):
+    """Raised when a free user exhausts their daily agent quota (HTTP 402).
+
+    The paywall payload carries the quota facts the frontend needs to render an
+    honest upgrade prompt: how many free chats the plan allows, when the window
+    renews, and the upgrade price.
+    """
+
+    def __init__(
+        self,
+        detail: str = "Free daily agent quota exhausted",
+        renews_at: Optional[str] = None,
+        free_chats_per_day: Optional[int] = None,
+        price_usd: Optional[float] = None,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        extensions: Dict[str, Any] = {"upgrade_required": True}
+        if renews_at is not None:
+            extensions["renews_at"] = renews_at
+        if free_chats_per_day is not None:
+            extensions["free_chats_per_day"] = free_chats_per_day
+        if price_usd is not None:
+            extensions["price_usd"] = price_usd
+        super().__init__(
+            detail=detail,
+            status_code=402,
+            problem_type="https://ocif-platform.dev/errors/payment-required",
+            title="Payment Required",
+            correlation_id=correlation_id,
+            extensions=extensions,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Policy & Governance Errors — Layer 7 (Doc 7 Section 12, Doc 14 Section 6)
 # ---------------------------------------------------------------------------
 

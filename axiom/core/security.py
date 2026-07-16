@@ -15,6 +15,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from typing import Dict, Any, Optional, List
 from core.config import settings
@@ -23,19 +24,87 @@ from core.models.base import UserRole
 
 
 # ===========================================================================
-# Password Hashing Utilities (PBKDF2-SHA256 for compilation safety)
+# Password Hashing Utilities (PBKDF2-SHA256 with a per-user random salt)
 # ===========================================================================
 
-def hash_password(password: str, salt: bytes = b"ocif_secure_salt_vector") -> str:
-    """Computes a cryptographically secure PBKDF2-SHA256 password hash."""
-    iterations = 100000
-    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return base64.b64encode(key).decode("utf-8")
+_PBKDF2_ITERATIONS = 100_000
+_SALT_BYTES = 16
 
 
-def verify_password(password: str, hashed: str) -> bool:
-    """Verifies a password matching against the PBKDF2 hash."""
-    return hash_password(password) == hashed
+def hash_password(password: str, salt: Optional[bytes] = None) -> str:
+    """Computes a PBKDF2-SHA256 password hash with a per-user random salt.
+
+    Returns a self-describing ``salt$hash`` string (both base64) so each
+    stored credential carries its own salt. Passing no salt generates a fresh
+    random one — the previous implementation used a single hardcoded global
+    salt for every user, which defeats the purpose of salting (identical
+    passwords produced identical hashes and a single rainbow table covered the
+    whole platform).
+    """
+    if salt is None:
+        salt = secrets.token_bytes(_SALT_BYTES)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    return f"{base64.b64encode(salt).decode('utf-8')}${base64.b64encode(key).decode('utf-8')}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """Verifies a password against a stored ``salt$hash`` credential.
+
+    Uses a constant-time comparison to avoid leaking match progress via timing.
+    """
+    if not stored or "$" not in stored:
+        return False
+    salt_b64, _, hash_b64 = stored.partition("$")
+    try:
+        salt = base64.b64decode(salt_b64.encode("utf-8"))
+    except Exception:
+        return False
+    candidate = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    try:
+        expected = base64.b64decode(hash_b64.encode("utf-8"))
+    except Exception:
+        return False
+    return hmac.compare_digest(candidate, expected)
+
+
+# ===========================================================================
+# Symmetric Secret Encryption (per-user provider API keys, at rest)
+# ===========================================================================
+
+def _fernet():
+    """Builds a Fernet cipher for encrypting user-supplied provider API keys.
+
+    Uses OCIF_SECRET_ENCRYPTION_KEY when set (must be a valid urlsafe-base64
+    32-byte Fernet key); otherwise derives a stable key from the JWT secret so
+    local development works without extra configuration. In production, set an
+    explicit key so rotating the JWT secret does not orphan stored ciphertext.
+    """
+    from cryptography.fernet import Fernet
+
+    configured = settings.entitlement.secret_encryption_key
+    if configured:
+        key = configured.encode("utf-8")
+    else:
+        digest = hashlib.sha256(
+            f"axiom-key-encryption::{settings.auth.jwt_secret_key}".encode("utf-8")
+        ).digest()
+        key = base64.urlsafe_b64encode(digest)
+    return Fernet(key)
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """Encrypts a secret (e.g. a provider API key) for storage at rest."""
+    return _fernet().encrypt(plaintext.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_secret(ciphertext: str) -> str:
+    """Decrypts a secret previously produced by :func:`encrypt_secret`."""
+    return _fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+
+
+def last4(secret: str) -> str:
+    """Returns the last 4 characters of a secret for safe display."""
+    return secret[-4:] if len(secret) >= 4 else "****"
 
 
 # ===========================================================================

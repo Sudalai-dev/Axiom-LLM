@@ -10,7 +10,8 @@ Traces to:
 """
 
 import logging
-from typing import Dict, Any, Tuple
+import time
+from typing import Dict, Any, Optional, Tuple
 
 
 
@@ -21,8 +22,15 @@ from inference.providers.openai_provider import OpenAIProvider
 from inference.providers.claude_provider import ClaudeProvider
 from inference.providers.gemini_provider import GeminiProvider
 from inference.providers.llama_provider import LlamaProvider
+from inference.providers.opencode_provider import OpenCodeProvider
 
 logger = logging.getLogger("AxiomModelRouter")
+
+# How long a provider stays circuit-broken after a reported failure before it
+# is retried. Previously the outage list was never consulted with an expiry, so
+# a provider marked failed stayed "offline" for the life of the process (and
+# report_failure was never actually called anywhere).
+_CIRCUIT_COOLDOWN_SECONDS = 300
 
 
 class ModelRouter:
@@ -36,28 +44,48 @@ class ModelRouter:
             LLMProvider.CLAUDE: ClaudeProvider(),
             LLMProvider.GEMINI: GeminiProvider(),
             LLMProvider.LLAMA: LlamaProvider(),
+            LLMProvider.OPENCODE: OpenCodeProvider(),
         }
-        # In-memory track of failed providers for circuit-breaking
+        # In-memory track of failed providers for circuit-breaking:
+        # provider -> unix timestamp when it was marked offline.
         self.failed_providers: Dict[LLMProvider, float] = {}
 
-    def get_provider(self, selected_provider: LLMProvider, intent: str) -> Tuple[LLMProvider, BaseLLMProvider]:
+    def _is_circuit_open(self, provider: LLMProvider) -> bool:
+        """True if the provider is still within its failure cooldown window."""
+        marked_at = self.failed_providers.get(provider)
+        if marked_at is None:
+            return False
+        if (time.time() - marked_at) >= _CIRCUIT_COOLDOWN_SECONDS:
+            # Cooldown elapsed — clear it and let the provider be tried again.
+            self.failed_providers.pop(provider, None)
+            return False
+        return True
+
+    def get_provider(
+        self,
+        selected_provider: LLMProvider,
+        intent: str,
+        force: bool = False,
+    ) -> Tuple[LLMProvider, BaseLLMProvider]:
         """
-        Resolves the appropriate provider to call, applying 'auto' routing policies
-        and checking active outage states.
+        Resolves the appropriate provider to call.
+
+        ``force=True`` pins the exact provider (used by the freemium gate to
+        route free-tier traffic to OpenCode) and skips 'auto' routing, but
+        still honors the circuit breaker so a downed provider falls back.
         """
-        # Resolve 'auto' selection
-        if selected_provider == LLMProvider.AUTO:
+        if not force and selected_provider == LLMProvider.AUTO:
             selected_provider = self._resolve_auto_routing(intent)
 
-        # Check circuit breakers
-        if selected_provider in self.failed_providers:
-            # If provider failed within last 5 minutes, force fallback
-            logger.warning(f"Selected provider '{selected_provider}' is temporarily marked offline. Activating fallback.")
+        # Honor the circuit breaker (with cooldown expiry).
+        if self._is_circuit_open(selected_provider):
+            logger.warning(
+                f"Provider '{selected_provider}' is in failure cooldown. Activating fallback."
+            )
             selected_provider = self._get_fallback_provider(selected_provider)
 
         provider_impl = self.providers.get(selected_provider)
         if not provider_impl:
-            # Fall back to Llama
             selected_provider = LLMProvider.LLAMA
             provider_impl = self.providers[LLMProvider.LLAMA]
 
@@ -65,9 +93,8 @@ class ModelRouter:
 
     def report_failure(self, provider: LLMProvider) -> None:
         """Flags a provider as offline (sets cooldown timestamp)."""
-        import time
         self.failed_providers[provider] = time.time()
-        logger.error(f"Provider '{provider}' reported failure. Added to outage list.")
+        logger.error(f"Provider '{provider}' reported failure. Circuit opened for {_CIRCUIT_COOLDOWN_SECONDS}s.")
 
     def _resolve_auto_routing(self, intent: str) -> LLMProvider:
         """

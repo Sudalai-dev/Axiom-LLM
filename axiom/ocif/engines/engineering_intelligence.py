@@ -850,7 +850,9 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         )
         
         llm_payload = await self.inference.complete(
-            prompt=dynamic_prompt, intent=intent
+            prompt=dynamic_prompt,
+            intent=intent,
+            provider_override=context.metadata.get("provider_override"),
         )
         
         if llm_payload:
@@ -859,6 +861,14 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
                 base_doc = self._merge(base_doc, parsed)
                 provider_used = llm_payload.get("provider", "llm")
                 model_used = llm_payload.get("model_used", "unknown")
+            # Capture real token/cost usage for metering (empty for the
+            # deterministic synthesizer path).
+            tokens = llm_payload.get("tokens_used", {}) or {}
+            context.metadata["llm_usage"] = {
+                "input": int(tokens.get("input", 0) or 0),
+                "output": int(tokens.get("output", 0) or 0),
+                "cost_usd": float(tokens.get("cost_usd", 0.0) or 0.0),
+            }
 
         # 4. Score Confidence Baseline
         score_base = self._score_confidence(frame, knowledge, provider_used, learning)

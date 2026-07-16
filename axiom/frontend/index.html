@@ -792,6 +792,20 @@
         .octagon-diagram { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px; margin-bottom: 14px; text-align: center; }
         .octagon-diagram svg { max-width: 100%; height: auto; }
 
+        /* Diagram-first Engineering Blueprint — the 8 domain diagrams */
+        .blueprint-diagrams { margin: 14px 0; }
+        .pdiagram-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+        .pdiagram-title { font-weight: 600; font-size: 15px; }
+        .pdiagram-hint { font-size: 12px; color: var(--text-secondary); }
+        .pdiagram-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .pdiagram-card { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; }
+        .pdiagram-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .pdiagram-domain { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+        .pdiagram-type { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 2px 8px; }
+        .pdiagram-body { flex: 1; overflow-x: auto; text-align: center; }
+        .pdiagram-body .mermaid-diagram svg { max-width: 100%; height: auto; }
+        .pdiagram-caption { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+
         /* Solution Map — the user-facing Octagonal Engineering Visualization */
         .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; box-shadow: var(--bevel-lifted); }
         .solution-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -1654,6 +1668,53 @@
             transform: translateY(-2px);
         }
 
+        /* ---- Freemium: plan pill, account & paywall modals ---- */
+        .plan-pill {
+            background: rgba(99,102,241,.15);
+            border: 1px solid var(--border-accent, #6366f1);
+            color: var(--text-primary, #e2e8f0);
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .plan-pill:hover { background: rgba(99,102,241,.28); }
+        .plan-pill.plan-paid { background: rgba(16,185,129,.18); border-color: #10b981; }
+        .plan-pill.plan-low { background: rgba(245,158,11,.18); border-color: #f59e0b; }
+
+        .axm-modal-overlay {
+            position: fixed; inset: 0; z-index: 4000;
+            background: rgba(2,6,23,.68); backdrop-filter: blur(3px);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .axm-modal-overlay.hidden { display: none; }
+        .axm-modal {
+            width: 440px; max-width: calc(100vw - 32px); max-height: 88vh; overflow-y: auto;
+            background: var(--bg-elevated, #0f172a);
+            border: 1px solid var(--border, #1e293b);
+            border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        }
+        .axm-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 18px; border-bottom: 1px solid var(--border, #1e293b);
+            font-weight: 700; font-size: 15px;
+        }
+        .axm-modal-close { background: none; border: none; color: var(--text-secondary, #94a3b8); font-size: 22px; cursor: pointer; line-height: 1; }
+        .axm-modal-body { padding: 18px; }
+        .axm-plan-card { background: rgba(148,163,184,.07); border: 1px solid var(--border, #1e293b); border-radius: 10px; padding: 12px 14px; }
+        .axm-plan-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+        .axm-plan-row span { color: var(--text-secondary, #94a3b8); }
+        .axm-upgrade-note { font-size: 12px; color: var(--text-secondary, #94a3b8); margin-top: 8px; text-align: center; min-height: 16px; }
+        .axm-section-title { margin: 20px 0 8px; font-size: 13px; font-weight: 700; }
+        .axm-muted { color: var(--text-secondary, #94a3b8); font-weight: 400; font-size: 11px; }
+        .axm-keys-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+        .axm-key-row { display: flex; align-items: center; justify-content: space-between; background: rgba(148,163,184,.07); border: 1px solid var(--border, #1e293b); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
+        .axm-key-form { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 6px; }
+        .axm-key-form .form-input { font-size: 12px; }
+        .axm-paywall-msg { font-size: 14px; margin-bottom: 8px; }
+
     </style>
 </head>
 <body>
@@ -1722,7 +1783,11 @@
                 </button>
                 <div class="login-error" id="login-error"></div>
             </form>
-            <div class="login-footer-note">Access is provisioned by your platform administrator.</div>
+            <div class="login-footer-note">
+                <span id="login-switch-prompt">New here?</span>
+                <a href="#" id="login-switch-link" onclick="toggleAuthMode(event)">Create a free account</a>
+                <div style="margin-top:6px;opacity:.75">Free plan: 5 chats/day, renews every 24h.</div>
+            </div>
         </div>
     </div>
 
@@ -1760,6 +1825,10 @@
                 </div>
                 <span class="status-sep">|</span>
                 <div class="status-bar-group" id="status-role"></div>
+                <span class="status-sep">|</span>
+                <div class="status-bar-group">
+                    <button id="plan-pill" class="plan-pill" onclick="openAccountModal()" title="View plan & usage">Free · 5 left</button>
+                </div>
                 <span class="status-sep">|</span>
                 <div class="status-bar-group">
                     <span class="status-clock mono" id="status-clock">--:--:-- UTC</span>
@@ -1808,7 +1877,8 @@
                         <div class="user-name" id="display-username">Admin</div>
                         <div class="user-role" id="display-role">Platform Admin</div>
                     </div>
-                    <button class="btn btn-xs btn-secondary" onclick="handleLogout()" style="margin-left:auto">↗</button>
+                    <button class="btn btn-xs btn-secondary" onclick="openAccountModal()" style="margin-left:auto" title="Account & billing">⚙</button>
+                    <button class="btn btn-xs btn-secondary" onclick="handleLogout()" title="Sign out">↗</button>
                 </div>
             </div>
         </aside>
@@ -2041,6 +2111,54 @@
             <div class="confirm-modal-actions">
                 <button class="btn btn-secondary btn-sm" id="confirm-modal-cancel">Cancel</button>
                 <button class="btn btn-danger btn-sm" id="confirm-modal-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account / Billing Modal -->
+    <div class="axm-modal-overlay hidden" id="account-modal-overlay">
+        <div class="axm-modal">
+            <div class="axm-modal-header">
+                <span>Account &amp; Billing</span>
+                <button class="axm-modal-close" onclick="closeAccountModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="axm-modal-body">
+                <div class="axm-plan-card" id="account-plan-card">
+                    <div class="axm-plan-row"><span>Plan</span><strong id="account-plan">—</strong></div>
+                    <div class="axm-plan-row"><span>Free chats remaining</span><strong id="account-remaining">—</strong></div>
+                    <div class="axm-plan-row"><span>Renews</span><strong id="account-renews">—</strong></div>
+                </div>
+                <button class="btn btn-primary w-full" id="account-upgrade-btn" onclick="doUpgrade()" style="width:100%;margin-top:10px">Upgrade to Paid</button>
+                <div class="axm-upgrade-note" id="account-upgrade-note"></div>
+
+                <div class="axm-section-title">Your API keys <span class="axm-muted">(optional — paid plan uses the platform's keys by default)</span></div>
+                <div class="axm-keys-list" id="account-keys-list"></div>
+                <div class="axm-key-form">
+                    <select id="account-key-provider" class="form-input">
+                        <option value="openai">OpenAI</option>
+                        <option value="claude">Claude (Anthropic)</option>
+                        <option value="gemini">Gemini (Google)</option>
+                        <option value="llama">Llama</option>
+                    </select>
+                    <input type="password" id="account-key-secret" class="form-input" placeholder="Paste API key (stored encrypted)">
+                    <button class="btn btn-secondary btn-sm" onclick="addKey()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paywall Modal (shown on 402) -->
+    <div class="axm-modal-overlay hidden" id="paywall-modal-overlay">
+        <div class="axm-modal">
+            <div class="axm-modal-header">
+                <span>🔒 Daily free limit reached</span>
+                <button class="axm-modal-close" onclick="closePaywall()" aria-label="Close">&times;</button>
+            </div>
+            <div class="axm-modal-body">
+                <p id="paywall-message" class="axm-paywall-msg"></p>
+                <p class="axm-muted">Your free chats renew <strong id="paywall-renews">soon</strong>.</p>
+                <button class="btn btn-primary w-full" onclick="doUpgrade()" style="width:100%">Upgrade for unlimited access</button>
+                <button class="btn btn-secondary w-full" onclick="closePaywall()" style="width:100%;margin-top:8px">Maybe later</button>
             </div>
         </div>
     </div>
@@ -2314,11 +2432,15 @@
             if (body) opts.body = JSON.stringify(body);
 
             const resp = await fetch(API_BASE + path, opts);
-            const data = await resp.json();
+            // 204 No Content (e.g. key deletion) has no JSON body.
+            const data = resp.status === 204 ? {} : await resp.json();
 
             if (!resp.ok) {
                 const detail = data.detail || data.title || 'Request failed';
-                throw new Error(detail);
+                const err = new Error(detail);
+                err.status = resp.status;   // lets callers detect 402 paywall, etc.
+                err.data = data;            // full RFC 7807 payload (renews_at, price_usd...)
+                throw err;
             }
             return data;
         }
@@ -2372,51 +2494,206 @@
         // =====================================================================
         // Authentication
         // =====================================================================
+        // Auth mode: 'login' (default) or 'register' (create a free account).
+        state.authMode = 'login';
+        window.toggleAuthMode = function(e) {
+            if (e) e.preventDefault();
+            state.authMode = state.authMode === 'login' ? 'register' : 'login';
+            const registering = state.authMode === 'register';
+            document.getElementById('login-btn').textContent = registering ? 'Create Account' : 'Sign In';
+            document.getElementById('login-switch-prompt').textContent = registering ? 'Already have an account?' : 'New here?';
+            document.getElementById('login-switch-link').textContent = registering ? 'Sign in instead' : 'Create a free account';
+            document.querySelector('.login-logo p').textContent = registering ? 'Create your free account' : 'Sign in to your account';
+            document.getElementById('login-error').textContent = '';
+        };
+
+        function applyAuthSuccess(data, fallbackUsername) {
+            state.token = data.access_token;
+            state.username = fallbackUsername;
+            try {
+                const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
+                state.userRole = payload.role || 'end_user';
+                state.username = payload.sub || fallbackUsername;
+            } catch(_) {}
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('hidden');
+            window.persistRememberedUsername(fallbackUsername);
+
+            document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
+            document.getElementById('display-username').textContent = state.username;
+            document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            document.getElementById('status-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            // Developer Mode is available to platform admins only
+            document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
+
+            showToast('Authenticated successfully', 'success');
+            if (!document.getElementById('chat-messages').querySelector('.message')) {
+                renderChatEmptyState();
+            }
+            loadDashboard();
+            loadBillingStatus();
+        }
+
         document.getElementById('login-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
             const errorEl = document.getElementById('login-error');
             const btn = document.getElementById('login-btn');
+            const registering = state.authMode === 'register';
 
-            btn.disabled = true; btn.textContent = 'Signing in...';
+            btn.disabled = true; btn.textContent = registering ? 'Creating...' : 'Signing in...';
             errorEl.textContent = '';
 
             try {
-                const data = await api('POST', '/auth/login', { username, password });
-                state.token = data.access_token;
-                state.username = username;
-
-                // Decode JWT payload for role info
-                try {
-                    const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
-                    state.userRole = payload.role || 'end_user';
-                    state.username = payload.sub || username;
-                } catch(_) {}
-
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-shell').classList.remove('hidden');
-                window.persistRememberedUsername(username);
-
-                document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
-                document.getElementById('display-username').textContent = state.username;
-                document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                document.getElementById('status-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-                // Developer Mode is available to platform admins only
-                document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
-
-                showToast('Authenticated successfully', 'success');
-                if (!document.getElementById('chat-messages').querySelector('.message')) {
-                    renderChatEmptyState();
-                }
-                loadDashboard();
+                const endpoint = registering ? '/auth/register' : '/auth/login';
+                const data = await api('POST', endpoint, { username, password });
+                applyAuthSuccess(data, username);
             } catch (err) {
                 errorEl.textContent = err.message;
             } finally {
-                btn.disabled = false; btn.textContent = 'Sign In';
+                btn.disabled = false; btn.textContent = registering ? 'Create Account' : 'Sign In';
             }
         });
+
+        // =====================================================================
+        // Freemium: billing status, account modal, paywall, API keys
+        // =====================================================================
+        state.billing = { plan: 'free', remaining: null, unlimited: false, renews_at: null, price_usd: null };
+
+        window.loadBillingStatus = async function() {
+            if (!state.token) return;
+            try {
+                const s = await api('GET', '/billing/status');
+                state.billing = s;
+                updatePlanPill();
+            } catch (_) { /* non-fatal */ }
+        };
+
+        function updatePlanPill() {
+            const pill = document.getElementById('plan-pill');
+            if (!pill) return;
+            const b = state.billing;
+            pill.classList.remove('plan-paid', 'plan-low');
+            if (b.unlimited || b.plan === 'paid') {
+                pill.textContent = 'Paid · Unlimited';
+                pill.classList.add('plan-paid');
+            } else {
+                const left = b.remaining == null ? '—' : b.remaining;
+                pill.textContent = `Free · ${left} left`;
+                if (typeof left === 'number' && left <= 1) pill.classList.add('plan-low');
+            }
+        }
+
+        function fmtRenews(iso) {
+            if (!iso) return 'when your daily window resets';
+            try {
+                const d = new Date(iso);
+                return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch (_) { return iso; }
+        }
+
+        window.openAccountModal = async function() {
+            document.getElementById('account-modal-overlay').classList.remove('hidden');
+            await loadBillingStatus();
+            const b = state.billing;
+            document.getElementById('account-plan').textContent = (b.plan || 'free').toUpperCase();
+            document.getElementById('account-remaining').textContent =
+                (b.unlimited || b.plan === 'paid') ? 'Unlimited' : `${b.remaining ?? '—'} / ${b.free_chats_per_day ?? 5}`;
+            document.getElementById('account-renews').textContent =
+                (b.unlimited || b.plan === 'paid') ? '—' : fmtRenews(b.renews_at);
+            const upgradeBtn = document.getElementById('account-upgrade-btn');
+            upgradeBtn.style.display = (b.plan === 'paid' || b.unlimited) ? 'none' : 'block';
+            document.getElementById('account-upgrade-note').textContent =
+                (b.price_usd != null && b.plan !== 'paid') ? `Paid plan: $${b.price_usd}/mo · uses the platform's API keys` : '';
+            loadKeys();
+        };
+
+        window.closeAccountModal = function() {
+            document.getElementById('account-modal-overlay').classList.add('hidden');
+        };
+
+        window.doUpgrade = async function() {
+            try {
+                const res = await api('POST', '/billing/checkout');
+                if (res.mode === 'redirect' && res.checkout_url) {
+                    window.location.href = res.checkout_url;
+                    return;
+                }
+                showToast(res.message || 'Upgrade request received.', 'success');
+                closePaywall();
+                await loadBillingStatus();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+        window.loadKeys = async function() {
+            const list = document.getElementById('account-keys-list');
+            if (!list) return;
+            try {
+                const keys = await api('GET', '/keys');
+                if (!keys.length) {
+                    list.innerHTML = '<div class="axm-muted">No API keys saved.</div>';
+                    return;
+                }
+                list.innerHTML = '';
+                keys.forEach(k => {
+                    const row = document.createElement('div');
+                    row.className = 'axm-key-row';
+                    const label = document.createElement('span');
+                    label.textContent = `${k.provider} · ••••${k.last4}`;
+                    const del = document.createElement('button');
+                    del.className = 'btn btn-xs btn-danger';
+                    del.textContent = 'Remove';
+                    del.onclick = () => deleteKey(k.provider);
+                    row.appendChild(label);
+                    row.appendChild(del);
+                    list.appendChild(row);
+                });
+            } catch (_) {
+                list.innerHTML = '<div class="axm-muted">Could not load keys.</div>';
+            }
+        };
+
+        window.addKey = async function() {
+            const provider = document.getElementById('account-key-provider').value;
+            const secretEl = document.getElementById('account-key-secret');
+            const secret = secretEl.value.trim();
+            if (secret.length < 8) { showToast('Enter a valid API key.', 'error'); return; }
+            try {
+                await api('POST', '/keys', { provider, api_key: secret });
+                secretEl.value = '';
+                showToast('API key saved (encrypted).', 'success');
+                loadKeys();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+        window.deleteKey = async function(provider) {
+            try {
+                await api('DELETE', '/keys/' + encodeURIComponent(provider));
+                showToast('API key removed.', 'success');
+                loadKeys();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        };
+
+        window.showPaywall = function(data) {
+            document.getElementById('paywall-message').textContent =
+                data.detail || "You've reached today's free limit.";
+            document.getElementById('paywall-renews').textContent = fmtRenews(data.renews_at);
+            document.getElementById('paywall-modal-overlay').classList.remove('hidden');
+            loadBillingStatus();
+        };
+
+        window.closePaywall = function() {
+            document.getElementById('paywall-modal-overlay').classList.add('hidden');
+        };
 
         window.handleLogout = function() {
             state.token = null;
@@ -2699,11 +2976,18 @@
 
             } catch (err) {
                 removeTypingIndicator(typingId);
-                recordAndAppend('system', '⚠ ' + err.message, { isError: true });
+                if (err.status === 402) {
+                    // Free daily quota exhausted — show the paywall instead of a raw error.
+                    showPaywall(err.data || {});
+                    recordAndAppend('system', '🔒 ' + err.message, { isError: true });
+                } else {
+                    recordAndAppend('system', '⚠ ' + err.message, { isError: true });
+                }
             } finally {
                 chatSendBtn.disabled = false;
                 chatInput.focus();
             }
+            loadBillingStatus();  // refresh the remaining-quota pill after each send
         };
 
         function storeBlueprint(data) {
@@ -2717,7 +3001,8 @@
                 generated_documents: data.generated_documents || [],
                 dashboard: data.dashboard || null,
                 documents_catalog: data.documents_catalog || [],
-                export_manifest: data.export_manifest || []
+                export_manifest: data.export_manifest || [],
+                project_diagrams: data.project_diagrams || []
             };
             return blueprintId;
         }
@@ -2784,6 +3069,10 @@
                 bodyHtml = isDoc ? renderMarkdown(content) : formatContent(content);
             }
 
+            // Diagram-first: the 8 domain diagrams are the primary deliverable,
+            // shown above the octagon map and the (collapsed) full report.
+            const diagramsPlaceholder = meta.blueprintId
+                ? `<div class="blueprint-diagrams" id="diagrams-${meta.blueprintId}"></div>` : '';
             const solutionMapPlaceholder = meta.blueprintId
                 ? `<div class="solution-map" id="map-${meta.blueprintId}"></div>` : '';
             const fullReportHtml = (isDoc && hasDashboard)
@@ -2804,6 +3093,7 @@
                 </div>
                 <div class="message-body${isDoc ? ' md-doc' : ''}" id="body-${msgId}">${bodyHtml}</div>
                 ${attachmentHtml}
+                ${diagramsPlaceholder}
                 ${solutionMapPlaceholder}
                 ${fullReportHtml}
                 ${citationsHtml}
@@ -2813,6 +3103,7 @@
             chatMessages.appendChild(div);
             if (isDoc && !hasDashboard) renderMermaidIn(div);
             if (isDoc && meta.citations && meta.citations.length > 0) updateCitationPanel(meta.citations);
+            if (meta.blueprintId) renderBlueprintDiagrams(meta.blueprintId);
             if (meta.blueprintId) renderSolutionMap(meta.blueprintId);
             if (fullReportHtml) {
                 const reportEl = document.getElementById('report-' + meta.blueprintId);
@@ -3103,6 +3394,40 @@
         // Octagonal Engineering Visualization — the solution's own domain map
         // (shown to every user; unrelated to the admin-only cognitive trace)
         // =====================================================================
+
+        // Diagram-first output: render the 8 domain-specific engineering diagrams
+        // (one per octagon domain) as the primary deliverable. Each is a real,
+        // project-specific diagram derived from the solution — not one shared
+        // template — so different use cases produce visibly different diagrams.
+        function renderBlueprintDiagrams(blueprintId) {
+            const bp = state.blueprints[blueprintId];
+            const container = document.getElementById('diagrams-' + blueprintId);
+            if (!bp || !container) return;
+            const diagrams = bp.project_diagrams || [];
+            if (!diagrams.length) return;
+
+            const cards = diagrams.map((d, i) => {
+                const blockId = `pdiag-${blueprintId}-${i}`;
+                return `
+                    <div class="pdiagram-card">
+                        <div class="pdiagram-head">
+                            <span class="pdiagram-domain">${escapeHtml(d.domain || d.stage || '')}</span>
+                            <span class="pdiagram-type">${escapeHtml(d.diagram_type || '')}</span>
+                        </div>
+                        <div class="pdiagram-body"><pre><code class="language-mermaid" id="${blockId}">${escapeHtml(d.mermaid || '')}</code></pre></div>
+                        <div class="pdiagram-caption">${escapeHtml(d.caption || '')}</div>
+                    </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="pdiagram-header">
+                    <span class="pdiagram-title">🖼 Engineering Blueprint — 8 Domain Diagrams</span>
+                    <span class="pdiagram-hint">One diagram per octagon domain</span>
+                </div>
+                <div class="pdiagram-grid">${cards}</div>`;
+
+            renderMermaidIn(container);
+        }
 
         function renderSolutionMap(blueprintId) {
             const bp = state.blueprints[blueprintId];
