@@ -7,6 +7,7 @@ python-multipart==0.0.9
 aiosqlite>=0.20.0
 httpx==0.28.1
 python-dotenv>=1.0.0
+cryptography>=42.0.0    # Fernet encryption of per-user provider API keys (core/security.py)
 
 # Multimodal Project Understanding (Phase 6) — real parsers for uploaded
 # project files. Every call site catches ImportError and degrades to an

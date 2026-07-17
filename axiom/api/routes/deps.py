@@ -33,6 +33,13 @@ kernel = build_octagonal_kernel(
     knowledge_platform=knowledge_platform,
 )
 
+# Learning-memory project bucket. The durable learning store is keyed by
+# (tenant_id, project); a single stable bucket per deployment lets the Memory
+# Engine recall a tenant's earlier solutions across conversations. Named here
+# (rather than the literal "default" repeated in each route) so the scope is
+# defined in one place.
+DEFAULT_PROJECT = "default"
+
 # Local-dev single-tenant seed identifiers (see routes/seed.py)
 SEED_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 SEED_USER_ID = "00000000-0000-0000-0000-000000000002"
@@ -44,3 +51,28 @@ def is_developer(req_ctx: RequestContext) -> bool:
     role = req_ctx.user.role
     role_value = role.value if hasattr(role, "value") else role
     return role_value == UserRole.PLATFORM_ADMIN.value
+
+
+def enforce_rate_limit(req_ctx: RequestContext) -> None:
+    """Per-tenant token-bucket rate limiting on the expensive agent endpoints.
+
+    Raises RateLimitExceededError (429), mapped by the gateway's RFC 7807
+    handler. Not part of "billing/free-limit" — a general abuse guard.
+    """
+    from api.middleware.rate_limiter import rate_limiter
+    rate_limiter.check_rate_limit(req_ctx.tenant.tenant_id, req_ctx.tenant.rate_limit_tier)
+
+
+async def record_usage(req_ctx: RequestContext, output) -> None:
+    """Records real usage metrics after a solution (for the dashboard).
+
+    Only non-conversational (real solution) outputs are metered. Best-effort:
+    metering must never break the request path.
+    """
+    if getattr(output, "is_conversational", False):
+        return
+    try:
+        from api.routes.usage import record_solution_usage
+        await record_solution_usage(req_ctx, output)
+    except Exception:
+        pass

@@ -71,6 +71,12 @@ class KernelOutput(OCIFBaseModel):
     citations: List[Dict[str, str]] = Field(default_factory=list)
     confidence: float = 0.0
     trace: Optional[CognitiveTrace] = None
+    # Real inference usage for metering (0 on the deterministic synthesizer path).
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    provider_used: str = ""
+    model_used: str = ""
 
 
 class OctagonalKernel:
@@ -123,7 +129,8 @@ class OctagonalKernel:
         conversation_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> KernelOutput:
-        """Runs one request through the octagonal graph."""
+        """Runs one request through the octagonal graph (fully deterministic —
+        AXIOM's own brain, no external LLM)."""
         context = CognitiveContext(
             user_id=user_id,
             tenant_id=tenant_id,
@@ -189,6 +196,8 @@ class OctagonalKernel:
             for s in (knowledge_frame.sources if knowledge_frame else [])
         ]
 
+        usage = context.metadata.get("llm_usage", {}) or {}
+        reasoning = context.reasoning
         return KernelOutput(
             solution_id=context.reasoning.solution_draft.solution_id,
             conversation_id=context.conversation_id,
@@ -199,6 +208,11 @@ class OctagonalKernel:
             citations=citations,
             confidence=context.confidence,
             trace=ExperienceEngine.build_trace(context),
+            input_tokens=int(usage.get("input", 0) or 0),
+            output_tokens=int(usage.get("output", 0) or 0),
+            cost_usd=float(usage.get("cost_usd", 0.0) or 0.0),
+            provider_used=getattr(reasoning, "provider_used", "") or "",
+            model_used=getattr(reasoning, "model_used", "") or "",
         )
 
     # -- helpers ------------------------------------------------------------

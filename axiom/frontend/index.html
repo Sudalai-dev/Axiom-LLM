@@ -792,6 +792,20 @@
         .octagon-diagram { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px; margin-bottom: 14px; text-align: center; }
         .octagon-diagram svg { max-width: 100%; height: auto; }
 
+        /* Diagram-first Engineering Blueprint — the 8 domain diagrams */
+        .blueprint-diagrams { margin: 14px 0; }
+        .pdiagram-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+        .pdiagram-title { font-weight: 600; font-size: 15px; }
+        .pdiagram-hint { font-size: 12px; color: var(--text-secondary); }
+        .pdiagram-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .pdiagram-card { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; }
+        .pdiagram-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .pdiagram-domain { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+        .pdiagram-type { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 2px 8px; }
+        .pdiagram-body { flex: 1; overflow-x: auto; text-align: center; }
+        .pdiagram-body .mermaid-diagram svg { max-width: 100%; height: auto; }
+        .pdiagram-caption { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+
         /* Solution Map — the user-facing Octagonal Engineering Visualization */
         .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; box-shadow: var(--bevel-lifted); }
         .solution-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -1722,7 +1736,10 @@
                 </button>
                 <div class="login-error" id="login-error"></div>
             </form>
-            <div class="login-footer-note">Access is provisioned by your platform administrator.</div>
+            <div class="login-footer-note">
+                <span id="login-switch-prompt">New here?</span>
+                <a href="#" id="login-switch-link" onclick="toggleAuthMode(event)">Create an account</a>
+            </div>
         </div>
     </div>
 
@@ -1808,7 +1825,7 @@
                         <div class="user-name" id="display-username">Admin</div>
                         <div class="user-role" id="display-role">Platform Admin</div>
                     </div>
-                    <button class="btn btn-xs btn-secondary" onclick="handleLogout()" style="margin-left:auto">↗</button>
+                    <button class="btn btn-xs btn-secondary" onclick="handleLogout()" style="margin-left:auto" title="Sign out">↗</button>
                 </div>
             </div>
         </aside>
@@ -2314,11 +2331,15 @@
             if (body) opts.body = JSON.stringify(body);
 
             const resp = await fetch(API_BASE + path, opts);
-            const data = await resp.json();
+            // 204 No Content (e.g. key deletion) has no JSON body.
+            const data = resp.status === 204 ? {} : await resp.json();
 
             if (!resp.ok) {
                 const detail = data.detail || data.title || 'Request failed';
-                throw new Error(detail);
+                const err = new Error(detail);
+                err.status = resp.status;   // lets callers branch on HTTP status
+                err.data = data;            // full RFC 7807 problem+json payload
+                throw err;
             }
             return data;
         }
@@ -2372,49 +2393,66 @@
         // =====================================================================
         // Authentication
         // =====================================================================
+        // Auth mode: 'login' (default) or 'register' (create a free account).
+        state.authMode = 'login';
+        window.toggleAuthMode = function(e) {
+            if (e) e.preventDefault();
+            state.authMode = state.authMode === 'login' ? 'register' : 'login';
+            const registering = state.authMode === 'register';
+            document.getElementById('login-btn').textContent = registering ? 'Create Account' : 'Sign In';
+            document.getElementById('login-switch-prompt').textContent = registering ? 'Already have an account?' : 'New here?';
+            document.getElementById('login-switch-link').textContent = registering ? 'Sign in instead' : 'Create a free account';
+            document.querySelector('.login-logo p').textContent = registering ? 'Create your free account' : 'Sign in to your account';
+            document.getElementById('login-error').textContent = '';
+        };
+
+        function applyAuthSuccess(data, fallbackUsername) {
+            state.token = data.access_token;
+            state.username = fallbackUsername;
+            try {
+                const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
+                state.userRole = payload.role || 'end_user';
+                state.username = payload.sub || fallbackUsername;
+            } catch(_) {}
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('hidden');
+            window.persistRememberedUsername(fallbackUsername);
+
+            document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
+            document.getElementById('display-username').textContent = state.username;
+            document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            document.getElementById('status-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            // Developer Mode is available to platform admins only
+            document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
+
+            showToast('Authenticated successfully', 'success');
+            if (!document.getElementById('chat-messages').querySelector('.message')) {
+                renderChatEmptyState();
+            }
+            loadDashboard();
+        }
+
         document.getElementById('login-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
             const errorEl = document.getElementById('login-error');
             const btn = document.getElementById('login-btn');
+            const registering = state.authMode === 'register';
 
-            btn.disabled = true; btn.textContent = 'Signing in...';
+            btn.disabled = true; btn.textContent = registering ? 'Creating...' : 'Signing in...';
             errorEl.textContent = '';
 
             try {
-                const data = await api('POST', '/auth/login', { username, password });
-                state.token = data.access_token;
-                state.username = username;
-
-                // Decode JWT payload for role info
-                try {
-                    const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
-                    state.userRole = payload.role || 'end_user';
-                    state.username = payload.sub || username;
-                } catch(_) {}
-
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-shell').classList.remove('hidden');
-                window.persistRememberedUsername(username);
-
-                document.getElementById('user-avatar').textContent = state.username.charAt(0).toUpperCase();
-                document.getElementById('display-username').textContent = state.username;
-                document.getElementById('display-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                document.getElementById('status-role').textContent = state.userRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-                // Developer Mode is available to platform admins only
-                document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
-
-                showToast('Authenticated successfully', 'success');
-                if (!document.getElementById('chat-messages').querySelector('.message')) {
-                    renderChatEmptyState();
-                }
-                loadDashboard();
+                const endpoint = registering ? '/auth/register' : '/auth/login';
+                const data = await api('POST', endpoint, { username, password });
+                applyAuthSuccess(data, username);
             } catch (err) {
                 errorEl.textContent = err.message;
             } finally {
-                btn.disabled = false; btn.textContent = 'Sign In';
+                btn.disabled = false; btn.textContent = registering ? 'Create Account' : 'Sign In';
             }
         });
 
@@ -2717,7 +2755,8 @@
                 generated_documents: data.generated_documents || [],
                 dashboard: data.dashboard || null,
                 documents_catalog: data.documents_catalog || [],
-                export_manifest: data.export_manifest || []
+                export_manifest: data.export_manifest || [],
+                project_diagrams: data.project_diagrams || []
             };
             return blueprintId;
         }
@@ -2784,6 +2823,10 @@
                 bodyHtml = isDoc ? renderMarkdown(content) : formatContent(content);
             }
 
+            // Diagram-first: the 8 domain diagrams are the primary deliverable,
+            // shown above the octagon map and the (collapsed) full report.
+            const diagramsPlaceholder = meta.blueprintId
+                ? `<div class="blueprint-diagrams" id="diagrams-${meta.blueprintId}"></div>` : '';
             const solutionMapPlaceholder = meta.blueprintId
                 ? `<div class="solution-map" id="map-${meta.blueprintId}"></div>` : '';
             const fullReportHtml = (isDoc && hasDashboard)
@@ -2804,6 +2847,7 @@
                 </div>
                 <div class="message-body${isDoc ? ' md-doc' : ''}" id="body-${msgId}">${bodyHtml}</div>
                 ${attachmentHtml}
+                ${diagramsPlaceholder}
                 ${solutionMapPlaceholder}
                 ${fullReportHtml}
                 ${citationsHtml}
@@ -2813,6 +2857,7 @@
             chatMessages.appendChild(div);
             if (isDoc && !hasDashboard) renderMermaidIn(div);
             if (isDoc && meta.citations && meta.citations.length > 0) updateCitationPanel(meta.citations);
+            if (meta.blueprintId) renderBlueprintDiagrams(meta.blueprintId);
             if (meta.blueprintId) renderSolutionMap(meta.blueprintId);
             if (fullReportHtml) {
                 const reportEl = document.getElementById('report-' + meta.blueprintId);
@@ -3103,6 +3148,40 @@
         // Octagonal Engineering Visualization — the solution's own domain map
         // (shown to every user; unrelated to the admin-only cognitive trace)
         // =====================================================================
+
+        // Diagram-first output: render the 8 domain-specific engineering diagrams
+        // (one per octagon domain) as the primary deliverable. Each is a real,
+        // project-specific diagram derived from the solution — not one shared
+        // template — so different use cases produce visibly different diagrams.
+        function renderBlueprintDiagrams(blueprintId) {
+            const bp = state.blueprints[blueprintId];
+            const container = document.getElementById('diagrams-' + blueprintId);
+            if (!bp || !container) return;
+            const diagrams = bp.project_diagrams || [];
+            if (!diagrams.length) return;
+
+            const cards = diagrams.map((d, i) => {
+                const blockId = `pdiag-${blueprintId}-${i}`;
+                return `
+                    <div class="pdiagram-card">
+                        <div class="pdiagram-head">
+                            <span class="pdiagram-domain">${escapeHtml(d.domain || d.stage || '')}</span>
+                            <span class="pdiagram-type">${escapeHtml(d.diagram_type || '')}</span>
+                        </div>
+                        <div class="pdiagram-body"><pre><code class="language-mermaid" id="${blockId}">${escapeHtml(d.mermaid || '')}</code></pre></div>
+                        <div class="pdiagram-caption">${escapeHtml(d.caption || '')}</div>
+                    </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="pdiagram-header">
+                    <span class="pdiagram-title">🖼 Engineering Blueprint — 8 Domain Diagrams</span>
+                    <span class="pdiagram-hint">One diagram per octagon domain</span>
+                </div>
+                <div class="pdiagram-grid">${cards}</div>`;
+
+            renderMermaidIn(container);
+        }
 
         function renderSolutionMap(blueprintId) {
             const bp = state.blueprints[blueprintId];

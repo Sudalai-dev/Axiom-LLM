@@ -34,7 +34,6 @@ from typing import Any, Dict, List, Optional
 
 from ocif.engines.domain_profiles import get_domain_profile
 from ocif.frames import CognitiveContext, ProjectUnderstandingFrame
-from ocif.inference_adapter import InferenceAdapter
 
 logger = logging.getLogger("AxiomOCIF.ProjectUnderstanding")
 
@@ -606,8 +605,7 @@ class ProjectUnderstandingEngine:
     returns a populated frame.
     """
 
-    def __init__(self, inference: Optional[InferenceAdapter] = None) -> None:
-        self.inference = inference or InferenceAdapter()
+    def __init__(self) -> None:
         self._cache: "OrderedDict[str, ProjectUnderstandingFrame]" = OrderedDict()
 
     async def classify(self, context: CognitiveContext) -> ProjectUnderstandingFrame:
@@ -616,60 +614,10 @@ class ProjectUnderstandingEngine:
             self._cache.move_to_end(context.conversation_id)
             return cached
 
-        frame = await self._classify_via_llm(context)
-        if frame is None:
-            frame = classify_rule_based(context)
+        # AXIOM's own brain: deterministic, rule-based classification only.
+        frame = classify_rule_based(context)
 
         self._cache[context.conversation_id] = frame
         if len(self._cache) > _MAX_CACHE_SIZE:
             self._cache.popitem(last=False)
         return frame
-
-    async def _classify_via_llm(self, context: CognitiveContext) -> Optional[ProjectUnderstandingFrame]:
-        prompt = self._build_prompt(context)
-        intent = context.intent or (context.context.intent.value if context.context and hasattr(context.context.intent, "value") else "general_engineering")
-        payload = await self.inference.complete(prompt=prompt, intent=intent)
-        if not payload:
-            return None
-
-        parsed = self._extract_json(payload["content"])
-        if not parsed:
-            return None
-
-        try:
-            valid_fields = ProjectUnderstandingFrame.model_fields
-            data = {k: v for k, v in parsed.items() if k in valid_fields}
-            data["classification_method"] = "llm"
-            return ProjectUnderstandingFrame(**data)
-        except Exception as exc:
-            logger.warning(f"LLM project-understanding parse failed, using rule-based fallback: {exc}")
-            return None
-
-    def _build_prompt(self, context: CognitiveContext) -> str:
-        frame = context.context
-        text = context.perception.normalized_text if context.perception else context.task
-        parts = [
-            "You are AXIOM's Project Understanding classifier. Before any solution is designed, "
-            "you deeply analyze what the project actually is — its industry, business domain, "
-            "actors, entities, workflows, and required technical components — so the eventual "
-            "solution reads like it was written by an experienced architect in THAT specific "
-            "industry, not a generic software architect.",
-            f"REQUEST: {text}",
-        ]
-        if frame:
-            parts.append(f"PRELIMINARY INTENT: {frame.intent} | KEYWORDS DETECTED: {', '.join(frame.entities) or 'none'}")
-            if frame.actors:
-                parts.append(f"PRELIMINARY ACTORS: {', '.join(frame.actors)}")
-        parts.append(_CLASSIFICATION_JSON_INSTRUCTION)
-        return "\n\n".join(parts)
-
-    def _extract_json(self, content: str) -> Optional[Dict[str, Any]]:
-        candidates = re.findall(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL) or [content]
-        for candidate in candidates:
-            try:
-                data = json.loads(candidate.strip())
-                if isinstance(data, dict) and "industry" in data:
-                    return data
-            except (json.JSONDecodeError, TypeError):
-                continue
-        return None

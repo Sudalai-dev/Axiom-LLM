@@ -135,15 +135,12 @@ def build_octagonal_kernel(
     "learned from past conversations" recall — pass the same instance used
     elsewhere (e.g. the feedback endpoint) so both read/write one durable store.
 
-    One shared InferenceAdapter is constructed here and passed to both the
-    Reasoning Engine (final solution authoring) and the Project
-    Understanding classifier (upstream industry/domain classification) so
-    they share a single ModelRouter instance/circuit-breaker state instead
-    of each building their own.
+    The reasoning engine runs on AXIOM's own deterministic brain (no external
+    LLM); the durable KnowledgePlatform is injected here so the brain always
+    has its engineering knowledge available.
     """
     from ocif.engines import KnowledgeEngine, MemoryEngine, EngineeringIntelligenceEngine
     from ocif.engines.project_understanding import ProjectUnderstandingEngine
-    from ocif.inference_adapter import InferenceAdapter
     from ocif.kernel import OctagonalKernel
 
     retriever = None
@@ -163,12 +160,11 @@ def build_octagonal_kernel(
                 })
             return results
 
-    inference = InferenceAdapter()
     kernel = OctagonalKernel(
-        project_understanding=ProjectUnderstandingEngine(inference=inference),
+        project_understanding=ProjectUnderstandingEngine(),
         knowledge=KnowledgeEngine(retriever=retriever),
         memory=MemoryEngine(learning_store=learning_store),
-        reasoning=EngineeringIntelligenceEngine(inference=inference, knowledge_platform=knowledge_platform),
+        reasoning=EngineeringIntelligenceEngine(knowledge_platform=knowledge_platform),
     )
     kernel.initialize()
     return kernel

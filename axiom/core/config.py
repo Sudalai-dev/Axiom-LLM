@@ -119,20 +119,6 @@ class VectorDBConfig:
 
 
 @dataclass(frozen=True)
-class LLMProviderConfig:
-    """LLM provider configuration per Doc 10 Section 6."""
-    openai_api_key: str = ""
-    claude_api_key: str = ""
-    gemini_api_key: str = ""
-    llama_endpoint: str = ""
-    default_provider: str = "auto"
-    default_max_tokens: int = 4096
-    default_temperature: float = 0.3
-    timeout_seconds: int = 30
-    fallback_enabled: bool = True
-
-
-@dataclass(frozen=True)
 class AuthConfig:
     """Authentication configuration per Doc 14 Section 3."""
     jwt_secret_key: str = ""
@@ -141,6 +127,12 @@ class AuthConfig:
     jwt_refresh_expiration_seconds: int = 86400
     oauth2_issuer: str = ""
     oauth2_audience: str = "ocif-platform"
+
+
+@dataclass(frozen=True)
+class BootstrapConfig:
+    """Local bootstrap configuration (seeded admin account)."""
+    admin_password: str = "admin123"          # seeded admin password (dev default)
 
 
 @dataclass(frozen=True)
@@ -233,21 +225,14 @@ class PlatformSettings:
             dimension=int(os.getenv("OCIF_VECTOR_DIMENSION", "1024")),
         )
 
-        self.llm = LLMProviderConfig(
-            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-            claude_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-            gemini_api_key=os.getenv("GOOGLE_API_KEY", ""),
-            llama_endpoint=os.getenv("OCIF_LLAMA_ENDPOINT", ""),
-            default_provider=os.getenv("OCIF_LLM_DEFAULT_PROVIDER", "auto"),
-            default_max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "4096")),
-            default_temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
-            timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "30")),
-        )
-
         self.auth = AuthConfig(
-            jwt_secret_key=os.getenv("OCIF_JWT_SECRET", secrets.token_urlsafe(64)),
+            jwt_secret_key=self._resolve_jwt_secret(),
             jwt_algorithm=os.getenv("OCIF_JWT_ALGORITHM", "HS256"),
             jwt_expiration_seconds=int(os.getenv("OCIF_JWT_EXPIRY", "3600")),
+        )
+
+        self.bootstrap = BootstrapConfig(
+            admin_password=os.getenv("OCIF_ADMIN_PASSWORD", "admin123"),
         )
 
         self.rate_limit = RateLimitConfig(
@@ -272,6 +257,27 @@ class PlatformSettings:
             otel_endpoint=os.getenv("OCIF_OTEL_ENDPOINT", ""),
             otel_service_name=os.getenv("OCIF_OTEL_SERVICE_NAME", "ocif-platform"),
         )
+
+    def _resolve_jwt_secret(self) -> str:
+        """Resolves the JWT signing secret.
+
+        A per-process random fallback (the previous behavior) silently
+        invalidated every token on restart and differed across workers, so
+        multi-worker deployments rejected each other's tokens. We now require
+        an explicit secret in production (fail-fast) and use a STABLE, clearly
+        insecure default in non-production so local dev/tests keep working
+        across restarts.
+        """
+        secret = os.getenv("OCIF_JWT_SECRET", "")
+        if secret:
+            return secret
+        if self.environment == Environment.PRODUCTION:
+            raise RuntimeError(
+                "OCIF_JWT_SECRET must be set in production. Refusing to start with "
+                "an ephemeral signing key (would invalidate all tokens on restart "
+                "and break multi-worker deployments)."
+            )
+        return "axiom-dev-insecure-jwt-secret-do-not-use-in-production"
 
     @property
     def is_production(self) -> bool:

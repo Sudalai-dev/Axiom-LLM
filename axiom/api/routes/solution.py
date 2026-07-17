@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from api.middleware.auth import resolve_security_context
-from api.routes.deps import is_developer, kernel
+from api.routes.deps import (
+    DEFAULT_PROJECT, enforce_rate_limit, is_developer, kernel, record_usage,
+)
 from core.models.base import RequestContext, new_uuid
 from ocif.frames import SolutionDocument
 from ocif.renderers import PresentationRenderer
@@ -48,14 +50,18 @@ async def create_solution(
     """
     session_id = req.session_id or new_uuid()
 
+    enforce_rate_limit(req_ctx)
+
     output = await kernel.process(
         message=req.message,
         user_id=req_ctx.user.user_id,
         tenant_id=req_ctx.tenant.tenant_id,
-        project="default",
+        project=DEFAULT_PROJECT,
         conversation_id=session_id,
         attachments=req.attachments,
     )
+
+    await record_usage(req_ctx, output)
 
     result: Dict[str, Any] = {
         "solution_id": output.solution_id,

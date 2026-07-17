@@ -15,6 +15,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from typing import Dict, Any, Optional, List
 from core.config import settings
@@ -23,19 +24,47 @@ from core.models.base import UserRole
 
 
 # ===========================================================================
-# Password Hashing Utilities (PBKDF2-SHA256 for compilation safety)
+# Password Hashing Utilities (PBKDF2-SHA256 with a per-user random salt)
 # ===========================================================================
 
-def hash_password(password: str, salt: bytes = b"ocif_secure_salt_vector") -> str:
-    """Computes a cryptographically secure PBKDF2-SHA256 password hash."""
-    iterations = 100000
-    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return base64.b64encode(key).decode("utf-8")
+_PBKDF2_ITERATIONS = 100_000
+_SALT_BYTES = 16
 
 
-def verify_password(password: str, hashed: str) -> bool:
-    """Verifies a password matching against the PBKDF2 hash."""
-    return hash_password(password) == hashed
+def hash_password(password: str, salt: Optional[bytes] = None) -> str:
+    """Computes a PBKDF2-SHA256 password hash with a per-user random salt.
+
+    Returns a self-describing ``salt$hash`` string (both base64) so each
+    stored credential carries its own salt. Passing no salt generates a fresh
+    random one — the previous implementation used a single hardcoded global
+    salt for every user, which defeats the purpose of salting (identical
+    passwords produced identical hashes and a single rainbow table covered the
+    whole platform).
+    """
+    if salt is None:
+        salt = secrets.token_bytes(_SALT_BYTES)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    return f"{base64.b64encode(salt).decode('utf-8')}${base64.b64encode(key).decode('utf-8')}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """Verifies a password against a stored ``salt$hash`` credential.
+
+    Uses a constant-time comparison to avoid leaking match progress via timing.
+    """
+    if not stored or "$" not in stored:
+        return False
+    salt_b64, _, hash_b64 = stored.partition("$")
+    try:
+        salt = base64.b64decode(salt_b64.encode("utf-8"))
+    except Exception:
+        return False
+    candidate = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    try:
+        expected = base64.b64decode(hash_b64.encode("utf-8"))
+    except Exception:
+        return False
+    return hmac.compare_digest(candidate, expected)
 
 
 # ===========================================================================

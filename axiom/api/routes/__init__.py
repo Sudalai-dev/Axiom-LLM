@@ -6,8 +6,8 @@ router mounted by axiom.api.gateway.create_gateway_app().
 from fastapi import APIRouter
 
 from api.routes import (
-    admin, approvals, auth, chat, dashboard, documents, feedback, knowledge,
-    knowledge_platform, project_intelligence, solution,
+    admin, approvals, auth, chat, dashboard, documents, feedback,
+    knowledge, knowledge_platform, project_intelligence, solution,
 )
 
 router = APIRouter()

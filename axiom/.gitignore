@@ -26,6 +26,17 @@ ENV/
 # PID files
 *.pid
 
+# Generated datasets — regenerable via `python -m datasets.generator`; not read
+# at runtime (only datasets/*.py code is). Kept out of version control so large,
+# machine-generated corpora don't bloat the repo or drift from the generator.
+datasets/*/data.json
+datasets/*/data.jsonl
+datasets/*/data.csv
+datasets/metadata/generation_report.json
+
 # OS files
 Thumbs.db
 .DS_Store
+
+# Stray local debug artifacts
+diagrams_output.json

@@ -91,6 +91,34 @@ def test_different_projects_produce_different_diagrams():
     assert diagrams_a[0].mermaid != diagrams_b[0].mermaid or diagrams_a[1].mermaid != diagrams_b[1].mermaid
 
 
+def test_every_diagram_carries_domain_and_caption():
+    # Diagram-first UI relies on a one-line domain label + caption per diagram.
+    for d in build_project_diagrams(_sample_doc()):
+        assert d.domain, d.diagram_type
+        assert d.caption, d.diagram_type
+
+
+def test_perception_and_planning_now_vary_by_project():
+    # Regression: these two used to be identical templates for every project.
+    doc_a = _sample_doc()
+    doc_b = SolutionDocument(
+        title="Bank Ledger",
+        actors=["Teller", "Auditor"],
+        technology_stack=[
+            TechChoice(layer="Ledger Storage", choice="PostgreSQL", rationale="ACID"),
+            TechChoice(layer="Messaging", choice="Kafka", rationale="event stream"),
+        ],
+        implementation_roadmap=[
+            RoadmapPhase(phase="Foundation", items=["Stand up double-entry ledger"]),
+            RoadmapPhase(phase="Core Build", items=["Implement reconciliation"]),
+        ],
+    )
+    a = {d.stage: d.mermaid for d in build_project_diagrams(doc_a)}
+    b = {d.stage: d.mermaid for d in build_project_diagrams(doc_b)}
+    assert a["perception"] != b["perception"]   # roadmap deliverables now embedded
+    assert a["planning"] != b["planning"]       # tech-stack layers now embedded
+
+
 def test_project_diagrams_key_is_additive_in_blueprint_pipeline():
     package = build_solution_response(_sample_doc(), markdown="# doc")
     assert "project_diagrams" in package

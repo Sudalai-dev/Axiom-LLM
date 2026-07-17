@@ -68,6 +68,9 @@ class User(Base):
     email = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False)  # RBAC role per UserRole enum
     department = Column(String(100), nullable=True)
+    # Local password credential (PBKDF2 "salt$hash"). Null for IdP/SSO users
+    # whose identity is asserted by an external provider instead.
+    hashed_password = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     # Unique constraint per tenant for IdP mapping
