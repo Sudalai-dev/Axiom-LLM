@@ -37,3 +37,6 @@ datasets/metadata/generation_report.json
 # OS files
 Thumbs.db
 .DS_Store
+
+# Stray local debug artifacts
+diagrams_output.json

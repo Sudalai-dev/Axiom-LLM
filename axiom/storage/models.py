@@ -84,61 +84,6 @@ class User(Base):
     long_term_memories = relationship("LongTermMemory", back_populates="user", cascade="all, delete-orphan")
     workflows = relationship("AgentWorkflow", back_populates="user")
     hitl_approvals = relationship("HITLApproval", back_populates="assigned_user")
-    subscription = relationship("Subscription", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    api_keys = relationship("UserApiKey", back_populates="user", cascade="all, delete-orphan")
-
-
-# ===========================================================================
-# 4.1b Monetization — Entitlement & Per-User Keys (freemium layer)
-# ===========================================================================
-
-class Subscription(Base):
-    """Per-user entitlement state for the freemium model.
-
-    Free users get ``free_chats_per_day`` agent calls per rolling 24h window
-    (``quota_window_start`` marks the window's start; usage resets once the
-    window elapses). Paid users bypass the cap. Exactly one row per user.
-    """
-    __tablename__ = "subscriptions"
-
-    subscription_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, unique=True)
-    tenant_id = Column(String(36), nullable=False)
-    plan = Column(String(20), nullable=False, default="free")  # free | paid
-    free_chats_used = Column(Integer, default=0, nullable=False)
-    quota_window_start = Column(DateTime, nullable=True)
-    paid_until = Column(DateTime, nullable=True)  # null = perpetual once paid
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
-
-    user = relationship("User", back_populates="subscription")
-
-    __table_args__ = (
-        Index("idx_subscription_tenant", "tenant_id"),
-    )
-
-
-class UserApiKey(Base):
-    """A user's own provider API key, encrypted at rest.
-
-    Optional even for paid users (the platform serves paid traffic with its own
-    keys by default). Only ``last4`` is ever returned to clients; the plaintext
-    is never stored, logged, or echoed back.
-    """
-    __tablename__ = "user_api_keys"
-
-    key_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(String(36), nullable=False)
-    provider = Column(String(30), nullable=False)  # openai | claude | gemini | llama
-    encrypted_key = Column(Text, nullable=False)
-    last4 = Column(String(8), nullable=False)
-    created_at = Column(DateTime, default=utc_now)
-
-    user = relationship("User", back_populates="api_keys")
-
-    __table_args__ = (
-        Index("uq_user_provider_key", "user_id", "provider", unique=True),
-    )
 
 
 # ===========================================================================

@@ -221,18 +221,19 @@ _STAGE_DIAGRAM_BUILDERS = [
 
 def build_project_diagrams(doc: SolutionDocument) -> List[ProjectDiagram]:
     """Builds the 8 project-specific diagrams for a finished SolutionDocument.
-    Never fabricates: every diagram is derived from fields already present
-    and validated on the document (roadmap, actors, tech stack, risks, or
-    mermaid blocks already embedded by the industry-specific synthesizer)."""
+    Never fabricates: every diagram is derived deterministically from fields
+    already present and validated on the document (roadmap, actors, tech stack,
+    risks, or mermaid blocks already embedded by the industry-specific
+    synthesizer) — so an empty blueprint yields empty/"Not applicable" diagrams,
+    never invented content."""
     diagrams = []
     for stage, diagram_type, builder, domain, caption in _STAGE_DIAGRAM_BUILDERS:
-        mermaid = builder(doc)
         diagrams.append(
             ProjectDiagram(
                 stage=stage,
                 diagram_type=diagram_type,
                 title=f"{diagram_type} — {doc.title}",
-                mermaid=mermaid,
+                mermaid=builder(doc),
                 domain=domain,
                 caption=caption,
             )

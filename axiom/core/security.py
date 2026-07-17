@@ -68,46 +68,6 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 # ===========================================================================
-# Symmetric Secret Encryption (per-user provider API keys, at rest)
-# ===========================================================================
-
-def _fernet():
-    """Builds a Fernet cipher for encrypting user-supplied provider API keys.
-
-    Uses OCIF_SECRET_ENCRYPTION_KEY when set (must be a valid urlsafe-base64
-    32-byte Fernet key); otherwise derives a stable key from the JWT secret so
-    local development works without extra configuration. In production, set an
-    explicit key so rotating the JWT secret does not orphan stored ciphertext.
-    """
-    from cryptography.fernet import Fernet
-
-    configured = settings.entitlement.secret_encryption_key
-    if configured:
-        key = configured.encode("utf-8")
-    else:
-        digest = hashlib.sha256(
-            f"axiom-key-encryption::{settings.auth.jwt_secret_key}".encode("utf-8")
-        ).digest()
-        key = base64.urlsafe_b64encode(digest)
-    return Fernet(key)
-
-
-def encrypt_secret(plaintext: str) -> str:
-    """Encrypts a secret (e.g. a provider API key) for storage at rest."""
-    return _fernet().encrypt(plaintext.encode("utf-8")).decode("utf-8")
-
-
-def decrypt_secret(ciphertext: str) -> str:
-    """Decrypts a secret previously produced by :func:`encrypt_secret`."""
-    return _fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
-
-
-def last4(secret: str) -> str:
-    """Returns the last 4 characters of a secret for safe display."""
-    return secret[-4:] if len(secret) >= 4 else "****"
-
-
-# ===========================================================================
 # Cryptographically Signed JWT Token Utilities
 # ===========================================================================
 

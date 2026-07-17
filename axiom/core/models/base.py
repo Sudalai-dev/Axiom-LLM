@@ -122,19 +122,6 @@ class SourceType(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# LLM Providers — Per Doc 10 Section 6
-# ---------------------------------------------------------------------------
-
-class LLMProvider(str, Enum):
-    OPENAI = "openai"
-    CLAUDE = "claude"
-    GEMINI = "gemini"
-    LLAMA = "llama"
-    OPENCODE = "opencode"  # local free-tier agent runtime (freemium plan)
-    AUTO = "auto"
-
-
-# ---------------------------------------------------------------------------
 # Approval Status — Per Doc 10 Section 2.4
 # ---------------------------------------------------------------------------
 

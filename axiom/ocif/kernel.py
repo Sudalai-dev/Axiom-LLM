@@ -128,21 +128,16 @@ class OctagonalKernel:
         project: str = "default",
         conversation_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        provider_override: Optional[str] = None,
     ) -> KernelOutput:
-        """Runs one request through the octagonal graph.
-
-        ``provider_override`` pins the LLM provider for this request (the
-        freemium gate passes ``"opencode"`` for free-tier users); ``None``
-        uses the platform's configured default routing.
-        """
+        """Runs one request through the octagonal graph (fully deterministic —
+        AXIOM's own brain, no external LLM)."""
         context = CognitiveContext(
             user_id=user_id,
             tenant_id=tenant_id,
             project=project,
             conversation_id=conversation_id or new_uuid(),
             task=message,
-            metadata={"attachments": attachments or [], "provider_override": provider_override},
+            metadata={"attachments": attachments or []},
         )
 
         # 1. Perception (mandatory ingress)

@@ -6,10 +6,7 @@ or knowledge service, so the platform has exactly one OctagonalKernel and one
 KnowledgeService instance per process.
 """
 
-from typing import Optional
-
 from core.engine_registry import build_octagonal_kernel
-from core.entitlement import EntitlementService
 from core.models.base import RequestContext, UserRole
 from ecosystem import KnowledgePlatform
 from knowledge.service import KnowledgeService
@@ -17,10 +14,6 @@ from memory.learning_store import LearningStore
 
 # Singleton services (constructed once at import-time)
 knowledge_service = KnowledgeService()
-
-# Freemium entitlement — the daily free-chat quota state machine shared by the
-# chat/solution gate and the billing routes.
-entitlement = EntitlementService()
 
 # Durable "learned from past conversations" store — shared by the kernel's
 # Memory Engine (recall + persist) and the feedback route (explicit ratings).
@@ -60,59 +53,26 @@ def is_developer(req_ctx: RequestContext) -> bool:
     return role_value == UserRole.PLATFORM_ADMIN.value
 
 
-def _role_value(req_ctx: RequestContext) -> str:
-    role = req_ctx.user.role
-    return role.value if hasattr(role, "value") else str(role)
+def enforce_rate_limit(req_ctx: RequestContext) -> None:
+    """Per-tenant token-bucket rate limiting on the expensive agent endpoints.
 
-
-async def gate_agent_request(req_ctx: RequestContext) -> Optional[str]:
-    """Enforces the freemium quota before an agent call.
-
-    Raises :class:`PaymentRequiredError` (HTTP 402) when a free user has used
-    their daily allowance. Returns the ``provider_override`` to route this
-    request with: ``"opencode"`` for free-tier users (free agents), ``None``
-    for paid/privileged users (platform's configured provider).
+    Raises RateLimitExceededError (429), mapped by the gateway's RFC 7807
+    handler. Not part of "billing/free-limit" — a general abuse guard.
     """
-    from core.config import settings
-    from core.exceptions import PaymentRequiredError
-
-    # Per-tenant rate limiting (token bucket). Previously implemented but never
-    # invoked — enforced here on the expensive agent endpoints. Raises
-    # RateLimitExceededError (429) mapped by the gateway's RFC 7807 handler.
     from api.middleware.rate_limiter import rate_limiter
     rate_limiter.check_rate_limit(req_ctx.tenant.tenant_id, req_ctx.tenant.rate_limit_tier)
 
-    decision = await entitlement.evaluate(
-        req_ctx.user.user_id, req_ctx.tenant.tenant_id, _role_value(req_ctx)
-    )
-    if not decision.allowed:
-        raise PaymentRequiredError(
-            detail=(
-                f"You've used your {decision.free_chats_per_day} free chats for "
-                "today. Upgrade to keep going, or wait for your daily quota to renew."
-            ),
-            renews_at=decision.renews_at,
-            free_chats_per_day=decision.free_chats_per_day,
-            price_usd=settings.entitlement.paid_plan_price_usd,
-        )
-    return decision.provider_hint or None
 
+async def record_usage(req_ctx: RequestContext, output) -> None:
+    """Records real usage metrics after a solution (for the dashboard).
 
-async def record_agent_usage(req_ctx: RequestContext, output) -> None:
-    """Records quota consumption + usage metrics after a billable agent call.
-
-    Only non-conversational (real solution) outputs consume quota — trivial
-    clarifications are free and never decrement the daily allowance.
+    Only non-conversational (real solution) outputs are metered. Best-effort:
+    metering must never break the request path.
     """
     if getattr(output, "is_conversational", False):
         return
-    await entitlement.record_agent_call(
-        req_ctx.user.user_id, req_ctx.tenant.tenant_id, _role_value(req_ctx)
-    )
-    # Usage metering (tokens/cost) is recorded by the metering helper (Phase 5).
     try:
         from api.routes.usage import record_solution_usage
         await record_solution_usage(req_ctx, output)
     except Exception:
-        # Metering must never break the request path.
         pass

@@ -32,8 +32,6 @@ from ocif.frames import (
     SolutionDocument,
     TechChoice,
 )
-from ocif.inference_adapter import InferenceAdapter
-
 logger = logging.getLogger("AxiomOCIF.EngineeringIntelligence")
 
 # ---------------------------------------------------------------------------
@@ -741,11 +739,9 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
 
     def __init__(
         self,
-        inference: Optional[InferenceAdapter] = None,
         knowledge_platform: Optional[Any] = None,
     ) -> None:
         super().__init__()
-        self.inference = inference or InferenceAdapter()
         # Engineering Knowledge Platform (ecosystem.KnowledgePlatform) — the
         # durable source of engineering intelligence. Optional: when None the
         # engine behaves exactly as before, reading the hardcoded packs.
@@ -838,37 +834,12 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             "rules_applied": [r.get("name", "") for r in rules_applied],
         }
 
-        # 2. Setup Base Document via Synthesizer (safe deterministic fallback)
+        # 2. Author the solution deterministically — AXIOM's own brain.
+        # No external LLM: the SolutionSynthesizer, grounded in the industry
+        # patterns + knowledge platform, produces the complete document.
         base_doc = self.synthesizer.synthesize(frame, plan, knowledge, learning, understanding)
         provider_used = "internal-synthesizer"
         model_used = "axiom-solution-synthesizer"
-
-        # 3. Construct Dynamic Prompt & Complete LLM Inference
-        dynamic_prompt = self._build_dynamic_prompt(
-            context, intent, domains, experts, industry_name, standards, packs, diagrams, deliverables, expanded,
-            platform_standards=platform_standards, rules_applied=rules_applied,
-        )
-        
-        llm_payload = await self.inference.complete(
-            prompt=dynamic_prompt,
-            intent=intent,
-            provider_override=context.metadata.get("provider_override"),
-        )
-        
-        if llm_payload:
-            parsed = self._extract_json(llm_payload["content"])
-            if parsed:
-                base_doc = self._merge(base_doc, parsed)
-                provider_used = llm_payload.get("provider", "llm")
-                model_used = llm_payload.get("model_used", "unknown")
-            # Capture real token/cost usage for metering (empty for the
-            # deterministic synthesizer path).
-            tokens = llm_payload.get("tokens_used", {}) or {}
-            context.metadata["llm_usage"] = {
-                "input": int(tokens.get("input", 0) or 0),
-                "output": int(tokens.get("output", 0) or 0),
-                "cost_usd": float(tokens.get("cost_usd", 0.0) or 0.0),
-            }
 
         # 4. Score Confidence Baseline
         score_base = self._score_confidence(frame, knowledge, provider_used, learning)

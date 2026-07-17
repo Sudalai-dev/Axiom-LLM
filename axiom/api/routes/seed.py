@@ -21,7 +21,7 @@ from core.models.base import IngestionStatus
 from core.security import hash_password
 from storage.database import AsyncSessionLocal, async_engine
 from storage.models import (
-    Base, Document, DocumentChunk, Policy, Subscription, Tenant, Tool, User,
+    Base, Document, DocumentChunk, Policy, Tenant, Tool, User,
 )
 
 logger = logging.getLogger("AxiomSeed")
@@ -60,7 +60,7 @@ async def _ensure_schema_columns(conn) -> None:
 
 
 async def _seed_tenant_and_admin(db) -> None:
-    admin_hash = hash_password(settings.entitlement.admin_password)
+    admin_hash = hash_password(settings.bootstrap.admin_password)
 
     existing = (await db.execute(
         select(User).filter(User.user_id == SEED_USER_ID)
@@ -73,7 +73,6 @@ async def _seed_tenant_and_admin(db) -> None:
             existing.hashed_password = admin_hash
             await db.commit()
             logger.info("Backfilled admin password hash.")
-        await _ensure_subscription(db, SEED_USER_ID, plan="paid")
         return
 
     db.add(Tenant(
@@ -92,20 +91,7 @@ async def _seed_tenant_and_admin(db) -> None:
         hashed_password=admin_hash,
     ))
     await db.commit()
-    # Admin is unlimited (paid) so the freemium cap never blocks operators.
-    await _ensure_subscription(db, SEED_USER_ID, plan="paid")
     logger.info("Seeded default tenant and admin user.")
-
-
-async def _ensure_subscription(db, user_id: str, plan: str) -> None:
-    """Ensures a user has a Subscription row (idempotent)."""
-    existing = (await db.execute(
-        select(Subscription).filter(Subscription.user_id == user_id)
-    )).scalars().first()
-    if existing:
-        return
-    db.add(Subscription(user_id=user_id, tenant_id=SEED_TENANT_ID, plan=plan, free_chats_used=0))
-    await db.commit()
 
 
 async def _seed_default_policy(db) -> None:

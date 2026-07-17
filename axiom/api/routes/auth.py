@@ -2,11 +2,9 @@
 
 Replaces the previous single hardcoded admin/`admin123` check with real
 accounts: each user is a row in the ``users`` table with a per-user salted
-PBKDF2 credential, and every new account gets a ``free`` :class:`Subscription`
-so the freemium quota applies from the first request. The seeded admin
-(bootstrapped in ``api/routes/seed.py``) is the only pre-existing account; its
-password comes from ``OCIF_ADMIN_PASSWORD`` (dev default ``admin123``), never a
-literal in this handler.
+PBKDF2 credential. The seeded admin (bootstrapped in ``api/routes/seed.py``) is
+the only pre-existing account; its password comes from ``OCIF_ADMIN_PASSWORD``
+(dev default ``admin123``), never a literal in this handler.
 """
 
 from typing import Optional
@@ -20,7 +18,7 @@ from core.exceptions import AuthenticationError, ValidationError
 from core.models.base import UserRole
 from core.security import create_access_token, hash_password, verify_password
 from storage.database import AsyncSessionLocal
-from storage.models import Subscription, Tenant, User
+from storage.models import Tenant, User
 
 router = APIRouter(prefix="/api/v1", tags=["Auth"])
 
@@ -40,16 +38,12 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str
-    plan: str
 
 
 async def _issue_token(db, user: User) -> LoginResponse:
     """Builds a signed JWT whose claims are sourced from the DB user/tenant."""
     tenant = (await db.execute(
         select(Tenant).filter(Tenant.tenant_id == user.tenant_id)
-    )).scalars().first()
-    subscription = (await db.execute(
-        select(Subscription).filter(Subscription.user_id == user.user_id)
     )).scalars().first()
 
     token = create_access_token({
@@ -60,19 +54,14 @@ async def _issue_token(db, user: User) -> LoginResponse:
         "role": user.role,
         "industry": (tenant.industry if tenant else None) or "technology",
     })
-    return LoginResponse(
-        access_token=token,
-        role=user.role,
-        plan=subscription.plan if subscription else "free",
-    )
+    return LoginResponse(access_token=token, role=user.role)
 
 
 @router.post("/auth/register", response_model=LoginResponse, status_code=201)
 async def register(req: RegisterRequest) -> LoginResponse:
     """Creates a new end-user account on the local tenant and logs it in.
 
-    New accounts start on the ``free`` plan (daily OpenCode quota). Usernames
-    are unique within the tenant.
+    Usernames are unique within the tenant.
     """
     async with AsyncSessionLocal() as db:
         existing = (await db.execute(
@@ -93,14 +82,6 @@ async def register(req: RegisterRequest) -> LoginResponse:
             hashed_password=hash_password(req.password),
         )
         db.add(user)
-        await db.flush()  # assign user.user_id before creating the subscription
-
-        db.add(Subscription(
-            user_id=user.user_id,
-            tenant_id=SEED_TENANT_ID,
-            plan="free",
-            free_chats_used=0,
-        ))
         await db.commit()
         await db.refresh(user)
         return await _issue_token(db, user)

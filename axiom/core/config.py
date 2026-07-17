@@ -119,20 +119,6 @@ class VectorDBConfig:
 
 
 @dataclass(frozen=True)
-class LLMProviderConfig:
-    """LLM provider configuration per Doc 10 Section 6."""
-    openai_api_key: str = ""
-    claude_api_key: str = ""
-    gemini_api_key: str = ""
-    llama_endpoint: str = ""
-    default_provider: str = "auto"
-    default_max_tokens: int = 4096
-    default_temperature: float = 0.3
-    timeout_seconds: int = 30
-    fallback_enabled: bool = True
-
-
-@dataclass(frozen=True)
 class AuthConfig:
     """Authentication configuration per Doc 14 Section 3."""
     jwt_secret_key: str = ""
@@ -144,32 +130,9 @@ class AuthConfig:
 
 
 @dataclass(frozen=True)
-class EntitlementConfig:
-    """Freemium entitlement, per-user key encryption, and billing configuration.
-
-    Free users get a rolling daily quota of OpenCode agent calls; when the
-    quota is exhausted they hit a 402 paywall until the 24h window renews or
-    they upgrade. Paid users are served by the platform's own cloud provider
-    keys (a paid user MAY optionally supply their own key, but does not have to
-    — see OCIF_REQUIRE_PAID_USER_KEY).
-    """
-    free_chats_per_day: int = 5
-    free_quota_window_hours: int = 24
-    free_provider: str = "opencode"          # provider serving free-tier agents
+class BootstrapConfig:
+    """Local bootstrap configuration (seeded admin account)."""
     admin_password: str = "admin123"          # seeded admin password (dev default)
-    secret_encryption_key: str = ""           # Fernet key for per-user API keys
-    payment_provider: str = "manual"          # manual | stripe
-    paid_plan_price_usd: float = 20.0
-    require_paid_user_key: bool = False        # paid users use platform keys by default
-    # OpenCode local free-agent runtime
-    opencode_enabled: bool = True
-    opencode_url: str = "http://localhost:4096"
-    opencode_model: str = ""                   # empty => OpenCode's own default
-    opencode_timeout_seconds: int = 120
-    # Stripe (only used when payment_provider == "stripe")
-    stripe_secret_key: str = ""
-    stripe_price_id: str = ""
-    stripe_webhook_secret: str = ""
 
 
 @dataclass(frozen=True)
@@ -262,39 +225,14 @@ class PlatformSettings:
             dimension=int(os.getenv("OCIF_VECTOR_DIMENSION", "1024")),
         )
 
-        self.llm = LLMProviderConfig(
-            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-            claude_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-            gemini_api_key=os.getenv("GOOGLE_API_KEY", ""),
-            llama_endpoint=os.getenv("OCIF_LLAMA_ENDPOINT", ""),
-            default_provider=os.getenv("OCIF_LLM_DEFAULT_PROVIDER", "auto"),
-            default_max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "4096")),
-            default_temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
-            timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "30")),
-        )
-
         self.auth = AuthConfig(
             jwt_secret_key=self._resolve_jwt_secret(),
             jwt_algorithm=os.getenv("OCIF_JWT_ALGORITHM", "HS256"),
             jwt_expiration_seconds=int(os.getenv("OCIF_JWT_EXPIRY", "3600")),
         )
 
-        self.entitlement = EntitlementConfig(
-            free_chats_per_day=int(os.getenv("OCIF_FREE_CHATS_PER_DAY", "5")),
-            free_quota_window_hours=int(os.getenv("OCIF_FREE_QUOTA_WINDOW_HOURS", "24")),
-            free_provider=os.getenv("OCIF_FREE_PROVIDER", "opencode"),
+        self.bootstrap = BootstrapConfig(
             admin_password=os.getenv("OCIF_ADMIN_PASSWORD", "admin123"),
-            secret_encryption_key=os.getenv("OCIF_SECRET_ENCRYPTION_KEY", ""),
-            payment_provider=os.getenv("OCIF_PAYMENT_PROVIDER", "manual"),
-            paid_plan_price_usd=float(os.getenv("OCIF_PAID_PLAN_PRICE_USD", "20.0")),
-            require_paid_user_key=os.getenv("OCIF_REQUIRE_PAID_USER_KEY", "false").lower() == "true",
-            opencode_enabled=os.getenv("OCIF_OPENCODE_ENABLED", "true").lower() == "true",
-            opencode_url=os.getenv("OCIF_OPENCODE_URL", "http://localhost:4096"),
-            opencode_model=os.getenv("OCIF_OPENCODE_MODEL", ""),
-            opencode_timeout_seconds=int(os.getenv("OCIF_OPENCODE_TIMEOUT", "120")),
-            stripe_secret_key=os.getenv("OCIF_STRIPE_SECRET_KEY", ""),
-            stripe_price_id=os.getenv("OCIF_STRIPE_PRICE_ID", ""),
-            stripe_webhook_secret=os.getenv("OCIF_STRIPE_WEBHOOK_SECRET", ""),
         )
 
         self.rate_limit = RateLimitConfig(
