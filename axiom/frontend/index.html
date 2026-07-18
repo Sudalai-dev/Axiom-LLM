@@ -2041,11 +2041,11 @@
     </div>
 
     <!-- Solution Domain Drill-down Modal -->
-    <div class="domain-modal-overlay hidden" id="domain-modal-overlay" onclick="if(event.target===this) closeDomainDrilldown()">
+    <div class="domain-modal-overlay hidden" id="domain-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="domain-modal-title" onclick="if(event.target===this) closeDomainDrilldown()">
         <div class="domain-modal">
             <div class="domain-modal-header">
                 <span id="domain-modal-title">Domain</span>
-                <button class="btn btn-xs btn-secondary" onclick="closeDomainDrilldown()">✕</button>
+                <button class="btn btn-xs btn-secondary" onclick="closeDomainDrilldown()" aria-label="Close dialog">✕</button>
             </div>
             <div class="domain-modal-body md-doc" id="domain-modal-body"></div>
         </div>
@@ -2063,7 +2063,7 @@
     </div>
 
     <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
+    <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
     <!-- ================================================================
          APPLICATION JAVASCRIPT
@@ -2076,7 +2076,10 @@
         // State Management
         // =====================================================================
         const state = {
-            token: null,
+            // Restored from sessionStorage on load so a page refresh keeps the
+            // session (cleared on logout). sessionStorage (not localStorage) so
+            // the token dies with the tab, not indefinitely.
+            token: sessionStorage.getItem('axiom_token') || null,
             sessionId: null,
             conversations: [],
             currentView: 'chat',
@@ -2316,9 +2319,19 @@
             if (el) el.textContent = count;
         }
 
-        const API_BASE = window.location.port === '3000'
-            ? 'http://127.0.0.1:8000/api/v1'
-            : window.location.origin + '/api/v1';
+        // Resolution order (first hit wins):
+        //   1. window.AXIOM_API_BASE   — set via an inline <script> before this one
+        //   2. localStorage 'axiom_api_base' — persists a manual override
+        //   3. dev convenience: a static server on :3000 → API on :8000
+        //   4. same-origin /api/v1 (the normal deployed case)
+        // This is the ONE place to point the frontend at a non-default backend host.
+        const API_BASE = (function resolveApiBase() {
+            if (window.AXIOM_API_BASE) return window.AXIOM_API_BASE;
+            const stored = localStorage.getItem('axiom_api_base');
+            if (stored) return stored;
+            if (window.location.port === '3000') return 'http://127.0.0.1:8000/api/v1';
+            return window.location.origin + '/api/v1';
+        })();
 
         // =====================================================================
         // API Client
@@ -2401,19 +2414,26 @@
             const registering = state.authMode === 'register';
             document.getElementById('login-btn').textContent = registering ? 'Create Account' : 'Sign In';
             document.getElementById('login-switch-prompt').textContent = registering ? 'Already have an account?' : 'New here?';
-            document.getElementById('login-switch-link').textContent = registering ? 'Sign in instead' : 'Create a free account';
-            document.querySelector('.login-logo p').textContent = registering ? 'Create your free account' : 'Sign in to your account';
+            document.getElementById('login-switch-link').textContent = registering ? 'Sign in instead' : 'Create an account';
+            document.querySelector('.login-logo p').textContent = registering ? 'Create your account' : 'Sign in to your account';
             document.getElementById('login-error').textContent = '';
         };
 
-        function applyAuthSuccess(data, fallbackUsername) {
+        function applyAuthSuccess(data, fallbackUsername, silent) {
             state.token = data.access_token;
-            state.username = fallbackUsername;
+            state.username = fallbackUsername || state.username;
+            // Persist so a refresh restores the session (see restoreSession()).
+            sessionStorage.setItem('axiom_token', data.access_token);
             try {
                 const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
                 state.userRole = payload.role || 'end_user';
-                state.username = payload.sub || fallbackUsername;
-            } catch(_) {}
+                state.username = payload.sub || fallbackUsername || state.username;
+            } catch(_) {
+                // Token couldn't be decoded — keep going with a limited role, but
+                // tell the user instead of silently downgrading.
+                state.userRole = 'end_user';
+                showToast('Could not read your session role — some features may be limited.', 'error');
+            }
 
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-shell').classList.remove('hidden');
@@ -2427,7 +2447,7 @@
             // Developer Mode is available to platform admins only
             document.getElementById('dev-mode-row').classList.toggle('hidden', state.userRole !== 'platform_admin');
 
-            showToast('Authenticated successfully', 'success');
+            if (!silent) showToast('Authenticated successfully', 'success');
             if (!document.getElementById('chat-messages').querySelector('.message')) {
                 renderChatEmptyState();
             }
@@ -2459,10 +2479,12 @@
         window.handleLogout = function() {
             state.token = null;
             state.sessionId = null;
+            sessionStorage.removeItem('axiom_token');
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
-            document.getElementById('chat-messages').innerHTML = document.getElementById('chat-messages').querySelector('.empty-state') ?
-                document.getElementById('chat-messages').innerHTML : '';
+            // Reset the chat pane; the next sign-in re-renders its empty-state hero.
+            const chat = document.getElementById('chat-messages');
+            if (chat) chat.innerHTML = '';
         };
 
         // =====================================================================
@@ -3158,7 +3180,10 @@
             const container = document.getElementById('diagrams-' + blueprintId);
             if (!bp || !container) return;
             const diagrams = bp.project_diagrams || [];
-            if (!diagrams.length) return;
+            if (!diagrams.length) {
+                container.innerHTML = emptyState('📐', 'No engineering diagrams were generated for this blueprint.');
+                return;
+            }
 
             const cards = diagrams.map((d, i) => {
                 const blockId = `pdiag-${blueprintId}-${i}`;
@@ -3223,6 +3248,20 @@
             });
         }
 
+        // Accessibility state for the domain drill-down dialog.
+        let _domainModalPrevFocus = null;
+        function _domainModalKeydown(e) {
+            if (e.key === 'Escape') { closeDomainDrilldown(); return; }
+            if (e.key !== 'Tab') return;
+            const modal = document.querySelector('#domain-modal-overlay .domain-modal');
+            if (!modal) return;
+            const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (!focusable.length) return;
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+
         window.openDomainDrilldown = function(blueprintId, domain) {
             const bp = state.blueprints[blueprintId];
             if (!bp) return;
@@ -3257,19 +3296,27 @@
                 return `<div class="artifact-block"><h4>${escapeHtml(a.title)}</h4>${body}</div>`;
             }).join('');
 
+            const detail = (diagramsHtml + artifactsHtml).trim();
             document.getElementById('domain-modal-body').innerHTML = `
                 <div class="domain-description">${escapeHtml(node.description)}</div>
-                ${diagramsHtml}
-                ${artifactsHtml}
+                ${detail || emptyState('📐', 'No additional detail was generated for this domain.')}
             `;
 
             const overlay = document.getElementById('domain-modal-overlay');
             overlay.classList.remove('hidden');
+            // A11y: remember focus, move it into the dialog, trap + Escape-close.
+            _domainModalPrevFocus = document.activeElement;
+            document.addEventListener('keydown', _domainModalKeydown);
+            const closeBtn = overlay.querySelector('.domain-modal-header button');
+            if (closeBtn) closeBtn.focus();
             renderMermaidIn(document.getElementById('domain-modal-body'));
         };
 
         window.closeDomainDrilldown = function() {
             document.getElementById('domain-modal-overlay').classList.add('hidden');
+            document.removeEventListener('keydown', _domainModalKeydown);
+            if (_domainModalPrevFocus && _domainModalPrevFocus.focus) _domainModalPrevFocus.focus();
+            _domainModalPrevFocus = null;
         };
 
         function triggerBlobDownload(content, filename, mime) {
@@ -3293,34 +3340,65 @@
             triggerBlobDownload(doc.content, doc.filename || `solution.${type === 'json' ? 'json' : 'md'}`, type === 'json' ? 'application/json' : 'text/markdown');
         };
 
+        // Re-entrancy guard so a rapid double-click can't fire two downloads of
+        // the same artifact (the buttons are inline-onclick, so we key by target).
+        const _downloadsInFlight = new Set();
+
         window.downloadDocument = async function(blueprintId, docType) {
             const bp = state.blueprints[blueprintId];
             if (!bp || !bp.solutionId) return;
+            const key = `doc:${blueprintId}:${docType}`;
+            if (_downloadsInFlight.has(key)) return;
+            _downloadsInFlight.add(key);
             try {
                 const doc = await api('GET', `/solutions/${bp.solutionId}/documents/${docType}`);
                 const mime = doc.type === 'openapi' ? 'application/json' : 'text/markdown';
                 triggerBlobDownload(doc.content, doc.filename, mime);
                 showToast(`${doc.title} downloaded`, 'success');
             } catch (e) {
-                showToast('Failed to render document: ' + e.message, 'error');
+                showError('Document', e);
+            } finally {
+                _downloadsInFlight.delete(key);
             }
         };
 
         window.downloadExport = async function(blueprintId, fmt) {
             const bp = state.blueprints[blueprintId];
             if (!bp || !bp.solutionId) return;
+            const key = `export:${blueprintId}:${fmt}`;
+            if (_downloadsInFlight.has(key)) return;
+            _downloadsInFlight.add(key);
             try {
                 const result = await api('GET', `/solutions/${bp.solutionId}/export/${fmt}`);
                 const mimeMap = { json: 'application/json', json_graph: 'application/json', reactflow: 'application/json', html: 'text/html', svg: 'image/svg+xml', markdown: 'text/markdown', mermaid: 'text/plain', plantuml: 'text/plain' };
                 triggerBlobDownload(result.content, result.filename, mimeMap[fmt] || 'text/plain');
                 showToast(`${fmt.toUpperCase()} exported`, 'success');
             } catch (e) {
-                showToast('Export failed: ' + e.message, 'error');
+                showError('Export', e);
+            } finally {
+                _downloadsInFlight.delete(key);
             }
         };
 
         function escapeHtml(text) {
             return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ---- Shared UI helpers: one convention for empty / error / skeleton ----
+        // Every panel renders empty and error states through these so the look
+        // is identical across dashboard / approvals / knowledge.
+        function emptyState(icon, text) {
+            return `<div class="empty-state"><div class="empty-state-icon">${icon}</div>` +
+                `<div class="empty-state-text">${escapeHtml(text)}</div></div>`;
+        }
+        // Transient failure (an action, not a panel load): toast it consistently.
+        function showError(context, err) {
+            const msg = (err && err.message) ? err.message : String(err || 'Something went wrong');
+            showToast(`${context}: ${msg}`, 'error');
+            return msg;
+        }
+        function skeletonBlock(styles) {
+            return `<div class="skeleton-block" style="${styles}"></div>`;
         }
 
         function renderMarkdown(text) {
@@ -3343,9 +3421,14 @@
                     holder.innerHTML = svg;
                     code.closest('pre').replaceWith(holder);
                 } catch (e) {
-                    // Leave the raw diagram source visible on syntax errors
-                    const orphan = document.getElementById('d' + id);
-                    if (orphan) orphan.remove();
+                    // Render failed (syntax error / mermaid bug): keep the raw
+                    // source visible as an honest fallback rather than a blank
+                    // space. Also drop any half-built node mermaid may have
+                    // appended to <body> under this render id.
+                    const pre = code.closest('pre');
+                    if (pre) pre.classList.add('mermaid-error');
+                    const stray = document.getElementById(id) || document.getElementById('d' + id);
+                    if (stray && stray.closest('body') && !stray.closest('.pdiagram-body')) stray.remove();
                 }
             }
         }
@@ -3366,9 +3449,9 @@
         };
 
         function formatContent(text) {
-            // Basic markdown-like formatting
-            return text
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            // Basic markdown-like formatting — the offline fallback for
+            // renderMarkdown(). Escapes via the shared escapeHtml() (single path).
+            return escapeHtml(text)
                 .replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg-tertiary);padding:12px;border-radius:6px;margin:8px 0;font-family:var(--font-mono);font-size:0.85rem;overflow-x:auto;">$1</pre>')
                 .replace(/`([^`]+)`/g, '<code style="background:var(--bg-tertiary);padding:2px 6px;border-radius:3px;font-family:var(--font-mono);font-size:0.85em;">$1</code>')
                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -3475,11 +3558,11 @@
             return `
                 <div class="metric-card">
                     <div class="metric-header">
-                        <div class="skeleton-block" style="width:90px;height:11px;"></div>
-                        <div class="skeleton-block" style="width:36px;height:36px;"></div>
+                        ${skeletonBlock('width:90px;height:11px;')}
+                        ${skeletonBlock('width:36px;height:36px;')}
                     </div>
-                    <div class="skeleton-block" style="width:70px;height:26px;margin-bottom:8px;"></div>
-                    <div class="skeleton-block" style="width:120px;height:10px;"></div>
+                    ${skeletonBlock('width:70px;height:26px;margin-bottom:8px;')}
+                    ${skeletonBlock('width:120px;height:10px;')}
                 </div>
             `;
         }
@@ -3491,8 +3574,14 @@
             try {
                 const data = await api('GET', '/dashboard/usage');
 
-                const automationPct = Math.round(data.automation_rate * 100);
-                const costStr = '$' + data.cost_usd.toFixed(4);
+                // Defensive: a missing/partial payload must not throw and blank
+                // the whole panel. Every field is coerced to a safe default.
+                const requests = Number(data.requests ?? 0);
+                const tokens = Number(data.tokens ?? 0);
+                const cost = Number(data.cost_usd ?? 0);
+                const automationPct = Math.round(Number(data.automation_rate ?? 0) * 100);
+                const costStr = '$' + cost.toFixed(4);
+                const muted = 'color:var(--text-secondary,#9aa)';
 
                 grid.innerHTML = `
                     <div class="metric-card">
@@ -3500,17 +3589,16 @@
                             <span class="metric-label">Total Requests</span>
                             <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-primary);">📨</div>
                         </div>
-                        <div class="metric-value" style="color:var(--accent-primary);">${data.requests.toLocaleString()}</div>
-                        <div class="metric-change positive">↑ Active</div>
-                        <div class="metric-bar"><div class="metric-bar-fill" style="width:${Math.min(data.requests/100*100, 100)}%;background:linear-gradient(90deg,var(--accent-primary),var(--accent-secondary));"></div></div>
+                        <div class="metric-value" style="color:var(--accent-primary);">${requests.toLocaleString()}</div>
+                        <div class="metric-change" style="${muted}">across all sessions</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
                             <span class="metric-label">Tokens Consumed</span>
                             <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-info);">🔤</div>
                         </div>
-                        <div class="metric-value" style="color:var(--accent-info);">${data.tokens.toLocaleString()}</div>
-                        <div class="metric-change positive">across all sessions</div>
+                        <div class="metric-value" style="color:var(--accent-info);">${tokens.toLocaleString()}</div>
+                        <div class="metric-change" style="${muted}">across all sessions</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
@@ -3518,7 +3606,7 @@
                             <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-success);">💰</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-success);">${costStr}</div>
-                        <div class="metric-change positive">within budget</div>
+                        <div class="metric-change" style="${muted}">estimated from token volume</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
@@ -3526,17 +3614,16 @@
                             <div class="metric-icon" style="background:rgba(245,158,11,0.15);color:var(--accent-warning);">⚡</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-warning);">${automationPct}%</div>
-                        <div class="metric-change positive">auto-approved actions</div>
-                        <div class="metric-bar"><div class="metric-bar-fill" style="width:${automationPct}%;background:linear-gradient(90deg,var(--accent-warning),var(--accent-success));"></div></div>
+                        <div class="metric-change" style="${muted}">auto-approved actions</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:${Math.max(0, Math.min(100, automationPct))}%;background:linear-gradient(90deg,var(--accent-warning),var(--accent-success));"></div></div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
-                            <span class="metric-label">Layer 7 Decisions</span>
+                            <span class="metric-label">Governance</span>
                             <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-secondary);">🛡</div>
                         </div>
-                        <div class="metric-value" style="color:var(--accent-secondary);">100%</div>
-                        <div class="metric-change positive">governance coverage</div>
-                        <div class="metric-bar"><div class="metric-bar-fill" style="width:100%;background:linear-gradient(90deg,var(--accent-secondary),var(--accent-primary));"></div></div>
+                        <div class="metric-value" style="color:var(--accent-secondary);">Active</div>
+                        <div class="metric-change" style="${muted}">HITL policy enforced</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
@@ -3544,11 +3631,11 @@
                             <div class="metric-icon" style="background:rgba(122,255,180,0.15);color:var(--accent-success);">❤</div>
                         </div>
                         <div class="metric-value" style="color:var(--accent-success);">Healthy</div>
-                        <div class="metric-change positive">all 8 OCIF layers operational</div>
+                        <div class="metric-change" style="${muted}">all 8 OCIF engines operational</div>
                     </div>
                 `;
             } catch(err) {
-                grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">${err.message}</div></div>`;
+                grid.innerHTML = emptyState('📊', err.message || 'Could not load dashboard.');
             }
         };
 
@@ -3558,11 +3645,11 @@
         function approvalsSkeletonRow() {
             return `
                 <tr>
-                    <td><div class="skeleton-block" style="width:70px;height:11px;"></div></td>
-                    <td><div class="skeleton-block" style="width:70%;height:11px;"></div></td>
-                    <td><div class="skeleton-block" style="width:46px;height:20px;border-radius:var(--radius-full);"></div></td>
-                    <td><div class="skeleton-block" style="width:90px;height:11px;"></div></td>
-                    <td><div class="skeleton-block" style="width:120px;height:24px;"></div></td>
+                    <td>${skeletonBlock('width:70px;height:11px;')}</td>
+                    <td>${skeletonBlock('width:70%;height:11px;')}</td>
+                    <td>${skeletonBlock('width:46px;height:20px;border-radius:var(--radius-full);')}</td>
+                    <td>${skeletonBlock('width:90px;height:11px;')}</td>
+                    <td>${skeletonBlock('width:120px;height:24px;')}</td>
                 </tr>
             `;
         }
@@ -3573,7 +3660,7 @@
             try {
                 const data = await api('GET', '/approvals');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;"><div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No pending approvals.</div></div></td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;">${emptyState('✅', 'No pending approvals.')}</td></tr>`;
                     document.getElementById('approval-count').classList.add('hidden');
                     updateStatusApprovalCount(0);
                     return;
@@ -3599,7 +3686,7 @@
                     </tr>`;
                 }).join('');
             } catch(err) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--accent-danger);">${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;">${emptyState('⚠', err.message || 'Could not load approvals.')}</td></tr>`;
             }
         };
 
@@ -3609,7 +3696,7 @@
                 showToast(`Approval ${decision}`, decision === 'approved' ? 'success' : 'info');
                 loadApprovals();
             } catch(err) {
-                showToast(err.message, 'error');
+                showError('Approval', err);
             }
         };
 
@@ -3624,9 +3711,9 @@
         function knowledgeResultsSkeleton() {
             return Array(3).fill(`
                 <div class="search-result-card">
-                    <div class="skeleton-block" style="width:50%;height:13px;margin-bottom:10px;"></div>
-                    <div class="skeleton-block" style="width:100%;height:11px;margin-bottom:6px;"></div>
-                    <div class="skeleton-block" style="width:80%;height:11px;"></div>
+                    ${skeletonBlock('width:50%;height:13px;margin-bottom:10px;')}
+                    ${skeletonBlock('width:100%;height:11px;margin-bottom:6px;')}
+                    ${skeletonBlock('width:80%;height:11px;')}
                 </div>
             `).join('');
         }
@@ -3634,24 +3721,14 @@
         async function runKnowledgeSearch(query) {
             const trimmed = query.trim();
             if (!trimmed) {
-                knowledgeResults.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <div class="empty-state-text">Search across all indexed documents, policies, and knowledge sources.</div>
-                    </div>
-                `;
+                knowledgeResults.innerHTML = emptyState('🔍', 'Search across all indexed documents, policies, and knowledge sources.');
                 return;
             }
             knowledgeResults.innerHTML = knowledgeResultsSkeleton();
             try {
                 const data = await api('GET', `/knowledge/search?q=${encodeURIComponent(trimmed)}`);
                 if (!data.results || !data.results.length) {
-                    knowledgeResults.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🔍</div>
-                            <div class="empty-state-text">No results for "${escapeHtml(trimmed)}".</div>
-                        </div>
-                    `;
+                    knowledgeResults.innerHTML = emptyState('🔍', `No results for "${trimmed}".`);
                     return;
                 }
                 knowledgeResults.innerHTML = data.results.map(r => `
@@ -3664,7 +3741,7 @@
                     </div>
                 `).join('');
             } catch (err) {
-                knowledgeResults.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-text">${escapeHtml(err.message)}</div></div>`;
+                knowledgeResults.innerHTML = emptyState('⚠', err.message || 'Search failed.');
             }
         }
 
@@ -3714,6 +3791,34 @@
                 showToast(err.message, 'error');
             }
         };
+
+        // If a CDN library failed to load (offline / blocked), say so plainly
+        // instead of silently degrading diagrams and markdown to raw text.
+        (function cdnHealthCheck() {
+            const missing = [];
+            if (!window.marked) missing.push('markdown renderer');
+            if (!window.mermaid) missing.push('diagram renderer');
+            if (!missing.length) return;
+            const bar = document.createElement('div');
+            bar.setAttribute('role', 'alert');
+            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;color:#fff;' +
+                'padding:6px 12px;font-size:0.8rem;text-align:center;';
+            bar.textContent = `Offline: the ${missing.join(' and ')} could not load — diagrams and formatting may appear as raw text.`;
+            document.body.appendChild(bar);
+        })();
+
+        // Restore a persisted session on load so a refresh doesn't force re-login.
+        // Runs last, once every function above is defined.
+        (function restoreSession() {
+            const token = sessionStorage.getItem('axiom_token');
+            if (!token) return;
+            try {
+                applyAuthSuccess({ access_token: token }, null, /* silent */ true);
+            } catch (_) {
+                sessionStorage.removeItem('axiom_token');
+                state.token = null;
+            }
+        })();
 
     })();
     </script>
