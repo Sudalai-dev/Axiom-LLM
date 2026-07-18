@@ -183,11 +183,16 @@ not per-industry. Each phase is its own session.
   composed architecture. Nothing auto-commits (Charter §1.3).
 - **Deferred:** ontology growth via the same queue (rules first; ontology is analogous).
 
-### Phase 5 — Diagrams (per-project, not per-industry)
-- **Goal:** ER / sequence / class diagram builders consume Phase-1 entities.
-- **Where:** `ocif/project_diagrams.py` builders + `ocif/solution_mapping.py`.
-- **Acceptance:** ER diagram nodes are the request's real entities; two requests
-  yield structurally different diagrams; empty entities → honest empty-state.
+### Phase 5 — Diagrams (per-project, not per-industry) ✅ DONE
+- **Built:** `ContextFrame`/`SolutionDocument` gained `domain_entities`; the
+  synthesizer builds an entity-derived ER (`_entity_er_mermaid`) into
+  `database_design` when ≥2 entities (so `_er_diagram` becomes per-project via the
+  existing mermaid-extract); `_uml_class_diagram` models domain entities as classes
+  when present. Too few entities → honest fallback to the industry-pattern ER.
+- **Acceptance:** ✅ `test_phase5_entity_driven_er_diagram` (two requests → structurally
+  different ER; fallback when sparse); updated `test_ocif_kernel` to expect the
+  request's own pump-domain entities. 324 tests green.
+- **Deferred:** sequence diagram already uses actors; per-entity sequence flows later.
 
 ### Phase 6 — Learning loop (make recall matter)
 - **Goal:** recalled prior solutions (durable `memory/learning_store.py`) actually

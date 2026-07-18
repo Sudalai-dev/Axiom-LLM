@@ -109,7 +109,9 @@ class ContextEngine(CognitiveEngine):
             len(text.split()) <= 3 and not any(k in lowered for k in TECH_LEXICON)
         )
 
-        entities = self._extract_entities(lowered)
+        tech_entities = self._extract_tech_entities(lowered)
+        domain_nouns = [] if is_trivial else self._extract_domain_nouns(lowered, exclude=tech_entities)
+        entities = tech_entities + domain_nouns
         intent = Intent.TRIVIAL_CLARIFICATION if is_trivial else self._classify_intent(lowered)
         actors = self._infer_actors(lowered)
         use_cases = [] if is_trivial else self._expand_use_cases(text, actors, entities, intent)
@@ -119,6 +121,7 @@ class ContextEngine(CognitiveEngine):
         context.context = ContextFrame(
             intent=intent,
             entities=entities,
+            domain_entities=domain_nouns,
             actors=actors,
             use_cases=use_cases,
             project=context.project,
@@ -145,17 +148,19 @@ class ContextEngine(CognitiveEngine):
 
     # -- helpers ------------------------------------------------------------
 
-    def _extract_entities(self, lowered: str) -> List[str]:
+    def _extract_tech_entities(self, lowered: str) -> List[str]:
         found = []
         for key, canonical in TECH_LEXICON.items():
             if re.search(rf"(?<!\w){re.escape(key)}(?!\w)", lowered) and canonical not in found:
                 found.append(canonical)
-        # Phase 1 (Comprehension): also harvest the request's concrete DOMAIN
-        # nouns (patient, bed, cafeteria, loomweaver, ...) — the tech lexicon
-        # alone can't tell two same-industry requests apart. Tech entities stay
-        # first (canonical), domain nouns follow.
-        found.extend(self._extract_domain_nouns(lowered, exclude=found))
         return found
+
+    def _extract_entities(self, lowered: str) -> List[str]:
+        # Phase 1 (Comprehension): tech-lexicon canonicals first, then the
+        # request's concrete DOMAIN nouns — the tech lexicon alone can't tell two
+        # same-industry requests apart.
+        tech = self._extract_tech_entities(lowered)
+        return tech + self._extract_domain_nouns(lowered, exclude=tech)
 
     def _extract_domain_nouns(self, lowered: str, exclude: List[str] = None, limit: int = 8) -> List[str]:
         """Deterministic, dependency-free domain-noun harvest: alphabetic tokens

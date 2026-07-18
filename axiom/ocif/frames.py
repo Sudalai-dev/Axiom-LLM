@@ -96,6 +96,9 @@ class ContextFrame(OCIFBaseModel):
     """Intent understanding — what is being asked, in what context (Engine 2)."""
     intent: Intent = Intent.GENERAL_ENGINEERING
     entities: List[str] = Field(default_factory=list)
+    # Concrete domain nouns harvested from the request (patient, bed, loomweaver…),
+    # separate from tech entities — drives per-project ER/class diagrams (Phase 5).
+    domain_entities: List[str] = Field(default_factory=list)
     actors: List[str] = Field(default_factory=list)
     use_cases: List[UseCase] = Field(default_factory=list)
     project: str = "default"
@@ -233,6 +236,7 @@ class SolutionDocument(OCIFBaseModel):
     executive_summary: str = ""
     problem_statement: str = ""
     actors: List[str] = Field(default_factory=list)  # stakeholders/actors surfaced for System Context visualization
+    domain_entities: List[str] = Field(default_factory=list)  # request's concrete nouns → per-project ER/class diagrams
     requirements_analysis: str = ""
     recommended_solution: str = ""
     architecture_overview: str = ""          # includes Mermaid architecture diagram

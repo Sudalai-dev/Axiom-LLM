@@ -458,6 +458,9 @@ class SolutionSynthesizer:
         # Standards this specific request must comply with (industry-mandatory +
         # standards named by the rules that fired) — drives risk + roadmap.
         compliance = self._compliance_standards(standards, sec_rules)
+        # Concrete domain nouns from the request (Phase 1) — drive the per-project
+        # ER + class diagrams (Phase 5).
+        domain_entities = list(getattr(frame, "domain_entities", []) or [])
         title = self._title(frame)
         components = pattern.components
 
@@ -466,12 +469,13 @@ class SolutionSynthesizer:
             executive_summary=self._executive_summary(frame, pattern, understanding),
             problem_statement=self._problem_statement(frame, understanding),
             actors=list(frame.actors),
+            domain_entities=domain_entities,
             requirements_analysis=self._requirements_analysis(frame, plan),
             recommended_solution=self._recommended_solution(pattern, standards, rules),
             architecture_overview=self._architecture_overview(pattern, design_rules),
             technology_stack=[TechChoice(layer=l, choice=c, rationale=r) for l, c, r in pattern.stack],
             component_design=self._component_design(components),
-            database_design=self._database_design(pattern),
+            database_design=self._database_design(pattern, domain_entities),
             api_design=self._api_design(pattern),
             workflow=self._workflow(pattern),
             security_architecture=self._security_architecture(pattern, sec_rules, standards),
@@ -669,7 +673,36 @@ class SolutionSynthesizer:
             )
         return "\n\n".join(lines)
 
-    def _database_design(self, pattern: IndustryPattern) -> str:
+    @staticmethod
+    def _entity_er_mermaid(entities: List[str]) -> str:
+        """A per-project ER diagram whose tables ARE the request's real entities,
+        related to the first (hub) entity. Charter §6: nodes are the request's
+        entities, never invented ones."""
+        seen, tables = set(), []
+        for e in entities:
+            tid = re.sub(r"[^A-Za-z0-9]", "", e).upper()[:20]
+            if tid and tid not in seen:
+                seen.add(tid)
+                tables.append(tid)
+        lines = ["erDiagram"]
+        for t in tables:
+            lines += [f"    {t} {{", "        string id", "        string name", "    }"]
+        hub = tables[0]
+        for t in tables[1:]:
+            lines.append(f"    {hub} ||--o{{ {t} : has")
+        return "\n".join(lines)
+
+    def _database_design(self, pattern: IndustryPattern, domain_entities=None) -> str:
+        # When the request yielded concrete entities, build the data model from
+        # THEM (per-project). Fall back to the industry pattern's ER only when we
+        # have too few entities to model — an honest fallback, not invention.
+        ents = [e for e in (domain_entities or []) if e]
+        if len(ents) >= 2:
+            note = (
+                "Core data model derived from the entities in your request: "
+                + ", ".join(ents[:6]) + "."
+            )
+            return f"{note}\n\n```mermaid\n{self._entity_er_mermaid(ents)}\n```"
         return f"{pattern.er_notes}\n\n```mermaid\n{pattern.er_diagram}\n```"
 
     def _api_design(self, pattern: IndustryPattern) -> str:

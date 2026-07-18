@@ -141,6 +141,30 @@ def test_fired_rules_reach_sections_directly():
     assert "HIPAA" in risk_text and "PCI-DSS 4.0" in risk_text
 
 
+def test_phase5_entity_driven_er_diagram():
+    """Diagrams (Charter §6): the ER data model's tables ARE the request's real
+    entities, so two requests yield structurally different ER diagrams."""
+    synth = SolutionSynthesizer()
+    plan = Plan(functional_requirements=[], non_functional_requirements=[])
+    kf = KnowledgeFrame()
+
+    def _db(entities):
+        frame = ContextFrame(intent="solution_design", entities=entities,
+                             domain_entities=entities, actors=["User"], use_cases=[])
+        return synth.synthesize(
+            frame, plan, kf, None, ProjectUnderstandingFrame(industry="generic_software"),
+        ).database_design
+
+    hospital = _db(["Patient", "Bed", "Ward", "Clinician"])
+    library = _db(["Book", "Member", "Loan", "Author"])
+
+    assert "PATIENT" in hospital.upper() and "BED" in hospital.upper()
+    assert "BOOK" in library.upper() and "MEMBER" in library.upper()
+    assert hospital != library  # structurally different ER diagrams
+    # Too few entities → honest fallback to the industry pattern's ER (no invention).
+    assert "erdiagram" in _db(["Widget"]).lower()
+
+
 def test_phase4_human_gated_rule_growth(tmp_path):
     """A proposed rule must NOT fire until approved; once approved it fires on
     the next request with no restart (Phase 4 / Charter §1.3)."""
