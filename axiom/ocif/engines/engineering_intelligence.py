@@ -439,8 +439,25 @@ class SolutionSynthesizer:
         knowledge: KnowledgeFrame,
         learning: Optional[List[str]] = None,
         understanding: Optional[ProjectUnderstandingFrame] = None,
+        platform_standards: Optional[List[Dict[str, Any]]] = None,
+        rules_applied: Optional[List[Dict[str, Any]]] = None,
+        domains: Optional[List[str]] = None,
     ) -> SolutionDocument:
+        # `platform_standards` and `rules_applied` come from the ecosystem
+        # Knowledge Platform (see _run). They FIRE PER REQUEST — keyed on the
+        # message text, entities, and domains — so weaving them into the
+        # sections below is what makes two different requests in the same
+        # industry produce materially different security/risk/roadmap/
+        # architecture content instead of a frozen industry template.
+        # When empty (no platform wired), every section degrades to exactly the
+        # prior industry-pattern behaviour, so existing output is unchanged.
         pattern = select_pattern(understanding)
+        standards = platform_standards or []
+        rules = rules_applied or []
+        sec_rules, design_rules = self._partition_rules(rules)
+        # Standards this specific request must comply with (industry-mandatory +
+        # standards named by the rules that fired) — drives risk + roadmap.
+        compliance = self._compliance_standards(standards, sec_rules)
         title = self._title(frame)
         components = pattern.components
 
@@ -450,23 +467,80 @@ class SolutionSynthesizer:
             problem_statement=self._problem_statement(frame, understanding),
             actors=list(frame.actors),
             requirements_analysis=self._requirements_analysis(frame, plan),
-            recommended_solution=self._recommended_solution(pattern),
-            architecture_overview=self._architecture_overview(pattern),
+            recommended_solution=self._recommended_solution(pattern, standards, rules),
+            architecture_overview=self._architecture_overview(pattern, design_rules),
             technology_stack=[TechChoice(layer=l, choice=c, rationale=r) for l, c, r in pattern.stack],
             component_design=self._component_design(components),
             database_design=self._database_design(pattern),
             api_design=self._api_design(pattern),
             workflow=self._workflow(pattern),
-            security_architecture=self._security_architecture(pattern),
+            security_architecture=self._security_architecture(pattern, sec_rules, standards),
             deployment_architecture=self._deployment_architecture(pattern),
             monitoring_strategy=self._monitoring_strategy(pattern),
             testing_strategy=self._testing_strategy(pattern),
-            implementation_roadmap=self._roadmap(frame, pattern),
-            risk_assessment=self._risks(pattern),
+            implementation_roadmap=self._roadmap(frame, pattern, compliance),
+            risk_assessment=self._risks(pattern, compliance),
             future_enhancements=self._future(pattern),
-            final_recommendations=self._final(pattern, knowledge, learning),
+            final_recommendations=self._final(pattern, knowledge, learning, rules, standards),
         )
         return doc
+
+    # -- ecosystem-knowledge helpers (Phase 2/3) ----------------------------
+
+    @staticmethod
+    def _partition_rules(rules_applied):
+        """Split fired rules into security vs design so each lands in the right
+        section. Cybersecurity-domain rules shape the security architecture;
+        everything else (IoT delivery, storage choices, ...) is a design
+        constraint on the architecture."""
+        sec, design = [], []
+        for r in rules_applied or []:
+            dom = (r.get("domain") or "").lower()
+            (sec if ("security" in dom or "cyber" in dom) else design).append(r)
+        return sec, design
+
+    @staticmethod
+    def _rule_bullets(rules) -> str:
+        seen, out = set(), []
+        for r in rules or []:
+            key = r.get("name", "")
+            if key in seen:
+                continue
+            seen.add(key)
+            then = (r.get("then") or "").rstrip()
+            why = (r.get("rationale") or "").rstrip()
+            out.append(f"\n- **{r.get('name', 'Rule')}:** {then}" + (f" _({why})_" if why else ""))
+        return "".join(out)
+
+    @staticmethod
+    def _mandatory_standards(standards):
+        return [s for s in (standards or []) if s.get("compliance_level") == "mandatory"]
+
+    @staticmethod
+    def _standard_names(standards) -> List[str]:
+        seen, names = set(), []
+        for s in standards or []:
+            n = s.get("name") or s.get("full_name")
+            if n and n not in seen:
+                seen.add(n)
+                names.append(n)
+        return names
+
+    @staticmethod
+    def _compliance_standards(standards, sec_rules) -> List[str]:
+        """The standards this request must comply with = mandatory standards for
+        the industry PLUS the standards named by the security rules that fired
+        for THIS request. Including the fired-rule standards is what makes the
+        compliance risk + roadmap items vary per request, not per industry."""
+        names = list(SolutionSynthesizer._standard_names(
+            SolutionSynthesizer._mandatory_standards(standards)))
+        seen = {n.lower() for n in names}
+        for r in sec_rules or []:
+            for s in r.get("standards", []) or []:
+                if s and s.lower() not in seen:
+                    seen.add(s.lower())
+                    names.append(s)
+        return names
 
     # -- sections -----------------------------------------------------------
 
@@ -538,19 +612,31 @@ class SolutionSynthesizer:
         "banking_fintech": "eventual-consistency balance updates without a ledger (reconciliation nightmares) and synchronous third-party fraud calls blocking every transaction (latency/availability risk)",
     }
 
-    def _recommended_solution(self, pattern: IndustryPattern) -> str:
+    def _recommended_solution(self, pattern: IndustryPattern, standards=None, rules=None) -> str:
         alt = self._ALTERNATIVES_BY_PATTERN_KEY.get(
             pattern.key, "simpler architectures that fail the stated non-functional requirements"
         )
-        return (
+        base = (
             f"Adopt a **{pattern.name}**. Alternatives considered and rejected: {alt}. "
             f"The chosen pattern best balances delivery speed, operational simplicity, and the "
             f"reliability/scalability requirements derived from the scenario analysis. Each component "
             f"below is independently testable and replaceable, and the design avoids hard vendor "
             f"lock-in at every layer."
         )
+        # Ground the recommendation in the standards + rules that actually
+        # matched THIS request (empty → sentence omitted, unchanged output).
+        names = self._standard_names(standards)
+        grounding = ""
+        if names or rules:
+            parts = []
+            if names:
+                parts.append(f"the applicable engineering standard(s) — {', '.join(names[:6])}")
+            if rules:
+                parts.append(f"{len(rules)} deterministic engineering rule(s) fired by your requirements")
+            grounding = " This design is shaped by " + " and ".join(parts) + "."
+        return base + grounding
 
-    def _architecture_overview(self, pattern: IndustryPattern) -> str:
+    def _architecture_overview(self, pattern: IndustryPattern, design_rules=None) -> str:
         nodes = pattern.components
         ids = [re.sub(r"[^A-Za-z0-9]", "", name)[:14] or f"C{i}" for i, (name, _) in enumerate(nodes)]
         mermaid = ["flowchart LR"]
@@ -559,8 +645,18 @@ class SolutionSynthesizer:
         for a, b in zip(ids, ids[1:]):
             mermaid.append(f"    {a} --> {b}")
         narrative = "\n".join(f"- **{name}** — {desc}" for name, desc in nodes)
+        # Design constraints fired by this specific request (e.g. "use MQTT QoS 1
+        # for critical alarms", "persist telemetry in a time-series DB"). These
+        # make the architecture reflect the actual requirements, not just the
+        # industry. Omitted entirely when no rules fire.
+        constraints = self._rule_bullets(design_rules)
+        constraints_block = (
+            f"\n\n**Design constraints derived from your requirements:**{constraints}"
+            if constraints else ""
+        )
         return (
-            f"The system is composed of the following cooperating components:\n\n{narrative}\n\n"
+            f"The system is composed of the following cooperating components:\n\n{narrative}"
+            f"{constraints_block}\n\n"
             "```mermaid\n" + "\n".join(mermaid) + "\n```"
         )
 
@@ -591,8 +687,8 @@ class SolutionSynthesizer:
     def _workflow(self, pattern: IndustryPattern) -> str:
         return f"{pattern.workflow_narrative}\n\n```mermaid\n{pattern.workflow_diagram}\n```"
 
-    def _security_architecture(self, pattern: IndustryPattern) -> str:
-        return (
+    def _security_architecture(self, pattern: IndustryPattern, sec_rules=None, standards=None) -> str:
+        base = (
             "- **Authentication:** OAuth2/JWT with short-lived access tokens and refresh rotation.\n"
             "- **Authorization:** role-based access control enforced at the API layer and row-level "
             "tenant isolation in the database.\n"
@@ -601,6 +697,22 @@ class SolutionSynthesizer:
             "- **Input handling:** schema validation at every boundary; parameterized queries; "
             "rate limiting and audit logging on all mutating endpoints." + pattern.security_extra
         )
+        # Request-specific security controls from the rules that fired (e.g. an
+        # encryption-at-rest rule for PHI/PII, the OWASP baseline for public
+        # surfaces) and the compliance standards that apply. Both differ per
+        # request, so two same-industry requests get different security sections.
+        rules_block = self._rule_bullets(sec_rules)
+        if rules_block:
+            base += "\n\n**Controls required by your requirements:**" + rules_block
+        mandatory = self._mandatory_standards(standards)
+        if mandatory:
+            names = self._standard_names(mandatory)
+            base += (
+                "\n\n**Mandatory compliance standards for this solution:** "
+                + ", ".join(names)
+                + " — treat their control requirements as acceptance criteria."
+            )
+        return base
 
     def _deployment_architecture(self, pattern: IndustryPattern) -> str:
         mermaid = (
@@ -644,7 +756,18 @@ class SolutionSynthesizer:
             + pattern.testing_extra
         )
 
-    def _roadmap(self, frame: ContextFrame, pattern: IndustryPattern) -> List[RoadmapPhase]:
+    def _roadmap(self, frame: ContextFrame, pattern: IndustryPattern, compliance_names=None) -> List[RoadmapPhase]:
+        hardening = [
+            "Failure handling: retries, buffering, graceful degradation, chaos tests.",
+            "Security review: authorization matrix, secrets, penetration checklist.",
+            "Observability: dashboards, SLOs, alert runbooks.",
+        ]
+        # If standards apply to this request, make compliance validation an
+        # explicit, request-specific roadmap deliverable.
+        if compliance_names:
+            hardening.append(
+                f"Compliance validation against {', '.join(compliance_names)} (gap analysis + evidence)."
+            )
         return [
             RoadmapPhase(phase="Phase 1 — Foundation (weeks 1-2)", items=[
                 "Repository, CI/CD skeleton, environments, and coding standards.",
@@ -656,11 +779,7 @@ class SolutionSynthesizer:
                 "Administration and configuration surfaces.",
                 "Integration and contract test suites.",
             ]),
-            RoadmapPhase(phase="Phase 3 — Hardening (weeks 6-7)", items=[
-                "Failure handling: retries, buffering, graceful degradation, chaos tests.",
-                "Security review: authorization matrix, secrets, penetration checklist.",
-                "Observability: dashboards, SLOs, alert runbooks.",
-            ]),
+            RoadmapPhase(phase="Phase 3 — Hardening (weeks 6-7)", items=hardening),
             RoadmapPhase(phase="Phase 4 — Launch & iterate (week 8+)", items=[
                 "Performance baseline and capacity plan.",
                 "Production rollout with rollback plan.",
@@ -668,7 +787,7 @@ class SolutionSynthesizer:
             ]),
         ]
 
-    def _risks(self, pattern: IndustryPattern) -> List[Risk]:
+    def _risks(self, pattern: IndustryPattern, compliance_names=None) -> List[Risk]:
         risks = [
             Risk(risk="Scope creep beyond the analyzed use cases", likelihood="medium", impact="medium",
                  mitigation="Change control against the requirements table; new scenarios enter the backlog, not the sprint."),
@@ -679,6 +798,15 @@ class SolutionSynthesizer:
         ]
         for risk, likelihood, impact, mitigation in pattern.risks_extra:
             risks.append(Risk(risk=risk, likelihood=likelihood, impact=impact, mitigation=mitigation))
+        # Per-request compliance risk: one per standard that applies to THIS
+        # request (industry-mandatory + fired-rule standards), mitigated by the
+        # controls the fired rules mandate.
+        mitig = "Implement the required controls (see Security Architecture) and validate in the compliance roadmap item."
+        for name in (compliance_names or []):
+            risks.append(Risk(
+                risk=f"Non-compliance with {name} for regulated data/operations",
+                likelihood="medium", impact="high", mitigation=mitig,
+            ))
         return risks
 
     def _future(self, pattern: IndustryPattern) -> List[str]:
@@ -694,11 +822,23 @@ class SolutionSynthesizer:
     def _final(
         self, pattern: IndustryPattern, knowledge: KnowledgeFrame,
         learning: Optional[List[str]] = None,
+        rules=None, standards=None,
     ) -> str:
         grounding = (
             f" The design is additionally grounded on {len(knowledge.sources)} internal knowledge "
             f"sources." if knowledge and knowledge.knowledge_used else ""
         )
+        # Provenance the user can see: how many deterministic rules and standards
+        # actually shaped this specific solution.
+        rules_note = ""
+        n_rules, n_std = len(rules or []), len(self._standard_names(standards))
+        if n_rules or n_std:
+            bits = []
+            if n_rules:
+                bits.append(f"{n_rules} fired engineering rule(s)")
+            if n_std:
+                bits.append(f"{n_std} applicable standard(s)")
+            rules_note = " This solution was composed against " + " and ".join(bits) + " matched to your requirements."
         learning_note = (
             f" This recommendation stays consistent with {len(learning)} previously validated "
             f"solution(s) to similar requests learned from past conversations."
@@ -708,7 +848,7 @@ class SolutionSynthesizer:
             f"Proceed with the **{pattern.name}** as specified. Start with the Phase 1 walking "
             f"skeleton to de-risk integration early, keep every component behind a typed contract so "
             f"individual choices remain replaceable, and treat the non-functional requirements as "
-            f"acceptance criteria — not aspirations.{grounding}{learning_note}"
+            f"acceptance criteria — not aspirations.{grounding}{rules_note}{learning_note}"
         )
 
 
@@ -836,8 +976,16 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
 
         # 2. Author the solution deterministically — AXIOM's own brain.
         # No external LLM: the SolutionSynthesizer, grounded in the industry
-        # patterns + knowledge platform, produces the complete document.
-        base_doc = self.synthesizer.synthesize(frame, plan, knowledge, learning, understanding)
+        # patterns + knowledge platform, produces the complete document. The
+        # per-request standards + fired rules computed above are now woven into
+        # the sections (Phase 2/3) so output is specific to THIS request, not a
+        # frozen per-industry template.
+        base_doc = self.synthesizer.synthesize(
+            frame, plan, knowledge, learning, understanding,
+            platform_standards=platform_standards,
+            rules_applied=rules_applied,
+            domains=domains,
+        )
         provider_used = "internal-synthesizer"
         model_used = "axiom-solution-synthesizer"
 

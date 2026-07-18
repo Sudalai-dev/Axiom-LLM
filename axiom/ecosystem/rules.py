@@ -11,7 +11,7 @@ queryable, rankable, and analyzable like any other knowledge.
 
 from typing import Any, Dict, List, Optional
 
-from ecosystem.models import KnowledgeCategory, KnowledgeObject, stable_id
+from ecosystem.models import GLOBAL_TENANT, KnowledgeCategory, KnowledgeObject, stable_id
 from ecosystem.repository import EngineeringKnowledgeRepository
 
 
@@ -100,6 +100,44 @@ class EngineeringRulesEngine:
             ))
         return self.repository.bulk_add(objs)
 
+    def _all_rules(self) -> List[Dict[str, Any]]:
+        """The seed rules PLUS any human-APPROVED rules in the repository.
+
+        This is the human-gated growth path (Phase 4 / Charter §1.3): a proposed
+        rule sits in the pending queue and does nothing until an admin approves
+        it, at which point it becomes an approved ENGINEERING_RULE knowledge
+        object and is picked up here on the very next request — no restart, no
+        code change. Deduped by name so the seeded rules (also persisted as
+        approved objects) are not double-counted.
+        """
+        rules = list(self.rules)
+        names = {r["name"] for r in rules}
+        if self.repository is not None:
+            try:
+                approved = self.repository.query(
+                    category=KnowledgeCategory.ENGINEERING_RULE.value,
+                    approved_only=True, ranked=False, limit=500,
+                )
+            except Exception:
+                approved = []
+            for obj in approved:
+                if obj.title in names:
+                    continue
+                attr = obj.attributes or {}
+                when = attr.get("when") or []
+                if not when:
+                    continue  # a rule with no trigger can never fire; skip it
+                names.add(obj.title)
+                rules.append({
+                    "name": obj.title,
+                    "domain": obj.domain,
+                    "when": when,
+                    "then": attr.get("then") or obj.summary,
+                    "rationale": attr.get("rationale", ""),
+                    "standards": attr.get("standards", []),
+                })
+        return rules
+
     def evaluate(
         self,
         message: str = "",
@@ -107,7 +145,7 @@ class EngineeringRulesEngine:
         intent: str = "",
         entities: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Return the rules that fire for this request."""
+        """Return the rules that fire for this request (seed + approved)."""
         haystack = " ".join([
             (message or "").lower(),
             (intent or "").lower(),
@@ -115,7 +153,7 @@ class EngineeringRulesEngine:
             " ".join(e.lower() for e in (entities or [])),
         ])
         applied = []
-        for rule in self.rules:
+        for rule in self._all_rules():
             if any(signal in haystack for signal in rule["when"]):
                 applied.append({
                     "name": rule["name"],
@@ -125,3 +163,35 @@ class EngineeringRulesEngine:
                     "standards": rule.get("standards", []),
                 })
         return applied
+
+    def propose(
+        self,
+        name: str,
+        when: List[str],
+        then: str,
+        rationale: str = "",
+        domain: str = "Software Engineering",
+        standards: Optional[List[str]] = None,
+        tenant_id: str = GLOBAL_TENANT,
+        submitted_by: str = "",
+    ) -> Optional[str]:
+        """Submit a NEW engineering rule to the human-review queue. Returns the
+        pending id, or None if there is no repository. The rule does not fire
+        until an admin approves it via the pending-decision endpoint."""
+        if self.repository is None:
+            return None
+        standards = standards or []
+        obj = KnowledgeObject(
+            knowledge_id=stable_id(KnowledgeCategory.ENGINEERING_RULE.value, domain, name),
+            title=name,
+            category=KnowledgeCategory.ENGINEERING_RULE.value,
+            domain=domain,
+            summary=then,
+            body=f"{then}\n\nRationale: {rationale}",
+            confidence=0.9,
+            priority=8,
+            tenant_id=tenant_id,
+            tags=["rule", "proposed"] + [s.lower() for s in standards],
+            attributes={"when": when, "then": then, "rationale": rationale, "standards": standards},
+        )
+        return self.repository.submit_pending(obj, submitted_by=submitted_by)
