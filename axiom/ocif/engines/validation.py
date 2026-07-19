@@ -127,7 +127,13 @@ class ValidationEngine(CognitiveEngine):
             narrative = " ".join(
                 getattr(doc, f) for f in _COVERAGE_SECTIONS
             ).lower()
-            covered = [e for e in entities if e.lower() in narrative]
+            # Word-boundary match, not a bare substring — otherwise entity "Bed"
+            # would count as covered by the word "embedded", masking genuinely
+            # generic output.
+            covered = [
+                e for e in entities
+                if re.search(rf"(?<!\w){re.escape(e.lower())}(?!\w)", narrative)
+            ]
             if not covered:
                 doc.executive_summary = self._inject_entities(doc.executive_summary, entities)
                 doc.recommended_solution = self._inject_entities(doc.recommended_solution, entities)

@@ -466,7 +466,17 @@ class SolutionSynthesizer:
         rules = rules_applied or []
         recalled = [r for r in (recalled or []) if r and r.get("title")]
         feedback_signals = [f for f in (feedback_signals or []) if f and f.get("note")]
-        prior = recalled[0] if recalled else None
+        # Only REUSE a recalled design if it genuinely overlaps this request's
+        # entities. `find_similar` also returns same-intent-but-zero-overlap
+        # recalls (e.g. two unrelated projects that share the "solution_design"
+        # intent); prominently claiming to "reuse and adapt" one of those would
+        # be false. The soft learning note in _final still counts all recalls.
+        frame_ents = {e.lower() for e in (getattr(frame, "entities", []) or [])}
+        reuse = [
+            r for r in recalled
+            if frame_ents & {e.lower() for e in (r.get("entities") or [])}
+        ] if frame_ents else []
+        prior = reuse[0] if reuse else None
         sec_rules, design_rules = self._partition_rules(rules)
         # Standards this specific request must comply with (industry-mandatory +
         # standards named by the rules that fired) — drives risk + roadmap.
@@ -708,13 +718,19 @@ class SolutionSynthesizer:
     def _entity_er_mermaid(entities: List[str]) -> str:
         """A per-project ER diagram whose tables ARE the request's real entities,
         related to the first (hub) entity. Charter §6: nodes are the request's
-        entities, never invented ones."""
+        entities, never invented ones. Returns "" when fewer than two distinct,
+        sanitizable table names survive (e.g. punctuation-only names, or names
+        that collide once non-alphanumerics are stripped and truncated) — there
+        is nothing meaningful to model, so the caller falls back to the pattern
+        ER rather than emit a degenerate (or hub-less, crash-prone) diagram."""
         seen, tables = set(), []
         for e in entities:
             tid = re.sub(r"[^A-Za-z0-9]", "", e).upper()[:20]
             if tid and tid not in seen:
                 seen.add(tid)
                 tables.append(tid)
+        if len(tables) < 2:
+            return ""
         lines = ["erDiagram"]
         for t in tables:
             lines += [f"    {t} {{", "        string id", "        string name", "    }"]
@@ -728,12 +744,13 @@ class SolutionSynthesizer:
         # THEM (per-project). Fall back to the industry pattern's ER only when we
         # have too few entities to model — an honest fallback, not invention.
         ents = [e for e in (domain_entities or []) if e]
-        if len(ents) >= 2:
+        er = self._entity_er_mermaid(ents) if len(ents) >= 2 else ""
+        if er:
             note = (
                 "Core data model derived from the entities in your request: "
                 + ", ".join(ents[:6]) + "."
             )
-            return f"{note}\n\n```mermaid\n{self._entity_er_mermaid(ents)}\n```"
+            return f"{note}\n\n```mermaid\n{er}\n```"
         return f"{pattern.er_notes}\n\n```mermaid\n{pattern.er_diagram}\n```"
 
     def _api_design(self, pattern: IndustryPattern) -> str:

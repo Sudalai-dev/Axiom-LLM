@@ -14,6 +14,15 @@ from typing import Any, Dict, List, Optional
 from ecosystem.models import GLOBAL_TENANT, KnowledgeCategory, KnowledgeObject, stable_id
 from ecosystem.repository import EngineeringKnowledgeRepository
 
+# Upper bound on approved custom rules pulled from the repository per request.
+# Rules are cheap substring checks, but the scan runs on every solution request,
+# so this caps worst-case work while staying far above any realistic rule count.
+_APPROVED_RULE_SCAN_LIMIT = 500
+
+# Defaults stamped on a freshly proposed (not-yet-approved) engineering rule.
+_PROPOSED_RULE_CONFIDENCE = 0.9
+_PROPOSED_RULE_PRIORITY = 8
+
 
 # Each rule matches when ANY of its `when` signals is present in the request.
 # A signal is a lowercase substring checked against the message, the intent, the
@@ -116,7 +125,7 @@ class EngineeringRulesEngine:
             try:
                 approved = self.repository.query(
                     category=KnowledgeCategory.ENGINEERING_RULE.value,
-                    approved_only=True, ranked=False, limit=500,
+                    approved_only=True, ranked=False, limit=_APPROVED_RULE_SCAN_LIMIT,
                 )
             except Exception:
                 approved = []
@@ -188,8 +197,8 @@ class EngineeringRulesEngine:
             domain=domain,
             summary=then,
             body=f"{then}\n\nRationale: {rationale}",
-            confidence=0.9,
-            priority=8,
+            confidence=_PROPOSED_RULE_CONFIDENCE,
+            priority=_PROPOSED_RULE_PRIORITY,
             tenant_id=tenant_id,
             tags=["rule", "proposed"] + [s.lower() for s in standards],
             attributes={"when": when, "then": then, "rationale": rationale, "standards": standards},

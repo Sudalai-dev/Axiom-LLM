@@ -207,6 +207,43 @@ def test_phase6_recall_reuses_prior_design():
     assert len(warm.risk_assessment) > len(cold.risk_assessment)
 
 
+def test_phase6_recall_without_entity_overlap_is_not_falsely_reused():
+    """`find_similar` can return a same-intent recall with ZERO entity overlap
+    (two unrelated projects sharing the 'solution_design' intent). Such a recall
+    must NOT be presented as 'reused and adapted' — that would be a false claim."""
+    synth = SolutionSynthesizer()
+    frame = ContextFrame(intent="solution_design", entities=["turbine", "rotor"],
+                         actors=["Engineer"], use_cases=[])
+    plan = Plan(functional_requirements=[], non_functional_requirements=[])
+    kf = KnowledgeFrame()
+    understanding = ProjectUnderstandingFrame(industry="generic_software")
+
+    unrelated = [{
+        "title": "Cafeteria Menu Board",
+        "intent": "solution_design",
+        "confidence": 0.88,
+        "entities": ["menu", "meal"],   # no overlap with turbine/rotor
+        "tradeoffs": ["Chose static hosting."],
+    }]
+    doc = synth.synthesize(frame, plan, kf, None, understanding, recalled=unrelated)
+    assert "Cafeteria Menu Board" not in doc.recommended_solution
+    assert "reuses and adapts" not in doc.recommended_solution.lower()
+
+
+def test_phase5_degenerate_entities_fall_back_without_crashing():
+    """Two 'entities' that sanitize to no valid table name must not crash the ER
+    builder (no IndexError on the hub); the data model falls back to the pattern
+    ER honestly rather than emitting a degenerate diagram."""
+    synth = SolutionSynthesizer()
+    frame = ContextFrame(intent="solution_design", entities=["!!!", "@@@"],
+                         domain_entities=["!!!", "@@@"], actors=["User"], use_cases=[])
+    plan = Plan(functional_requirements=[], non_functional_requirements=[])
+    doc = synth.synthesize(frame, plan, KnowledgeFrame(), None,
+                           ProjectUnderstandingFrame(industry="generic_software"))
+    assert "erdiagram" in doc.database_design.lower()   # valid fallback ER, no crash
+    assert SolutionSynthesizer._entity_er_mermaid(["!!!", "@@@"]) == ""
+
+
 def test_phase6_feedback_shifts_output():
     """Explicit user feedback must shift the next solution: each note lands on
     the risk register as a must-address item (negative → high likelihood)."""

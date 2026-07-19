@@ -1058,6 +1058,7 @@
             padding: var(--border-size);
             background: var(--radiant-gradient);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             pointer-events: none;
@@ -2072,6 +2073,15 @@
     (function() {
         'use strict';
 
+        // Single source of truth for browser-storage keys — referenced across
+        // get/set/remove sites, so a rename can't drift and silently orphan a
+        // stored value.
+        const STORAGE_KEYS = {
+            token: 'axiom_token',                       // sessionStorage — JWT
+            apiBase: 'axiom_api_base',                  // localStorage — manual host override
+            rememberedUsername: 'axiom_remembered_username', // localStorage — login prefill
+        };
+
         // =====================================================================
         // State Management
         // =====================================================================
@@ -2079,7 +2089,7 @@
             // Restored from sessionStorage on load so a page refresh keeps the
             // session (cleared on logout). sessionStorage (not localStorage) so
             // the token dies with the tab, not indefinitely.
-            token: sessionStorage.getItem('axiom_token') || null,
+            token: sessionStorage.getItem(STORAGE_KEYS.token) || null,
             sessionId: null,
             conversations: [],
             currentView: 'chat',
@@ -2288,7 +2298,7 @@
                 });
             }
 
-            const rememberKey = 'axiom_remembered_username';
+            const rememberKey = STORAGE_KEYS.rememberedUsername;
             const usernameInput = document.getElementById('login-username');
             const rememberCheckbox = document.getElementById('login-remember');
             const remembered = localStorage.getItem(rememberKey);
@@ -2299,8 +2309,12 @@
 
             window.persistRememberedUsername = function(username) {
                 if (!rememberCheckbox) return;
+                // Only persist a real username. The session-restore path calls
+                // this with a null username (no form value); without this guard
+                // localStorage.setItem coerces null → the literal "null", which
+                // would then prefill the login field with "null" on next logout.
                 if (rememberCheckbox.checked) {
-                    localStorage.setItem(rememberKey, username);
+                    if (username) localStorage.setItem(rememberKey, username);
                 } else {
                     localStorage.removeItem(rememberKey);
                 }
@@ -2327,7 +2341,7 @@
         // This is the ONE place to point the frontend at a non-default backend host.
         const API_BASE = (function resolveApiBase() {
             if (window.AXIOM_API_BASE) return window.AXIOM_API_BASE;
-            const stored = localStorage.getItem('axiom_api_base');
+            const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
             if (stored) return stored;
             if (window.location.port === '3000') return 'http://127.0.0.1:8000/api/v1';
             return window.location.origin + '/api/v1';
@@ -2352,6 +2366,16 @@
                 const err = new Error(detail);
                 err.status = resp.status;   // lets callers branch on HTTP status
                 err.data = data;            // full RFC 7807 problem+json payload
+                // A 401 on an AUTHENTICATED request means our session expired or
+                // was revoked (e.g. a restored-but-stale token). Reset to the
+                // login screen instead of stranding the user in a shell where
+                // every panel silently fails. Login/register run with no token,
+                // so their 401 (bad credentials) falls through to the caller's
+                // normal error handling below.
+                if (resp.status === 401 && state.token) {
+                    window.handleLogout();
+                    showToast('Your session expired — please sign in again.', 'error');
+                }
                 throw err;
             }
             return data;
@@ -2423,7 +2447,7 @@
             state.token = data.access_token;
             state.username = fallbackUsername || state.username;
             // Persist so a refresh restores the session (see restoreSession()).
-            sessionStorage.setItem('axiom_token', data.access_token);
+            sessionStorage.setItem(STORAGE_KEYS.token, data.access_token);
             try {
                 const payload = JSON.parse(atob(data.access_token.split('.')[1] + '=='));
                 state.userRole = payload.role || 'end_user';
@@ -2434,6 +2458,10 @@
                 state.userRole = 'end_user';
                 showToast('Could not read your session role — some features may be limited.', 'error');
             }
+            // On the restore path with an undecodable token there may be no
+            // username at all; fall back so the avatar/name render doesn't throw
+            // (which would leave the shell shown with no working session).
+            if (!state.username) state.username = 'User';
 
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-shell').classList.remove('hidden');
@@ -2479,7 +2507,7 @@
         window.handleLogout = function() {
             state.token = null;
             state.sessionId = null;
-            sessionStorage.removeItem('axiom_token');
+            sessionStorage.removeItem(STORAGE_KEYS.token);
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('app-shell').classList.add('hidden');
             // Reset the chat pane; the next sign-in re-renders its empty-state hero.
@@ -3801,22 +3829,32 @@
             if (!missing.length) return;
             const bar = document.createElement('div');
             bar.setAttribute('role', 'alert');
-            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;color:#fff;' +
+            // Theme-aware colours (reuse the warning accent, not hardcoded hex)
+            // and push the app content down so the fixed bar doesn't overlap it.
+            bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+                'background:var(--accent-warning);color:#1a1205;' +
                 'padding:6px 12px;font-size:0.8rem;text-align:center;';
             bar.textContent = `Offline: the ${missing.join(' and ')} could not load — diagrams and formatting may appear as raw text.`;
             document.body.appendChild(bar);
+            document.body.style.paddingTop = bar.offsetHeight + 'px';
         })();
 
         // Restore a persisted session on load so a refresh doesn't force re-login.
         // Runs last, once every function above is defined.
         (function restoreSession() {
-            const token = sessionStorage.getItem('axiom_token');
+            const token = sessionStorage.getItem(STORAGE_KEYS.token);
             if (!token) return;
             try {
+                // Reveals the shell and kicks off loadDashboard(); if the token is
+                // stale, that first authenticated call 401s and api() routes back
+                // to the login screen (see the 401 branch in api()).
                 applyAuthSuccess({ access_token: token }, null, /* silent */ true);
             } catch (_) {
-                sessionStorage.removeItem('axiom_token');
+                // Anything unexpected during restore → drop the token and return
+                // to a clean login screen rather than a half-rendered shell.
+                sessionStorage.removeItem(STORAGE_KEYS.token);
                 state.token = null;
+                window.handleLogout();
             }
         })();
 
