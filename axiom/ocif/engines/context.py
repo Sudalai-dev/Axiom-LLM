@@ -79,6 +79,24 @@ _ACTOR_RULES = [
     (r"\b(compliance|audit|regulat|security)\b", "Compliance Officer"),
 ]
 
+# Phase 1 (Comprehension / Charter §3): generic words to DROP when harvesting the
+# request's concrete domain nouns. Removing shared, generic vocabulary is what makes
+# two same-industry requests differ — only the project-specific nouns survive.
+_DOMAIN_STOPWORDS = frozenset("""
+the and for that this with from into over under your our their its has have will shall
+should would could can may might must are was were been being they them then than when
+where which what who whom whose while also such each any all some more most other only
+very just both onto upon per about after before between during without within across
+build building create creating design designing develop developing implement implementing
+application applications platform platforms solution solutions service services system systems
+project projects product products feature features module modules component components
+need needs want wants requirement requirements using use used uses provide provides providing
+support supports supporting manage managing handle handling handles based allow allows enable
+enables display displays show shows shown store stores storing track tracking make makes making
+work works working data user users please help would like thing things way ways able new full
+real time times good great best able around thats lets everything something anything nothing
+""".split())
+
 
 class ContextEngine(CognitiveEngine):
     name = EngineName.CONTEXT
@@ -91,7 +109,9 @@ class ContextEngine(CognitiveEngine):
             len(text.split()) <= 3 and not any(k in lowered for k in TECH_LEXICON)
         )
 
-        entities = self._extract_entities(lowered)
+        tech_entities = self._extract_tech_entities(lowered)
+        domain_nouns = [] if is_trivial else self._extract_domain_nouns(lowered, exclude=tech_entities)
+        entities = tech_entities + domain_nouns
         intent = Intent.TRIVIAL_CLARIFICATION if is_trivial else self._classify_intent(lowered)
         actors = self._infer_actors(lowered)
         use_cases = [] if is_trivial else self._expand_use_cases(text, actors, entities, intent)
@@ -101,6 +121,7 @@ class ContextEngine(CognitiveEngine):
         context.context = ContextFrame(
             intent=intent,
             entities=entities,
+            domain_entities=domain_nouns,
             actors=actors,
             use_cases=use_cases,
             project=context.project,
@@ -127,12 +148,34 @@ class ContextEngine(CognitiveEngine):
 
     # -- helpers ------------------------------------------------------------
 
-    def _extract_entities(self, lowered: str) -> List[str]:
+    def _extract_tech_entities(self, lowered: str) -> List[str]:
         found = []
         for key, canonical in TECH_LEXICON.items():
             if re.search(rf"(?<!\w){re.escape(key)}(?!\w)", lowered) and canonical not in found:
                 found.append(canonical)
         return found
+
+    def _extract_entities(self, lowered: str) -> List[str]:
+        # Phase 1 (Comprehension): tech-lexicon canonicals first, then the
+        # request's concrete DOMAIN nouns — the tech lexicon alone can't tell two
+        # same-industry requests apart.
+        tech = self._extract_tech_entities(lowered)
+        return tech + self._extract_domain_nouns(lowered, exclude=tech)
+
+    def _extract_domain_nouns(self, lowered: str, exclude: List[str] = None, limit: int = 8) -> List[str]:
+        """Deterministic, dependency-free domain-noun harvest: alphabetic tokens
+        of length >= 4 that aren't generic stopwords, in first-seen order. Not a
+        POS tagger — a pragmatic signal that makes output project-specific."""
+        seen = {e.lower() for e in (exclude or [])}
+        nouns: List[str] = []
+        for raw in re.findall(r"[a-z][a-z\-]{3,}", lowered):
+            if raw in _DOMAIN_STOPWORDS or raw in seen:
+                continue
+            seen.add(raw)
+            nouns.append(raw[:1].upper() + raw[1:])
+            if len(nouns) >= limit:
+                break
+        return nouns
 
     def _classify_intent(self, lowered: str) -> Intent:
         for intent, pattern in _INTENT_RULES:

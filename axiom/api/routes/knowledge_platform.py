@@ -7,10 +7,10 @@ endpoints reuse the existing ``approve_hitl`` RBAC action; nothing an ingestion
 produces becomes active knowledge without an explicit engineer approval.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.middleware.auth import resolve_security_context
 from api.routes.deps import knowledge_platform
@@ -30,6 +30,16 @@ class IngestRequest(BaseModel):
 class PendingDecisionRequest(BaseModel):
     decision: str  # approve | reject
     note: str = ""
+
+
+class RuleProposal(BaseModel):
+    """A proposed engineering rule ("IF any `when` signal appears, THEN `then`")."""
+    name: str = Field(..., min_length=3)
+    when: List[str] = Field(..., min_length=1, description="Lowercase trigger substrings")
+    then: str = Field(..., min_length=3, description="The engineering decision to apply")
+    rationale: str = ""
+    domain: str = "Software Engineering"
+    standards: List[str] = Field(default_factory=list)
 
 
 @router.get("")
@@ -104,6 +114,23 @@ async def ingest_document(
         industry=req.industry,
         tenant_id=req_ctx.tenant.tenant_id,
         submitted_by=req_ctx.user.user_id,
+    )
+    return {"pending_id": pending_id, "status": "pending"}
+
+
+@router.post("/rules/propose")
+async def propose_rule(
+    req: RuleProposal,
+    req_ctx: RequestContext = Depends(resolve_security_context),
+):
+    """Propose a NEW engineering rule for human review. It enters the pending
+    queue and does NOT affect any solution until an admin approves it via
+    ``/pending/{id}/decision`` — after which it fires on the next request
+    automatically. Human-gated growth (Charter §1.3): never auto-commits."""
+    pending_id = knowledge_platform.rules.propose(
+        name=req.name, when=[w.lower() for w in req.when], then=req.then,
+        rationale=req.rationale, domain=req.domain, standards=req.standards,
+        tenant_id=req_ctx.tenant.tenant_id, submitted_by=req_ctx.user.user_id,
     )
     return {"pending_id": pending_id, "status": "pending"}
 

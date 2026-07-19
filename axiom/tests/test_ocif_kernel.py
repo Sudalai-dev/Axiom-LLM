@@ -163,5 +163,9 @@ def test_hospital_and_waterpump_requests_produce_different_solutions():
     assert pump_out.solution_json["architecture_overview"] != hospital_out.solution_json["architecture_overview"]
 
     # The ER model itself must be domain-appropriate, not generic TENANT/USER/RESOURCE.
-    assert "DEVICE" in pump_out.solution_json["database_design"] or "TELEMETRY" in pump_out.solution_json["database_design"]
+    # Phase 5: the ER is now derived from the request's OWN entities, so it names
+    # pump-domain nouns (PUMP/COMPRESSOR/EQUIPMENT) rather than the industry
+    # pattern's generic DEVICE/TELEMETRY (either is domain-appropriate; both pass).
+    pump_db = pump_out.solution_json["database_design"]
+    assert any(t in pump_db for t in ("PUMP", "COMPRESSOR", "EQUIPMENT", "DEVICE", "TELEMETRY"))
     assert "PATIENT" in hospital_out.solution_json["database_design"]

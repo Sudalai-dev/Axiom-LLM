@@ -70,6 +70,24 @@ class MemoryEngine(CognitiveEngine):
         feedback_notes = self.learning_store.recent_feedback(context.tenant_id, context.project)
         feedback_entries = [f"User rated a prior response {n.rating:+d}: {n.note}" for n in feedback_notes if n.note]
 
+        # Structured recall (Phase 6): the same recall as `learning`/`feedback`,
+        # but keeping each record's title/entities/trade-offs/confidence so the
+        # synthesizer can reuse-and-adapt the prior design and let feedback shift
+        # the next solution — genuine influence, not a cosmetic sentence.
+        recalled = [
+            {
+                "title": rec.solution_title,
+                "intent": rec.intent,
+                "confidence": rec.confidence,
+                "entities": list(rec.entities),
+                "tradeoffs": list(rec.tradeoffs),
+            }
+            for rec in similar
+        ]
+        feedback_signals = [
+            {"rating": n.rating, "note": n.note} for n in feedback_notes if n.note
+        ]
+
         context.memory = MemoryFrame(
             working={
                 "correlation_id": context.correlation_id,
@@ -82,6 +100,8 @@ class MemoryEngine(CognitiveEngine):
             decisions=list(self._decision_memory[proj_key][-_MAX_ENTRIES:]),
             learning=(learning_entries + list(self._learning_memory[proj_key]))[-_MAX_ENTRIES:],
             feedback=(feedback_entries + list(self._feedback_memory[proj_key]))[-_MAX_ENTRIES:],
+            recalled=recalled,
+            feedback_signals=feedback_signals,
         )
 
         prior = len(context.memory.reasoning) + len(context.memory.decisions)

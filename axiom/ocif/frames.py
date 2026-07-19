@@ -96,6 +96,9 @@ class ContextFrame(OCIFBaseModel):
     """Intent understanding — what is being asked, in what context (Engine 2)."""
     intent: Intent = Intent.GENERAL_ENGINEERING
     entities: List[str] = Field(default_factory=list)
+    # Concrete domain nouns harvested from the request (patient, bed, loomweaver…),
+    # separate from tech entities — drives per-project ER/class diagrams (Phase 5).
+    domain_entities: List[str] = Field(default_factory=list)
     actors: List[str] = Field(default_factory=list)
     use_cases: List[UseCase] = Field(default_factory=list)
     project: str = "default"
@@ -148,6 +151,13 @@ class MemoryFrame(OCIFBaseModel):
     decisions: List[str] = Field(default_factory=list)
     learning: List[str] = Field(default_factory=list)
     feedback: List[str] = Field(default_factory=list)
+    # Structured recall (Phase 6 — learning loop). `learning`/`feedback` above
+    # are human-readable strings for prompts/traces; these carry the same recall
+    # as structured records so the deterministic synthesizer can genuinely REUSE
+    # a prior validated design (its title/entities/trade-offs) and let feedback
+    # shift the next solution — not just decorate one sentence.
+    recalled: List[Dict[str, Any]] = Field(default_factory=list)
+    feedback_signals: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ProjectUnderstandingFrame(OCIFBaseModel):
@@ -233,6 +243,7 @@ class SolutionDocument(OCIFBaseModel):
     executive_summary: str = ""
     problem_statement: str = ""
     actors: List[str] = Field(default_factory=list)  # stakeholders/actors surfaced for System Context visualization
+    domain_entities: List[str] = Field(default_factory=list)  # request's concrete nouns → per-project ER/class diagrams
     requirements_analysis: str = ""
     recommended_solution: str = ""
     architecture_overview: str = ""          # includes Mermaid architecture diagram
@@ -291,8 +302,13 @@ class ReasoningResult(OCIFBaseModel):
 class ValidationResult(OCIFBaseModel):
     """Fail-closed verdict of the Validation Engine (Engine 7)."""
     passed: bool = False
+    # Self-check terminal state (Phase 7 / Charter §9): `accepted` (clean),
+    # `accepted-with-warning` (shipped after a self-correction / soft concern),
+    # or `blocked` (hard issue, fails back to the kernel for regeneration).
+    terminal_state: str = "accepted"
     checks_performed: List[str] = Field(default_factory=list)
     issues: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
     corrections_made: List[str] = Field(default_factory=list)
     corrected_solution: Optional[SolutionDocument] = None
 
