@@ -805,6 +805,10 @@
         .pdiagram-body { flex: 1; overflow-x: auto; text-align: center; }
         .pdiagram-body .mermaid-diagram svg { max-width: 100%; height: auto; }
         .pdiagram-caption { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+        .pdiagram-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .pdiagram-dl { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+        .pdiagram-dl:hover { border-color: var(--text-primary); color: var(--text-primary); }
+        .pdiagram-dl:disabled { opacity: 0.5; cursor: default; }
 
         /* Solution Map — the user-facing Octagonal Engineering Visualization */
         .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; box-shadow: var(--bevel-lifted); }
@@ -3215,25 +3219,105 @@
 
             const cards = diagrams.map((d, i) => {
                 const blockId = `pdiag-${blueprintId}-${i}`;
+                // Per-diagram filename: "<domain>-<type>" → one downloadable image
+                // per octagon layer (e.g. perception-state_machine.svg).
+                const fname = sanitizeFilename(`${d.domain || d.stage || 'domain'}-${d.diagram_type || 'diagram'}`);
                 return `
-                    <div class="pdiagram-card">
+                    <div class="pdiagram-card" data-filename="${escapeHtml(fname)}">
                         <div class="pdiagram-head">
                             <span class="pdiagram-domain">${escapeHtml(d.domain || d.stage || '')}</span>
                             <span class="pdiagram-type">${escapeHtml(d.diagram_type || '')}</span>
                         </div>
                         <div class="pdiagram-body"><pre><code class="language-mermaid" id="${blockId}">${escapeHtml(d.mermaid || '')}</code></pre></div>
                         <div class="pdiagram-caption">${escapeHtml(d.caption || '')}</div>
+                        <div class="pdiagram-actions">
+                            <button type="button" class="pdiagram-dl" data-fmt="svg" title="Download this diagram as a vector SVG image">⬇ SVG</button>
+                            <button type="button" class="pdiagram-dl" data-fmt="png" title="Download this diagram as a PNG image">⬇ PNG</button>
+                        </div>
                     </div>`;
             }).join('');
 
             container.innerHTML = `
                 <div class="pdiagram-header">
                     <span class="pdiagram-title">🖼 Engineering Blueprint — 8 Domain Diagrams</span>
-                    <span class="pdiagram-hint">One diagram per octagon domain</span>
+                    <span class="pdiagram-hint">One downloadable image per octagon domain</span>
                 </div>
                 <div class="pdiagram-grid">${cards}</div>`;
 
             renderMermaidIn(container);
+
+            // Wire each card's download buttons. The rendered <svg> is looked up
+            // lazily at click time (mermaid renders asynchronously above), so a
+            // click before render simply reports "not ready yet".
+            container.querySelectorAll('.pdiagram-card').forEach(card => {
+                const fname = card.getAttribute('data-filename') || 'diagram';
+                card.querySelectorAll('.pdiagram-dl').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (btn.dataset.fmt === 'png') downloadDiagramPng(card, fname);
+                        else downloadDiagramSvg(card, fname);
+                    });
+                });
+            });
+        }
+
+        // -- Per-diagram image download (client-side; no backend round-trip) ----
+
+        function sanitizeFilename(s) {
+            return (s || 'diagram').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 60).toLowerCase() || 'diagram';
+        }
+
+        function serializeCardSvg(card) {
+            const svg = card ? card.querySelector('.pdiagram-body svg') : null;
+            if (!svg) return null;
+            const clone = svg.cloneNode(true);
+            if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            return { svg, markup: new XMLSerializer().serializeToString(clone) };
+        }
+
+        function triggerBlobDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function downloadDiagramSvg(card, filename) {
+            const ser = serializeCardSvg(card);
+            if (!ser) { showToast('Diagram not rendered yet — try again in a moment.', 'error'); return; }
+            const data = '<?xml version="1.0" encoding="UTF-8"?>\n' + ser.markup;
+            triggerBlobDownload(new Blob([data], { type: 'image/svg+xml;charset=utf-8' }), filename + '.svg');
+        }
+
+        function downloadDiagramPng(card, filename) {
+            const ser = serializeCardSvg(card);
+            if (!ser) { showToast('Diagram not rendered yet — try again in a moment.', 'error'); return; }
+            const rect = ser.svg.getBoundingClientRect();
+            const scale = 2; // 2x for a crisp raster
+            const w = Math.max(1, Math.ceil(rect.width)) * scale;
+            const h = Math.max(1, Math.ceil(rect.height)) * scale;
+            const img = new Image();
+            const url = URL.createObjectURL(new Blob([ser.markup], { type: 'image/svg+xml;charset=utf-8' }));
+            const fail = () => { URL.revokeObjectURL(url); showToast('PNG export unavailable for this diagram — use the SVG download instead.', 'error'); };
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    // Flatten onto the diagram's own background so the PNG isn't transparent.
+                    const bg = getComputedStyle(document.body).getPropertyValue('--bg-secondary').trim() || '#161616';
+                    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    canvas.toBlob(function(blob) {
+                        URL.revokeObjectURL(url);
+                        if (blob) triggerBlobDownload(blob, filename + '.png');
+                        else showToast('PNG export unavailable for this diagram — use the SVG download instead.', 'error');
+                    }, 'image/png');
+                } catch (_) { fail(); }
+            };
+            img.onerror = fail;
+            img.src = url;
         }
 
         function renderSolutionMap(blueprintId) {
