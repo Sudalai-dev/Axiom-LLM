@@ -302,8 +302,13 @@ class ReasoningResult(OCIFBaseModel):
 class ValidationResult(OCIFBaseModel):
     """Fail-closed verdict of the Validation Engine (Engine 7)."""
     passed: bool = False
+    # Self-check terminal state (Phase 7 / Charter §9): `accepted` (clean),
+    # `accepted-with-warning` (shipped after a self-correction / soft concern),
+    # or `blocked` (hard issue, fails back to the kernel for regeneration).
+    terminal_state: str = "accepted"
     checks_performed: List[str] = Field(default_factory=list)
     issues: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
     corrections_made: List[str] = Field(default_factory=list)
     corrected_solution: Optional[SolutionDocument] = None
 

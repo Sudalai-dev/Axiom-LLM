@@ -22,6 +22,11 @@ from ocif.frames import (
     KnowledgeFrame,
     Plan,
     ProjectUnderstandingFrame,
+    ReasoningResult,
+    Risk,
+    RoadmapPhase,
+    SolutionDocument,
+    TechChoice,
 )
 
 
@@ -287,3 +292,77 @@ def test_phase4_human_gated_rule_growth(tmp_path):
         platform_standards=[], rules_applied=fired, domains=domains,
     )
     assert "vibration" in doc.architecture_overview.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — Self-check (Charter §9): the Validation engine rejects/repairs
+# generic-template output for a concrete request, and passes a genuinely
+# generic one cleanly.
+# ---------------------------------------------------------------------------
+
+def _validate_draft(draft: SolutionDocument, task: str):
+    from ocif.engines.validation import ValidationEngine
+
+    ctx = CognitiveContext(task=task)
+    ctx.reasoning = ReasoningResult(solution_draft=draft, confidence=0.8)
+    asyncio.run(ValidationEngine()._run(ctx))
+    return ctx.validation, ctx.reasoning.solution_draft
+
+
+def _complete_draft(**overrides) -> SolutionDocument:
+    """A structurally complete draft (all list sections filled) so only the
+    genericity self-check under test drives the verdict."""
+    base = dict(
+        title="Solution",
+        executive_summary="This document presents a production-ready engineering solution.",
+        problem_statement="Build a system that satisfies the stated requirements.",
+        recommended_solution="Adopt a standard layered architecture with typed contracts.",
+        database_design="A normalized relational store with audit columns.",
+        technology_stack=[TechChoice(layer="API", choice="FastAPI", rationale="typed, async")],
+        implementation_roadmap=[RoadmapPhase(phase="Phase 1", items=["Foundation"])],
+        risk_assessment=[Risk(risk="Scope creep", mitigation="Change control")],
+        future_enhancements=["Multi-region deployment"],
+    )
+    base.update(overrides)
+    return SolutionDocument(**base)
+
+
+def test_phase7_generic_output_for_concrete_request_is_flagged_and_covered():
+    """A concrete request (real entities) whose draft mentions none of them has
+    collapsed onto a generic template. The self-check must repair the narrative
+    to cover the entities and record an `accepted-with-warning` terminal state."""
+    draft = _complete_draft(domain_entities=["Turbine", "Rotor", "Bearing"])
+    verdict, covered = _validate_draft(draft, task="Design a turbine condition monitor")
+
+    assert verdict.passed                       # repaired, not fail-looped
+    assert verdict.terminal_state == "accepted-with-warning"
+    assert verdict.warnings
+    # The real entities now surface in the narrative anchors.
+    assert "Turbine" in covered.executive_summary
+    assert "Turbine" in covered.recommended_solution
+
+
+def test_phase7_generic_request_passes_clean():
+    """A genuinely generic request (no concrete entities) has nothing to cover —
+    it must pass with a clean `accepted` state and no warnings."""
+    draft = _complete_draft(domain_entities=[])
+    verdict, _ = _validate_draft(draft, task="Please build a system.")
+
+    assert verdict.passed
+    assert verdict.terminal_state == "accepted"
+    assert not verdict.warnings
+
+
+def test_phase7_covered_concrete_request_is_not_flagged():
+    """A concrete request whose draft ALREADY reflects its entities must pass
+    clean — the self-check only fires on genuine genericity, never as noise."""
+    draft = _complete_draft(
+        domain_entities=["Patient", "Appointment"],
+        executive_summary="A portal managing Patient records and Appointment scheduling.",
+        recommended_solution="Adopt a layered architecture around Patient and Appointment domains.",
+    )
+    verdict, _ = _validate_draft(draft, task="Design a patient appointment portal")
+
+    assert verdict.passed
+    assert verdict.terminal_state == "accepted"
+    assert not verdict.warnings

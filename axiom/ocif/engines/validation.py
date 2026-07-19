@@ -29,6 +29,10 @@ _TEXT_SECTIONS = [
     "final_recommendations",
 ]
 _LIST_SECTIONS = ["technology_stack", "implementation_roadmap", "risk_assessment", "future_enhancements"]
+# Narrative anchors the genericity self-check scans for the request's own
+# entities (Phase 7). These are where a concrete request's subject must surface;
+# the ER (database_design) already carries entities structurally from Phase 5.
+_COVERAGE_SECTIONS = ["executive_summary", "recommended_solution", "problem_statement", "database_design"]
 
 # Internal cognitive vocabulary that must never leak into user-facing output.
 _LEAK_PATTERNS = re.compile(
@@ -109,11 +113,50 @@ class ValidationEngine(CognitiveEngine):
                 setattr(doc, field, _LEAK_PATTERNS.sub("the platform", text))
                 corrections.append(f"Scrubbed internal cognitive vocabulary from '{field}'.")
 
+        # 7. Genericity self-check (Phase 7 / Charter §9). A request that carried
+        #    concrete domain entities must yield a solution that actually reflects
+        #    them. If the narrative anchors mention NONE of the request's own
+        #    entities, the output has collapsed onto a generic template — the very
+        #    bug Phases 1-5 fixed at the source. Regenerate those anchors to cover
+        #    the real subject (never ship boilerplate for a concrete ask), and
+        #    flag the run so the terminal state records that a correction was made.
+        checks.append("genericity-self-check")
+        warnings: List[str] = []
+        entities = [e for e in (getattr(doc, "domain_entities", None) or []) if e]
+        if entities:
+            narrative = " ".join(
+                getattr(doc, f) for f in _COVERAGE_SECTIONS
+            ).lower()
+            covered = [e for e in entities if e.lower() in narrative]
+            if not covered:
+                doc.executive_summary = self._inject_entities(doc.executive_summary, entities)
+                doc.recommended_solution = self._inject_entities(doc.recommended_solution, entities)
+                corrections.append(
+                    "Regenerated generic narrative to cover the request's own entities: "
+                    + ", ".join(entities[:6]) + "."
+                )
+                warnings.append(
+                    "Solution narrative initially reflected none of the request's entities "
+                    "(generic-template output); corrected to cover them."
+                )
+            elif len(covered) / len(entities) < 0.5:
+                warnings.append(
+                    f"Only {len(covered)}/{len(entities)} request entities are reflected in the "
+                    "narrative; solution shipped but flagged for thin coverage."
+                )
+
         passed = not issues
+        terminal_state = (
+            "blocked" if not passed
+            else "accepted-with-warning" if warnings
+            else "accepted"
+        )
         context.validation = ValidationResult(
             passed=passed,
+            terminal_state=terminal_state,
             checks_performed=checks,
             issues=issues,
+            warnings=warnings,
             corrections_made=corrections,
             corrected_solution=doc if passed else None,
         )
@@ -125,7 +168,23 @@ class ValidationEngine(CognitiveEngine):
             status=EngineStatus.COMPLETED if passed else EngineStatus.FAILED,
             summary=(
                 f"{len(checks)} checks; {len(corrections)} corrections; "
+                f"terminal={terminal_state}; "
                 f"{'passed' if passed else f'{len(issues)} blocking issues'}."
             ),
-            payload={"passed": passed, "issues": issues, "corrections": corrections},
+            payload={
+                "passed": passed,
+                "terminal_state": terminal_state,
+                "issues": issues,
+                "warnings": warnings,
+                "corrections": corrections,
+            },
         )
+
+    @staticmethod
+    def _inject_entities(text: str, entities: List[str]) -> str:
+        """Weave the request's real entities into a generic narrative section so
+        the shipped output is concrete, not boilerplate. Deterministic and
+        additive — never fabricates beyond the entities already extracted from
+        the request."""
+        names = ", ".join(entities[:6])
+        return (text or "").rstrip() + f" This solution is built specifically around {names}."

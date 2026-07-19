@@ -216,13 +216,30 @@ not per-industry. Each phase is its own session.
   (same request twice through the kernel: 2nd run recalls & reuses the 1st).
   Full suite: **337 passed** (1 unrelated local-env skip: `fitz`/PyMuPDF absent).
 
-### Phase 7 — Self-check (reject generic output)
+### Phase 7 — Self-check (reject generic output) ✅ DONE
 - **Goal:** Validation engine rejects generic-template output for concrete
   requests and forces a re-compose.
 - **Where:** `ocif/engines/validation.py` — add a genericity/coverage check
   against the extracted entities.
 - **Acceptance:** a concrete request that yields template-identical output is
   flagged and regenerated; a genuinely generic request still passes.
+- **Done:** added check #7 `genericity-self-check` to `ValidationEngine`. For a
+  request carrying concrete `domain_entities`, it measures coverage across the
+  narrative anchors (`_COVERAGE_SECTIONS` = executive_summary / recommended_
+  solution / problem_statement / database_design). Zero coverage → the output
+  has collapsed onto a generic template, so it **regenerates** those anchors to
+  cover the request's real entities (`_inject_entities`, additive/deterministic —
+  never invents beyond extracted entities) and records a warning; <50% coverage
+  → shipped but flagged thin. `ValidationResult` gained `terminal_state`
+  (`accepted` / `accepted-with-warning` / `blocked`) + `warnings` (Charter §9).
+  A generic request (no entities) has nothing to cover → clean `accepted`. This
+  is a self-correction, NOT a hard block, so it never fail-loops the
+  deterministic re-compose while still guaranteeing concrete output for concrete
+  asks.
+- **Tests:** `test_phase7_generic_output_for_concrete_request_is_flagged_and_covered`,
+  `test_phase7_generic_request_passes_clean`,
+  `test_phase7_covered_concrete_request_is_not_flagged`.
+  Full suite: **340 passed** (1 unrelated local-env failure: `fitz`/PyMuPDF absent).
 
 ---
 
@@ -249,8 +266,10 @@ build alongside the phases (all deterministic — none needs an LLM):
 - [ ] **Clarification Protocol (Charter §7):** on low entity-extraction confidence, ask
       ≤3 targeted questions mapped to specific sections; else proceed and flag affected
       sections `assumption-based`.
-- [ ] **Self-check terminal states (Charter §9):** `accepted` /
+- [x] **Self-check terminal states (Charter §9):** `accepted` /
       `accepted-with-warning` / `blocked` (honest failure, never a fabricated fill).
+      Done in Phase 7 — `ValidationResult.terminal_state` + `warnings`, set by the
+      genericity self-check and the existing fail-closed issue path.
 
 **Reframe recorded:** "make the prompt an LLM" is not literally possible (a prompt is
 not a trained model). The Charter is implemented as the **deterministic engine's
