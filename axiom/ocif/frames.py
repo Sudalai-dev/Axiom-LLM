@@ -151,6 +151,13 @@ class MemoryFrame(OCIFBaseModel):
     decisions: List[str] = Field(default_factory=list)
     learning: List[str] = Field(default_factory=list)
     feedback: List[str] = Field(default_factory=list)
+    # Structured recall (Phase 6 — learning loop). `learning`/`feedback` above
+    # are human-readable strings for prompts/traces; these carry the same recall
+    # as structured records so the deterministic synthesizer can genuinely REUSE
+    # a prior validated design (its title/entities/trade-offs) and let feedback
+    # shift the next solution — not just decorate one sentence.
+    recalled: List[Dict[str, Any]] = Field(default_factory=list)
+    feedback_signals: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ProjectUnderstandingFrame(OCIFBaseModel):

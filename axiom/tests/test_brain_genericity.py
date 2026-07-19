@@ -165,6 +165,86 @@ def test_phase5_entity_driven_er_diagram():
     assert "erdiagram" in _db(["Widget"]).lower()
 
 
+def test_phase6_recall_reuses_prior_design():
+    """Learning loop (Charter §8): a recalled prior validated solution is
+    genuinely REUSED — named in the recommendation, reconciled as a roadmap
+    deliverable, and its trade-offs carried into the risk register — so a second
+    similar request measurably differs from the same request seen cold."""
+    synth = SolutionSynthesizer()
+    frame = ContextFrame(intent="solution_design", entities=["patient", "record"],
+                         actors=["Clinician"], use_cases=[])
+    plan = Plan(functional_requirements=[], non_functional_requirements=[])
+    kf = KnowledgeFrame()
+    understanding = ProjectUnderstandingFrame(industry="healthcare")
+
+    cold = synth.synthesize(frame, plan, kf, None, understanding)
+    recalled = [{
+        "title": "Patient Records Portal",
+        "intent": "solution_design",
+        "confidence": 0.91,
+        "entities": ["patient", "record"],
+        "tradeoffs": ["Chose Postgres over Mongo for transactional integrity."],
+    }]
+    warm = synth.synthesize(frame, plan, kf, None, understanding, recalled=recalled)
+
+    # The prior design is named and reused, not re-derived from the pattern.
+    assert "Patient Records Portal" in warm.recommended_solution
+    assert "reuses and adapts" in warm.recommended_solution.lower()
+    assert "Patient Records Portal" not in cold.recommended_solution
+    # Reconcile-with-prior is an explicit Phase-1 roadmap deliverable.
+    p1_items = warm.implementation_roadmap[0].items
+    assert any("Patient Records Portal" in it for it in p1_items)
+    # The prior trade-off is carried into the risk register as a known decision.
+    warm_risks = " ".join(r.risk for r in warm.risk_assessment)
+    assert "Postgres" in warm_risks
+    # Cold vs warm are measurably different.
+    assert warm.recommended_solution != cold.recommended_solution
+    assert len(warm.risk_assessment) > len(cold.risk_assessment)
+
+
+def test_phase6_feedback_shifts_output():
+    """Explicit user feedback must shift the next solution: each note lands on
+    the risk register as a must-address item (negative → high likelihood)."""
+    synth = SolutionSynthesizer()
+    frame = ContextFrame(intent="solution_design", entities=["portal"], actors=["User"], use_cases=[])
+    plan = Plan(functional_requirements=[], non_functional_requirements=[])
+    kf = KnowledgeFrame()
+    understanding = ProjectUnderstandingFrame(industry="generic_software")
+
+    base = synth.synthesize(frame, plan, kf, None, understanding)
+    feedback = [{"rating": -1, "note": "The previous roadmap underestimated data migration effort."}]
+    shifted = synth.synthesize(frame, plan, kf, None, understanding, feedback_signals=feedback)
+
+    base_risks = " ".join(r.risk for r in base.risk_assessment)
+    shifted_risks = [r for r in shifted.risk_assessment if "data migration effort" in r.risk]
+    assert "data migration effort" not in base_risks
+    assert len(shifted_risks) == 1
+    assert shifted_risks[0].likelihood == "high"  # negative feedback → urgent
+
+
+def test_phase6_learning_loop_end_to_end(tmp_path):
+    """Full loop through the kernel: the same request run twice against a durable
+    store must, on the SECOND run, recall and reuse the first's validated design
+    (the first run had nothing to recall)."""
+    from memory.learning_store import LearningStore
+    from ocif import OctagonalKernel
+    from ocif.engines.memory import MemoryEngine
+
+    store = LearningStore(db_path=str(tmp_path / "learn.db"))
+    kernel = OctagonalKernel(memory=MemoryEngine(learning_store=store))
+    req = ("Design a hospital patient records portal that stores medication history "
+           "for clinicians with appointment scheduling")
+
+    first = asyncio.run(kernel.process(req, tenant_id="t9", project="p9", conversation_id="c1"))
+    second = asyncio.run(kernel.process(req, tenant_id="t9", project="p9", conversation_id="c2"))
+
+    assert not first.is_conversational and not second.is_conversational
+    first_rec = first.solution_json["recommended_solution"].lower()
+    second_rec = second.solution_json["recommended_solution"].lower()
+    assert "reuses and adapts" not in first_rec   # nothing to recall yet
+    assert "reuses and adapts" in second_rec       # second reuses the first
+
+
 def test_phase4_human_gated_rule_growth(tmp_path):
     """A proposed rule must NOT fire until approved; once approved it fires on
     the next request with no restart (Phase 4 / Charter §1.3)."""

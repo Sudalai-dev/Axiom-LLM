@@ -442,6 +442,8 @@ class SolutionSynthesizer:
         platform_standards: Optional[List[Dict[str, Any]]] = None,
         rules_applied: Optional[List[Dict[str, Any]]] = None,
         domains: Optional[List[str]] = None,
+        recalled: Optional[List[Dict[str, Any]]] = None,
+        feedback_signals: Optional[List[Dict[str, Any]]] = None,
     ) -> SolutionDocument:
         # `platform_standards` and `rules_applied` come from the ecosystem
         # Knowledge Platform (see _run). They FIRE PER REQUEST — keyed on the
@@ -451,9 +453,20 @@ class SolutionSynthesizer:
         # architecture content instead of a frozen industry template.
         # When empty (no platform wired), every section degrades to exactly the
         # prior industry-pattern behaviour, so existing output is unchanged.
+        #
+        # `recalled` / `feedback_signals` come from the durable LearningStore via
+        # the Memory Engine (Phase 6 — learning loop). A recalled prior solution
+        # for a similar request genuinely REUSES-and-adapts that design (named in
+        # the recommendation, its trade-offs carried into the risk register, an
+        # explicit reconcile-with-prior roadmap item), and negative feedback adds
+        # a must-address risk — so a second similar request measurably differs
+        # from the same request seen cold. Empty → output unchanged.
         pattern = select_pattern(understanding)
         standards = platform_standards or []
         rules = rules_applied or []
+        recalled = [r for r in (recalled or []) if r and r.get("title")]
+        feedback_signals = [f for f in (feedback_signals or []) if f and f.get("note")]
+        prior = recalled[0] if recalled else None
         sec_rules, design_rules = self._partition_rules(rules)
         # Standards this specific request must comply with (industry-mandatory +
         # standards named by the rules that fired) — drives risk + roadmap.
@@ -471,7 +484,7 @@ class SolutionSynthesizer:
             actors=list(frame.actors),
             domain_entities=domain_entities,
             requirements_analysis=self._requirements_analysis(frame, plan),
-            recommended_solution=self._recommended_solution(pattern, standards, rules),
+            recommended_solution=self._recommended_solution(pattern, standards, rules, prior),
             architecture_overview=self._architecture_overview(pattern, design_rules),
             technology_stack=[TechChoice(layer=l, choice=c, rationale=r) for l, c, r in pattern.stack],
             component_design=self._component_design(components),
@@ -482,10 +495,10 @@ class SolutionSynthesizer:
             deployment_architecture=self._deployment_architecture(pattern),
             monitoring_strategy=self._monitoring_strategy(pattern),
             testing_strategy=self._testing_strategy(pattern),
-            implementation_roadmap=self._roadmap(frame, pattern, compliance),
-            risk_assessment=self._risks(pattern, compliance),
+            implementation_roadmap=self._roadmap(frame, pattern, compliance, prior),
+            risk_assessment=self._risks(pattern, compliance, prior, feedback_signals),
             future_enhancements=self._future(pattern),
-            final_recommendations=self._final(pattern, knowledge, learning, rules, standards),
+            final_recommendations=self._final(pattern, knowledge, learning, rules, standards, recalled, feedback_signals),
         )
         return doc
 
@@ -616,7 +629,7 @@ class SolutionSynthesizer:
         "banking_fintech": "eventual-consistency balance updates without a ledger (reconciliation nightmares) and synchronous third-party fraud calls blocking every transaction (latency/availability risk)",
     }
 
-    def _recommended_solution(self, pattern: IndustryPattern, standards=None, rules=None) -> str:
+    def _recommended_solution(self, pattern: IndustryPattern, standards=None, rules=None, prior=None) -> str:
         alt = self._ALTERNATIVES_BY_PATTERN_KEY.get(
             pattern.key, "simpler architectures that fail the stated non-functional requirements"
         )
@@ -638,7 +651,25 @@ class SolutionSynthesizer:
             if rules:
                 parts.append(f"{len(rules)} deterministic engineering rule(s) fired by your requirements")
             grounding = " This design is shaped by " + " and ".join(parts) + "."
-        return base + grounding
+        # Phase 6 — reuse the prior validated design instead of re-deriving it.
+        # Naming the recalled solution here makes the second similar request
+        # measurably build on the first, not restart from the generic pattern.
+        continuity = self._continuity_clause(prior)
+        return base + grounding + continuity
+
+    @staticmethod
+    def _continuity_clause(prior) -> str:
+        if not prior:
+            return ""
+        title = prior.get("title", "")
+        conf = prior.get("confidence")
+        conf_txt = f" (validated at confidence {conf:.2f})" if isinstance(conf, (int, float)) else ""
+        return (
+            f" **Continuity:** this solution deliberately reuses and adapts the previously "
+            f"validated design **'{title}'**{conf_txt} delivered for a similar request, so the "
+            f"platform builds on proven decisions and their recorded trade-offs rather than "
+            f"re-deriving the architecture from scratch."
+        )
 
     def _architecture_overview(self, pattern: IndustryPattern, design_rules=None) -> str:
         nodes = pattern.components
@@ -789,7 +820,7 @@ class SolutionSynthesizer:
             + pattern.testing_extra
         )
 
-    def _roadmap(self, frame: ContextFrame, pattern: IndustryPattern, compliance_names=None) -> List[RoadmapPhase]:
+    def _roadmap(self, frame: ContextFrame, pattern: IndustryPattern, compliance_names=None, prior=None) -> List[RoadmapPhase]:
         hardening = [
             "Failure handling: retries, buffering, graceful degradation, chaos tests.",
             "Security review: authorization matrix, secrets, penetration checklist.",
@@ -801,12 +832,21 @@ class SolutionSynthesizer:
             hardening.append(
                 f"Compliance validation against {', '.join(compliance_names)} (gap analysis + evidence)."
             )
+        # Phase 6 — when a prior validated design is recalled, reuse is an
+        # explicit Phase-1 deliverable: reconcile against it and migrate
+        # incrementally instead of rebuilding from zero.
+        foundation = [
+            "Repository, CI/CD skeleton, environments, and coding standards.",
+            "Core data model, migrations, and authentication.",
+            "Walking skeleton: thinnest end-to-end slice of the primary use case deployed to staging.",
+        ]
+        if prior and prior.get("title"):
+            foundation.insert(0, (
+                f"Reconcile with the previously delivered '{prior.get('title')}' — reuse its "
+                f"validated components and migrate incrementally rather than rebuilding."
+            ))
         return [
-            RoadmapPhase(phase="Phase 1 — Foundation (weeks 1-2)", items=[
-                "Repository, CI/CD skeleton, environments, and coding standards.",
-                "Core data model, migrations, and authentication.",
-                "Walking skeleton: thinnest end-to-end slice of the primary use case deployed to staging.",
-            ]),
+            RoadmapPhase(phase="Phase 1 — Foundation (weeks 1-2)", items=foundation),
             RoadmapPhase(phase="Phase 2 — Core capability (weeks 3-5)", items=[
                 pattern.roadmap_phase2_focus,
                 "Administration and configuration surfaces.",
@@ -820,7 +860,7 @@ class SolutionSynthesizer:
             ]),
         ]
 
-    def _risks(self, pattern: IndustryPattern, compliance_names=None) -> List[Risk]:
+    def _risks(self, pattern: IndustryPattern, compliance_names=None, prior=None, feedback_signals=None) -> List[Risk]:
         risks = [
             Risk(risk="Scope creep beyond the analyzed use cases", likelihood="medium", impact="medium",
                  mitigation="Change control against the requirements table; new scenarios enter the backlog, not the sprint."),
@@ -840,6 +880,32 @@ class SolutionSynthesizer:
                 risk=f"Non-compliance with {name} for regulated data/operations",
                 likelihood="medium", impact="high", mitigation=mitig,
             ))
+        # Phase 6 — carry forward the recalled design's recorded trade-offs as
+        # known, accepted decisions so this iteration doesn't silently reverse a
+        # prior validated choice.
+        if prior:
+            for tradeoff in [t for t in (prior.get("tradeoffs") or []) if t][:2]:
+                risks.append(Risk(
+                    risk=f"Diverging from a prior validated decision: {tradeoff}",
+                    likelihood="low", impact="medium",
+                    mitigation=(
+                        "Reuse the prior decision unless a new requirement justifies changing it; "
+                        "record the rationale for any deviation."
+                    ),
+                ))
+        # Phase 6 — explicit user feedback on a prior response must shift this
+        # design: each note becomes a must-address item on the risk register.
+        for fb in (feedback_signals or []):
+            note = (fb.get("note") or "").strip()
+            if not note:
+                continue
+            rating = fb.get("rating", 0)
+            likelihood = "high" if isinstance(rating, (int, float)) and rating < 0 else "medium"
+            risks.append(Risk(
+                risk=f"Prior user feedback to address: {note}",
+                likelihood=likelihood, impact="medium",
+                mitigation="This iteration incorporates the feedback into the design and its acceptance criteria.",
+            ))
         return risks
 
     def _future(self, pattern: IndustryPattern) -> List[str]:
@@ -856,6 +922,7 @@ class SolutionSynthesizer:
         self, pattern: IndustryPattern, knowledge: KnowledgeFrame,
         learning: Optional[List[str]] = None,
         rules=None, standards=None,
+        recalled=None, feedback_signals=None,
     ) -> str:
         grounding = (
             f" The design is additionally grounded on {len(knowledge.sources)} internal knowledge "
@@ -872,16 +939,24 @@ class SolutionSynthesizer:
             if n_std:
                 bits.append(f"{n_std} applicable standard(s)")
             rules_note = " This solution was composed against " + " and ".join(bits) + " matched to your requirements."
+        # Phase 6 — prefer the structured recall (drives real reuse above); fall
+        # back to the legacy string learning slice for backward compatibility.
+        n_recalled = len(recalled) if recalled else (len(learning) if learning else 0)
         learning_note = (
-            f" This recommendation stays consistent with {len(learning)} previously validated "
-            f"solution(s) to similar requests learned from past conversations."
-            if learning else ""
+            f" It reuses and stays consistent with {n_recalled} previously validated "
+            f"solution(s) to similar requests learned from past work."
+            if n_recalled else ""
+        )
+        feedback_note = (
+            f" Prior user feedback ({len(feedback_signals)} note(s)) has been folded into the "
+            f"risk register and acceptance criteria."
+            if feedback_signals else ""
         )
         return (
             f"Proceed with the **{pattern.name}** as specified. Start with the Phase 1 walking "
             f"skeleton to de-risk integration early, keep every component behind a typed contract so "
             f"individual choices remain replaceable, and treat the non-functional requirements as "
-            f"acceptance criteria — not aspirations.{grounding}{rules_note}{learning_note}"
+            f"acceptance criteria — not aspirations.{grounding}{rules_note}{learning_note}{feedback_note}"
         )
 
 
@@ -938,6 +1013,11 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         plan = context.plan
         knowledge = context.knowledge or KnowledgeFrame()
         learning = context.memory.learning if context.memory else []
+        # Phase 6 — structured recall of prior validated solutions + explicit
+        # feedback, so the synthesizer can genuinely reuse-and-adapt the earlier
+        # design and let feedback shift this one (not just decorate a sentence).
+        recalled = context.memory.recalled if context.memory else []
+        feedback_signals = context.memory.feedback_signals if context.memory else []
         understanding = context.project_understanding
 
         # 1. Run Pre-Inference Classification Pipeline
@@ -1018,6 +1098,8 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             platform_standards=platform_standards,
             rules_applied=rules_applied,
             domains=domains,
+            recalled=recalled,
+            feedback_signals=feedback_signals,
         )
         provider_used = "internal-synthesizer"
         model_used = "axiom-solution-synthesizer"

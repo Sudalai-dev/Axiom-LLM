@@ -194,12 +194,27 @@ not per-industry. Each phase is its own session.
   request's own pump-domain entities. 324 tests green.
 - **Deferred:** sequence diagram already uses actors; per-entity sequence flows later.
 
-### Phase 6 — Learning loop (make recall matter)
+### Phase 6 — Learning loop (make recall matter) ✅ DONE
 - **Goal:** recalled prior solutions (durable `memory/learning_store.py`) actually
   influence the new design, not just decorate `final_recommendations`.
 - **Where:** `MemoryEngine` recall → weight into the Phase-2 compositor.
 - **Acceptance:** a second similar request measurably reuses/adapts the first's
   validated design; feedback notes shift subsequent output.
+- **Done:** `MemoryFrame` gained structured `recalled` + `feedback_signals`
+  (alongside the legacy string `learning`/`feedback`); `MemoryEngine` now emits
+  the recall as structured records (title/entities/trade-offs/confidence), not
+  just prose. `SolutionSynthesizer.synthesize(recalled=…, feedback_signals=…)`
+  genuinely REUSES the top recalled design: names it in **Recommended Solution**
+  ("reuses and adapts '<title>'"), adds an explicit **reconcile-with-prior**
+  Phase-1 roadmap deliverable, and carries its recorded trade-offs into the
+  **Risk Assessment** as known-decision risks. Explicit user feedback lands on
+  the risk register as a must-address item (negative rating → high likelihood).
+  Empty recall → byte-identical prior output (backward-compat test holds).
+- **Tests:** `test_phase6_recall_reuses_prior_design` (cold vs warm divergence +
+  named reuse + carried trade-off), `test_phase6_feedback_shifts_output`
+  (negative feedback → high-likelihood risk), `test_phase6_learning_loop_end_to_end`
+  (same request twice through the kernel: 2nd run recalls & reuses the 1st).
+  Full suite: **337 passed** (1 unrelated local-env skip: `fitz`/PyMuPDF absent).
 
 ### Phase 7 — Self-check (reject generic output)
 - **Goal:** Validation engine rejects generic-template output for concrete
