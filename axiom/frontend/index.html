@@ -2139,7 +2139,10 @@
         })();
 
         if (window.mermaid) {
-            mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+            // flowchart.htmlLabels:false → node labels render as SVG <text>, not
+            // <foreignObject>. foreignObject taints a canvas, which would make
+            // PNG export (downloadDiagramPng) fail for every flowchart diagram.
+            mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose', flowchart: { htmlLabels: false } });
         }
 
         // =====================================================================
@@ -3278,15 +3281,26 @@
             container.querySelectorAll('.pdiagram-card').forEach(card => {
                 const fname = card.getAttribute('data-filename') || 'diagram';
                 card.querySelectorAll('.pdiagram-dl').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        if (btn.dataset.fmt === 'png') downloadDiagramPng(card, fname);
-                        else downloadDiagramSvg(card, fname);
+                    btn.addEventListener('click', async () => {
+                        if (btn.disabled) return;            // re-entrancy guard
+                        btn.disabled = true;
+                        try {
+                            if (btn.dataset.fmt === 'png') await downloadDiagramPng(card, fname);
+                            else downloadDiagramSvg(card, fname);
+                        } finally {
+                            btn.disabled = false;
+                        }
                     });
                 });
             });
         }
 
         // -- Per-diagram image download (client-side; no backend round-trip) ----
+
+        const PNG_SCALE = 2;                 // rasterize at 2x the intrinsic size for crispness
+        const PNG_BG_FALLBACK = '#161616';   // last-resort canvas bg only if --bg-secondary is missing
+        const DIAGRAM_NOT_READY_MSG = 'Diagram not rendered yet — try again in a moment.';
+        const PNG_FALLBACK_MSG = 'PNG export unavailable for this diagram — use the SVG download instead.';
 
         function sanitizeFilename(s) {
             return (s || 'diagram').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 60).toLowerCase() || 'diagram';
@@ -3301,6 +3315,18 @@
             return { svg, markup: new XMLSerializer().serializeToString(clone) };
         }
 
+        // Intrinsic (authoring) size of the diagram, so the PNG isn't tied to the
+        // on-screen size after the responsive `max-width:100%` shrink. Prefer the
+        // viewBox, then width/height attrs, then the laid-out box as a last resort.
+        function svgIntrinsicSize(svg) {
+            const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+            let w = 0, h = 0;
+            if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) { w = vb[2]; h = vb[3]; }
+            if (!w || !h) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+            if (!w || !h) { const r = svg.getBoundingClientRect(); w = r.width; h = r.height; }
+            return { w: Math.max(1, Math.ceil(w)), h: Math.max(1, Math.ceil(h)) };
+        }
+
         function triggerBlobDownload(blob, filename) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3311,39 +3337,41 @@
 
         function downloadDiagramSvg(card, filename) {
             const ser = serializeCardSvg(card);
-            if (!ser) { showToast('Diagram not rendered yet — try again in a moment.', 'error'); return; }
+            if (!ser) { showToast(DIAGRAM_NOT_READY_MSG, 'error'); return; }
             const data = '<?xml version="1.0" encoding="UTF-8"?>\n' + ser.markup;
             triggerBlobDownload(new Blob([data], { type: 'image/svg+xml;charset=utf-8' }), filename + '.svg');
         }
 
+        // Returns a Promise so the click handler can disable the button until the
+        // async rasterize completes (re-entrancy guard).
         function downloadDiagramPng(card, filename) {
-            const ser = serializeCardSvg(card);
-            if (!ser) { showToast('Diagram not rendered yet — try again in a moment.', 'error'); return; }
-            const rect = ser.svg.getBoundingClientRect();
-            const scale = 2; // 2x for a crisp raster
-            const w = Math.max(1, Math.ceil(rect.width)) * scale;
-            const h = Math.max(1, Math.ceil(rect.height)) * scale;
-            const img = new Image();
-            const url = URL.createObjectURL(new Blob([ser.markup], { type: 'image/svg+xml;charset=utf-8' }));
-            const fail = () => { URL.revokeObjectURL(url); showToast('PNG export unavailable for this diagram — use the SVG download instead.', 'error'); };
-            img.onload = function() {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    // Flatten onto the diagram's own background so the PNG isn't transparent.
-                    const bg = getComputedStyle(document.body).getPropertyValue('--bg-secondary').trim() || '#161616';
-                    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-                    ctx.drawImage(img, 0, 0, w, h);
-                    canvas.toBlob(function(blob) {
-                        URL.revokeObjectURL(url);
-                        if (blob) triggerBlobDownload(blob, filename + '.png');
-                        else showToast('PNG export unavailable for this diagram — use the SVG download instead.', 'error');
-                    }, 'image/png');
-                } catch (_) { fail(); }
-            };
-            img.onerror = fail;
-            img.src = url;
+            return new Promise((resolve) => {
+                const ser = serializeCardSvg(card);
+                if (!ser) { showToast(DIAGRAM_NOT_READY_MSG, 'error'); resolve(); return; }
+                const { w, h } = svgIntrinsicSize(ser.svg);
+                const img = new Image();
+                const url = URL.createObjectURL(new Blob([ser.markup], { type: 'image/svg+xml;charset=utf-8' }));
+                const done = () => { URL.revokeObjectURL(url); resolve(); };
+                const fail = () => { showToast(PNG_FALLBACK_MSG, 'error'); done(); };
+                img.onload = function() {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w * PNG_SCALE; canvas.height = h * PNG_SCALE;
+                        const ctx = canvas.getContext('2d');
+                        // Flatten onto the diagram's own background so the PNG isn't transparent.
+                        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-secondary').trim() || PNG_BG_FALLBACK;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        canvas.toBlob(function(blob) {
+                            if (blob) triggerBlobDownload(blob, filename + '.png');
+                            else showToast(PNG_FALLBACK_MSG, 'error');
+                            done();
+                        }, 'image/png');
+                    } catch (_) { fail(); }
+                };
+                img.onerror = fail;
+                img.src = url;
+            });
         }
 
         function renderSolutionMap(blueprintId) {

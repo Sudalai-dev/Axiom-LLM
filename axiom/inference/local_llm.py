@@ -29,6 +29,10 @@ logger = logging.getLogger("AxiomOCIF.LocalLLM")
 # shorter than this is treated as junk and the deterministic text is kept.
 _MIN_SECTION_LEN = 40
 _MIN_THINKING_LEN = 20
+# The model-presence probe is a cheap liveness check; keep its timeout short so
+# an unreachable endpoint fails fast to the deterministic path (never the full
+# generation timeout).
+_AVAILABILITY_PROBE_TIMEOUT_SECONDS = 5
 
 
 class LocalLLMClient:
@@ -50,7 +54,8 @@ class LocalLLMClient:
     def _check_model_present(self) -> bool:
         try:
             req = urllib.request.Request(f"{self.config.base_url}/api/tags", method="GET")
-            with urllib.request.urlopen(req, timeout=min(5, self.config.timeout_seconds)) as resp:
+            probe_timeout = min(_AVAILABILITY_PROBE_TIMEOUT_SECONDS, self.config.timeout_seconds)
+            with urllib.request.urlopen(req, timeout=probe_timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             names = [m.get("name", "") for m in data.get("models", [])]
             want = self.config.model
