@@ -65,6 +65,33 @@ AXIOM_BLUEPRINT_VIEWS: List[BlueprintView] = [
 # Per-view transformation intent, keyed by view (drives the Phase-4 facts packet).
 AXIOM_VIEW_DIAGRAM_INTENT: Dict[str, str] = {v.key: v.intent for v in AXIOM_BLUEPRINT_VIEWS}
 
+# Permitted structural primitives per layer (Phase 4 grounding guard). A model-
+# proposed node is accepted only if it is one of the request's real entities OR
+# one of these generic scaffolding nodes for the layer — anything else is
+# rejected as ungrounded and the layer falls back to the deterministic builder.
+# Kept deliberately small so diagrams stay entity-driven, not primitive-padded.
+_COMMON_PRIMITIVES = ("System",)
+AXIOM_LAYER_PRIMITIVES: Dict[str, tuple] = {
+    "perception": _COMMON_PRIMITIVES + ("Intake", "Recognised"),
+    "context": _COMMON_PRIMITIVES + ("Intake",),
+    "planning": _COMMON_PRIMITIVES + ("Client", "API", "Data Store"),
+    "knowledge": _COMMON_PRIMITIVES,
+    "memory": _COMMON_PRIMITIVES + ("API",),
+    "reasoning": _COMMON_PRIMITIVES,
+    "validation": _COMMON_PRIMITIVES + ("Risk", "Testing", "Monitoring"),
+    "experience": _COMMON_PRIMITIVES + ("Login", "Dashboard"),
+}
+
+
+def _validate_primitives() -> None:
+    keys = {v.key for v in AXIOM_BLUEPRINT_VIEWS}
+    missing = keys - set(AXIOM_LAYER_PRIMITIVES)
+    if missing:
+        raise ValueError(f"AXIOM_LAYER_PRIMITIVES missing view(s): {sorted(missing)}")
+
+
+_validate_primitives()
+
 
 def _apply_env_override(views: List[BlueprintView]) -> List[BlueprintView]:
     """Optional deploy-time reordering/subsetting via AXIOM_BLUEPRINT_VIEWS

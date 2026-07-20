@@ -76,10 +76,22 @@ class LocalLLMClient:
     def chat(
         self, system: str, user: str, *,
         temperature: Optional[float] = None, max_tokens: Optional[int] = None,
+        seed: Optional[int] = None,
     ) -> Optional[str]:
-        """One non-streaming chat turn. Returns the assistant text, or None."""
+        """One non-streaming chat turn. Returns the assistant text, or None.
+        ``seed`` (when set) makes generation reproducible — used for diagram
+        structure so the same request yields the same diagram."""
         if not self.available():
             return None
+        options = {
+            "temperature": self.config.temperature if temperature is None else temperature,
+            "num_predict": self.config.max_tokens if max_tokens is None else max_tokens,
+            # Enlarge the context window so AXIOM's long grounding prompt
+            # isn't truncated by Ollama's 2048-token default.
+            "num_ctx": self.config.context_tokens,
+        }
+        if seed is not None:
+            options["seed"] = seed
         payload = {
             "model": self.config.model,
             "messages": [
@@ -87,13 +99,7 @@ class LocalLLMClient:
                 {"role": "user", "content": user},
             ],
             "stream": False,
-            "options": {
-                "temperature": self.config.temperature if temperature is None else temperature,
-                "num_predict": self.config.max_tokens if max_tokens is None else max_tokens,
-                # Enlarge the context window so AXIOM's long grounding prompt
-                # isn't truncated by Ollama's 2048-token default.
-                "num_ctx": self.config.context_tokens,
-            },
+            "options": options,
         }
         try:
             body = json.dumps(payload).encode("utf-8")
@@ -184,3 +190,53 @@ def draft_reasoning_and_prose(
         if isinstance(val, str) and len(val.strip()) >= _MIN_SECTION_LEN:
             out[key] = val.strip()
     return out or None
+
+
+# Reproducible seed for diagram-structure generation (recorded in the trace).
+DIAGRAM_STRUCTURE_SEED = 7
+
+_DIAGRAM_SYSTEM_PROMPT = (
+    "You are AXIOM's diagram engine. Given a set of typed entities and typed "
+    "relationships for an engineering request, and one OCIF layer with a diagram "
+    "intent, output ONLY the diagram STRUCTURE as a single JSON object:\n"
+    '{"nodes":[{"id":"<name>","type":"<entity type>"}],'
+    '"edges":[{"source":"<name>","target":"<name>","type":"<relationship>"}]}\n'
+    "Hard rules: use ONLY the provided entity names (and, if needed, the listed "
+    "allowed primitives) as node ids — never invent names. Model how the entities "
+    "are handled AT THIS LAYER per the intent. Keep it focused (3-8 nodes). Output "
+    "the JSON object only, no prose, no code fences."
+)
+
+
+def propose_diagram_structure(
+    client: LocalLLMClient,
+    *,
+    layer: str,
+    intent: str,
+    diagram_type: str,
+    typed_entities: list,
+    relationships: list,
+    allowed_primitives: list,
+) -> Optional[Dict[str, Any]]:
+    """Ask the local model to propose diagram structure (nodes + typed edges) for
+    one layer, grounded on the facts packet. Returns the parsed dict (with
+    ``nodes``/``edges`` lists) or None. The caller enforces grounding + emits
+    mermaid deterministically — this only proposes structure."""
+    ents = ", ".join(f'{e.get("name")}({e.get("type")})' for e in (typed_entities or [])) or "none"
+    rels = ", ".join(
+        f'{r.get("source")} -{r.get("type")}-> {r.get("target")}' for r in (relationships or [])
+    ) or "none"
+    prims = ", ".join(allowed_primitives or []) or "none"
+    user = (
+        f"LAYER: {layer}\nDIAGRAM INTENT: {intent}\nDIAGRAM TYPE: {diagram_type}\n"
+        f"ENTITIES (name(type) — use these as node ids): {ents}\n"
+        f"RELATIONSHIPS: {rels}\n"
+        f"ALLOWED PRIMITIVES (only if needed): {prims}\n\n"
+        "Return the JSON structure now."
+    )
+    obj = client.chat_json(_DIAGRAM_SYSTEM_PROMPT, user, temperature=0.1, seed=DIAGRAM_STRUCTURE_SEED)
+    if not isinstance(obj, dict):
+        return None
+    if not isinstance(obj.get("nodes"), list) or not isinstance(obj.get("edges"), list):
+        return None
+    return obj
