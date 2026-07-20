@@ -99,6 +99,12 @@ class ContextFrame(OCIFBaseModel):
     # Concrete domain nouns harvested from the request (patient, bed, loomweaver…),
     # separate from tech entities — drives per-project ER/class diagrams (Phase 5).
     domain_entities: List[str] = Field(default_factory=list)
+    # Typed entity graph (Phase 3): each {"name","type"} where type ∈ actor /
+    # device / external_system / service / data_object / constraint; and typed
+    # relationships {"source","target","type"} between them. Drives the Phase-4
+    # per-layer diagram generation.
+    typed_entities: List[Dict[str, str]] = Field(default_factory=list)
+    relationships: List[Dict[str, str]] = Field(default_factory=list)
     actors: List[str] = Field(default_factory=list)
     use_cases: List[UseCase] = Field(default_factory=list)
     project: str = "default"
@@ -244,6 +250,11 @@ class SolutionDocument(OCIFBaseModel):
     problem_statement: str = ""
     actors: List[str] = Field(default_factory=list)  # stakeholders/actors surfaced for System Context visualization
     domain_entities: List[str] = Field(default_factory=list)  # request's concrete nouns → per-project ER/class diagrams
+    # Typed entity graph carried onto the public document so the diagram core
+    # (ocif/diagram_brain.py) can ground per-layer diagrams without touching
+    # CognitiveContext. Same shape as ContextFrame.typed_entities/relationships.
+    typed_entities: List[Dict[str, str]] = Field(default_factory=list)
+    relationships: List[Dict[str, str]] = Field(default_factory=list)
     requirements_analysis: str = ""
     recommended_solution: str = ""
     architecture_overview: str = ""          # includes Mermaid architecture diagram
