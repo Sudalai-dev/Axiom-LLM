@@ -179,6 +179,26 @@ class ObservabilityConfig:
     error_rate_critical_pct: float = 5.0
 
 
+@dataclass(frozen=True)
+class LLMConfig:
+    """Local, self-hosted LLM configuration (Ollama / OpenAI-compatible).
+
+    AXIOM stays deterministic by default: the LLM is an OPT-IN enhancement
+    layer that adds dynamic prose + a visible reasoning ("thinking") stream on
+    top of the deterministic SolutionSynthesizer, which always runs first and
+    guarantees a complete, contract-valid document. If the LLM is disabled,
+    unreachable, or returns junk, the platform silently keeps the deterministic
+    output — it never degrades. No external/cloud provider is involved: this
+    talks only to a model running on the operator's own machine.
+    """
+    enabled: bool = False                       # opt-in via OCIF_LLM_ENABLED=true
+    base_url: str = "http://localhost:11434"    # Ollama default (native API)
+    model: str = "qwen2.5:3b"                   # Apache-2.0, commercially sellable
+    temperature: float = 0.3
+    max_tokens: int = 1024
+    timeout_seconds: int = 60
+
+
 class PlatformSettings:
     """
     Root configuration aggregator for the OCIF Enterprise AI Platform.
@@ -256,6 +276,15 @@ class PlatformSettings:
             log_level=os.getenv("OCIF_LOG_LEVEL", "INFO"),
             otel_endpoint=os.getenv("OCIF_OTEL_ENDPOINT", ""),
             otel_service_name=os.getenv("OCIF_OTEL_SERVICE_NAME", "ocif-platform"),
+        )
+
+        self.llm = LLMConfig(
+            enabled=os.getenv("OCIF_LLM_ENABLED", "false").lower() == "true",
+            base_url=os.getenv("OCIF_LLM_BASE_URL", "http://localhost:11434").rstrip("/"),
+            model=os.getenv("OCIF_LLM_MODEL", "qwen2.5:3b"),
+            temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
+            max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "1024")),
+            timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "60")),
         )
 
     def _resolve_jwt_secret(self) -> str:

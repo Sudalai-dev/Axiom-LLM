@@ -8,6 +8,7 @@ dynamic prompt before invoking the Inference Adapter (LLM). After generation,
 the Blueprint Optimizer verifies, deduplicates, and validates the output.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -1005,12 +1006,28 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
     def __init__(
         self,
         knowledge_platform: Optional[Any] = None,
+        llm_client: Optional[Any] = None,
     ) -> None:
         super().__init__()
         # Engineering Knowledge Platform (ecosystem.KnowledgePlatform) — the
         # durable source of engineering intelligence. Optional: when None the
         # engine behaves exactly as before, reading the hardcoded packs.
         self.knowledge_platform = knowledge_platform
+
+        # Optional local-LLM enhancement layer (self-hosted, no cloud). When
+        # injected/enabled it adds dynamic prose + a reasoning stream ON TOP of
+        # the deterministic document; otherwise the engine is 100% deterministic.
+        # Constructed from config lazily so importing this module never requires
+        # the LLM stack, and tests can inject a fake client.
+        if llm_client is not None:
+            self.llm_client = llm_client
+        else:
+            try:
+                from core.config import settings
+                from inference.local_llm import LocalLLMClient
+                self.llm_client = LocalLLMClient(settings.llm)
+            except Exception:  # noqa: BLE001 — never let optional LLM wiring break the engine
+                self.llm_client = None
 
         # Sub-engines instantiations
         self.intent_analyzer = IntentAnalyzer()
@@ -1121,6 +1138,28 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         provider_used = "internal-synthesizer"
         model_used = "axiom-solution-synthesizer"
 
+        # 3b. Optional local-LLM enhancement (self-hosted, no cloud). The
+        # deterministic base_doc is already complete and contract-valid; the LLM
+        # only rewrites two NARRATIVE sections for dynamism and adds a visible
+        # reasoning ("thinking") stream. Structured content — tech stack,
+        # diagrams, ER, roadmap, risks — is never touched, so this cannot
+        # fabricate architecture. Any failure leaves base_doc untouched.
+        thinking = ""
+        enrichment = await self._llm_enhance(
+            frame, base_doc, domains, industry_name,
+            platform_standards, rules_applied,
+        )
+        if enrichment:
+            if enrichment.get("executive_summary"):
+                base_doc.executive_summary = enrichment["executive_summary"]
+            if enrichment.get("recommended_solution"):
+                base_doc.recommended_solution = enrichment["recommended_solution"]
+            thinking = enrichment.get("thinking", "")
+            model_cfg = getattr(getattr(self, "llm_client", None), "config", None)
+            model_name = getattr(model_cfg, "model", "local-llm")
+            provider_used = f"local-llm:{model_name}"
+            model_used = model_name
+
         # 4. Score Confidence Baseline
         score_base = self._score_confidence(frame, knowledge, provider_used, learning)
 
@@ -1146,6 +1185,7 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             tradeoffs=tradeoffs,
             provider_used=provider_used,
             model_used=model_used,
+            thinking=thinking,
         )
         context.confidence = final_confidence
 
@@ -1154,6 +1194,51 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             summary=f"Engineering Solution optimized via {provider_used} (confidence {final_confidence:.2f}).",
             payload={"provider": provider_used, "model": model_used, "confidence": final_confidence},
         )
+
+    # -- Optional local-LLM enhancement --------------------------------------
+
+    async def _llm_enhance(
+        self, frame, base_doc, domains, industry_name, platform_standards, rules_applied,
+    ) -> Optional[Dict[str, str]]:
+        """Run the self-hosted LLM to produce a reasoning stream + two sharper
+        narrative sections, grounded in the deterministic draft. Returns None
+        (→ keep deterministic output) when the LLM is absent, disabled,
+        unreachable, or unusable. Never raises into the pipeline."""
+        client = getattr(self, "llm_client", None)
+        if client is None:
+            return None
+        try:
+            if not client.available():
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+
+        from inference.local_llm import draft_reasoning_and_prose
+
+        std_names = [
+            (s.get("name") or s.get("full_name"))
+            for s in (platform_standards or [])
+            if (s.get("name") or s.get("full_name"))
+        ]
+        rule_names = [r.get("name") for r in (rules_applied or []) if r.get("name")]
+        subject = (getattr(frame, "subject", "") or "").strip() or ", ".join((frame.entities or [])[:6])
+        try:
+            # Blocking urllib call → off the event loop so the gateway stays responsive.
+            return await asyncio.to_thread(
+                draft_reasoning_and_prose,
+                client,
+                subject=subject,
+                entities=list(frame.entities or []),
+                domains=list(domains or []),
+                industry=industry_name,
+                standards=std_names,
+                rules=rule_names,
+                base_summary=base_doc.executive_summary,
+                base_recommendation=base_doc.recommended_solution,
+            )
+        except Exception as exc:  # noqa: BLE001 — fail soft into deterministic output
+            logger.warning("LLM enhancement failed (%s); keeping deterministic output.", exc)
+            return None
 
     # -- Dynamic Prompt Builder ----------------------------------------------
 

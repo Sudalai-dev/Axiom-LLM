@@ -112,6 +112,11 @@ class ValidationEngine(CognitiveEngine):
             if _LEAK_PATTERNS.search(text):
                 setattr(doc, field, _LEAK_PATTERNS.sub("the platform", text))
                 corrections.append(f"Scrubbed internal cognitive vocabulary from '{field}'.")
+        # The optional local-LLM reasoning stream is user-facing too — scrub it
+        # with the same screen so an enhanced run can't leak engine vocabulary.
+        if context.reasoning and context.reasoning.thinking and _LEAK_PATTERNS.search(context.reasoning.thinking):
+            context.reasoning.thinking = _LEAK_PATTERNS.sub("the platform", context.reasoning.thinking)
+            corrections.append("Scrubbed internal cognitive vocabulary from the reasoning stream.")
 
         # 7. Genericity self-check (Phase 7 / Charter §9). A request that carried
         #    concrete domain entities must yield a solution that actually reflects

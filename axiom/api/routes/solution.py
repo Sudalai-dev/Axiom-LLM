@@ -83,6 +83,7 @@ async def create_solution(
     else:
         doc = SolutionDocument(**output.solution_json)
         result.update(PresentationRenderer.render(doc, output.solution_markdown))
+        result["reasoning"] = output.reasoning_thinking or None
 
     if req.developer_mode and is_developer(req_ctx) and output.trace:
         result["developer"] = {
