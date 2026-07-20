@@ -89,6 +89,10 @@ async def create_solution(
         result["blueprint"] = None
         result["octagonal_model"] = None
         result["visualizations"] = None
+        # Same keys the non-conversational branch always returns, so the response
+        # shape is stable across both paths.
+        result["project_diagrams"] = []
+        result["reasoning"] = None
         for k in _PROSE_KEYS:
             result[k] = None if k in ("solution_blueprint", "dashboard") else []
     else:

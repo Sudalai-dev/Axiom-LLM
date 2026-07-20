@@ -56,6 +56,17 @@ def test_emitter_produces_valid_mermaid_for_every_type():
     assert emit_mermaid("unknown_type", nodes, edges) == ""
 
 
+def test_emitter_handles_digit_leading_and_symbol_names():
+    """class/ER ids must never start with a digit or be empty — both are invalid
+    mermaid identifiers. Names like '3D Scanner' or '###' must still emit valid
+    diagrams."""
+    nodes = ["3D Scanner", "###", "Patient"]
+    edges = [{"source": "3D Scanner", "target": "Patient", "type": "uses"}]
+    for dtype in ("class", "er"):
+        code = emit_mermaid(dtype, nodes, edges)
+        assert validate_mermaid(code), f"{dtype} produced invalid mermaid:\n{code}"
+
+
 # -- generation core ---------------------------------------------------------
 
 def test_grounded_model_structure_is_used_and_valid():

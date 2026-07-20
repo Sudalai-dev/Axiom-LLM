@@ -22,9 +22,19 @@ def _safe_id(prefix: str, i: int) -> str:
     return f"{prefix}{i}"
 
 
+def _ident(name: str, i: int, prefix: str) -> str:
+    """A mermaid-safe identifier from a grounded entity name: alphanumerics only,
+    never empty, never leading with a digit (both invalid in class/ER grammars)."""
+    tid = re.sub(r"[^A-Za-z0-9]", "", name)
+    if not tid:
+        return f"{prefix}{i}"
+    if tid[0].isdigit():
+        return f"{prefix}{tid}"
+    return tid
+
+
 def _er_id(name: str, i: int) -> str:
-    tid = re.sub(r"[^A-Za-z0-9]", "", name).upper()[:24]
-    return tid or f"E{i}"
+    return _ident(name, i, "E").upper()[:24]
 
 
 def _esc(label: str) -> str:
@@ -125,7 +135,7 @@ def emit_mermaid(diagram_type: str, nodes: List[str], edges: List[Dict[str, str]
     if diagram_type == "er":
         idmap = {name: _er_id(name, i) for i, name in enumerate(nodes)}
     elif diagram_type == "class":
-        idmap = {name: (re.sub(r"[^A-Za-z0-9]", "", name) or f"C{i}") for i, name in enumerate(nodes)}
+        idmap = {name: _ident(name, i, "C") for i, name in enumerate(nodes)}
     else:
         idmap = {name: _safe_id("n", i) for i, name in enumerate(nodes)}
     # Drop edges that reference names not in the node set (defensive).
