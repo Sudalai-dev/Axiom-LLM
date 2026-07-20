@@ -94,8 +94,9 @@ async def create_solution(
     else:
         doc = SolutionDocument(**output.solution_json)
         package = PresentationRenderer.render(doc, output.solution_markdown)
-        # PRIMARY diagram payloads (always).
-        result["blueprint"] = package["blueprint"]
+        # PRIMARY diagram payloads (always). Prefer the engine-generated
+        # Blueprint (per-layer provider + Phase-4 model output); else pipeline.
+        result["blueprint"] = output.blueprint or package["blueprint"]
         result["octagonal_model"] = package["octagonal_model"]
         result["visualizations"] = package["visualizations"]
         result["project_diagrams"] = package.get("project_diagrams", [])

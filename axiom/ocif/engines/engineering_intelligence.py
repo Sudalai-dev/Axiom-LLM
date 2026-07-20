@@ -1189,6 +1189,17 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         )
         context.confidence = final_confidence
 
+        # Primary output: the 8-layer diagram Blueprint, generated here (where the
+        # frame, the LLM client, and the trace all live) with per-layer
+        # observability. Recorded on context.metadata so the kernel can surface
+        # the blueprint and the trace can carry the diagram_usage numbers.
+        from ocif.diagram_brain import DiagramBrain
+        blueprint, diagram_usage = DiagramBrain(
+            llm_client=getattr(self, "llm_client", None)
+        ).generate(optimized_doc)
+        context.metadata["blueprint"] = blueprint.model_dump()
+        context.metadata["diagram_usage"] = diagram_usage
+
         return EngineResult(
             engine=self.name,
             summary=f"Engineering Solution optimized via {provider_used} (confidence {final_confidence:.2f}).",

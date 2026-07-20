@@ -100,8 +100,10 @@ async def chat_message(
     if not output.is_conversational:
         doc = SolutionDocument(**output.solution_json)
         package = PresentationRenderer.render(doc, output.solution_markdown)
-        # PRIMARY: the 8-diagram Blueprint (always).
-        response.blueprint = package["blueprint"]
+        # PRIMARY: the 8-diagram Blueprint — prefer the engine-generated one
+        # (carries per-layer provider + Phase-4 model contributions); fall back
+        # to the deterministic pipeline build.
+        response.blueprint = output.blueprint or package["blueprint"]
         response.octagonal_model = package["octagonal_model"]
         response.visualizations = package["visualizations"]
         response.reasoning = output.reasoning_thinking or None

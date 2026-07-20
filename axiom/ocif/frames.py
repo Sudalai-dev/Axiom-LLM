@@ -375,6 +375,10 @@ class CognitiveTrace(OCIFBaseModel):
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = ""
     octagon_svg: str = ""
+    # Per-layer diagram-generation observability (Phase 2): one entry per OCIF
+    # layer — provider, latency, node/edge counts, mermaid validity, discard
+    # reason. Admin/developer-only, like the rest of the trace.
+    diagram_usage: List[Dict[str, Any]] = Field(default_factory=list)
     project_understanding: Optional[ProjectUnderstandingFrame] = None
     # Engineering Intelligence pipeline provenance (intent/domains/experts plus
     # Knowledge Platform usage: assembled packs, standards, rules). Developer/

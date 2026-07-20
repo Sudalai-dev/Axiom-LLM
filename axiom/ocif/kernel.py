@@ -80,6 +80,10 @@ class KernelOutput(OCIFBaseModel):
     # Optional local-LLM reasoning stream (user-facing; empty on the pure
     # deterministic path). Scrubbed of internal engine vocabulary by Validation.
     reasoning_thinking: str = ""
+    # PRIMARY output: the 8-layer diagram Blueprint (None on the conversational path).
+    blueprint: Optional[Dict[str, Any]] = None
+    # Per-layer diagram-generation observability (admin/trace-facing).
+    diagram_usage: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class OctagonalKernel:
@@ -217,6 +221,8 @@ class OctagonalKernel:
             provider_used=getattr(reasoning, "provider_used", "") or "",
             model_used=getattr(reasoning, "model_used", "") or "",
             reasoning_thinking=getattr(reasoning, "thinking", "") or "",
+            blueprint=context.metadata.get("blueprint"),
+            diagram_usage=list(context.metadata.get("diagram_usage", [])),
         )
 
     # -- helpers ------------------------------------------------------------
