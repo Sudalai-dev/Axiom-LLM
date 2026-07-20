@@ -2,7 +2,9 @@
 
 from fastapi.testclient import TestClient
 
+import core.config
 from api.gateway import create_gateway_app
+from core.config import OutputConfig
 
 app = create_gateway_app()
 
@@ -15,7 +17,35 @@ def login(client: TestClient) -> dict:
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
-def test_solution_endpoint_returns_document_and_json():
+def _enable_prose(monkeypatch):
+    """AXIOM is diagrams-only by default; the prose document is retained behind a
+    flag. Tests that assert the retained prose path opt in here."""
+    monkeypatch.setattr(core.config.settings, "output", OutputConfig(prose_enabled=True))
+
+
+def test_solution_default_is_diagrams_only():
+    """New contract: the default response is the 8-diagram Blueprint with NO
+    prose body (invariant B1 — the diagrams are the response)."""
+    with TestClient(app) as client:
+        headers = login(client)
+        resp = client.post("/api/v1/solution", headers=headers, json={"message": ENGINEERING_REQUEST})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert not data["is_conversational"]
+        # Blueprint is the primary output: exactly 8 layer diagrams.
+        assert len(data["blueprint"]["diagrams"]) == 8
+        views = [d["view"] for d in data["blueprint"]["diagrams"]]
+        assert views == [
+            "perception", "context", "planning", "knowledge",
+            "memory", "reasoning", "validation", "experience",
+        ]
+        # No prose body by default.
+        assert data["markdown"] == ""
+        assert data.get("solution_blueprint") in (None, {})
+
+
+def test_solution_endpoint_returns_document_and_json(monkeypatch):
+    _enable_prose(monkeypatch)
     with TestClient(app) as client:
         headers = login(client)
         resp = client.post(
@@ -26,6 +56,9 @@ def test_solution_endpoint_returns_document_and_json():
         assert resp.status_code == 200
         data = resp.json()
         assert not data["is_conversational"]
+        # Blueprint is present even in prose mode.
+        assert len(data["blueprint"]["diagrams"]) == 8
+        # Retained prose path (flag on).
         assert "## Executive Summary" in data["markdown"]
         assert "## Final Recommendations" in data["markdown"]
         assert data["solution_blueprint"]["technology_stack"]
@@ -33,9 +66,10 @@ def test_solution_endpoint_returns_document_and_json():
         assert "developer" not in data
 
 
-def test_solution_endpoint_returns_octagonal_visualization_for_every_user():
+def test_solution_endpoint_returns_octagonal_visualization_for_every_user(monkeypatch):
     """The Octagonal Engineering Visualization is the primary output for
     ALL users — not gated behind developer_mode, unlike the cognitive trace."""
+    _enable_prose(monkeypatch)  # this test also asserts the retained roadmap/docs
     with TestClient(app) as client:
         headers = login(client)
         resp = client.post(
@@ -44,6 +78,8 @@ def test_solution_endpoint_returns_octagonal_visualization_for_every_user():
             json={"message": ENGINEERING_REQUEST},
         )
         data = resp.json()
+        # Blueprint (new primary) available to every user, no developer_mode.
+        assert len(data["blueprint"]["diagrams"]) == 8
         model = data["octagonal_model"]
         assert len(model["nodes"]) == 8
         assert len(model["edges"]) > 0
@@ -105,7 +141,8 @@ def test_solution_developer_mode_exposes_trace_for_admin():
         assert trace["validation_report"]["passed"] is True
 
 
-def test_chat_returns_solution_for_engineering_and_reply_for_trivial():
+def test_chat_returns_solution_for_engineering_and_reply_for_trivial(monkeypatch):
+    _enable_prose(monkeypatch)  # asserts the retained prose body
     with TestClient(app) as client:
         headers = login(client)
 
@@ -146,9 +183,10 @@ def test_chat_response_never_exposes_internal_stages():
             assert term not in lowered
 
 
-def test_chat_engineering_response_carries_octagonal_visualization():
+def test_chat_engineering_response_carries_octagonal_visualization(monkeypatch):
     """Chat is no longer conversation-only: an engineering request's reply
-    carries the same Octagonal Visualization /solution returns."""
+    carries the Blueprint + Octagonal Visualization /solution returns."""
+    _enable_prose(monkeypatch)  # asserts the retained roadmap/generated_documents
     with TestClient(app) as client:
         headers = login(client)
 
@@ -163,6 +201,7 @@ def test_chat_engineering_response_carries_octagonal_visualization():
             json={"message": ENGINEERING_REQUEST, "attachments": []},
         ).json()
         assert not engineering["is_conversational"]
+        assert len(engineering["blueprint"]["diagrams"]) == 8  # new primary
         assert len(engineering["octagonal_model"]["nodes"]) == 8
         assert engineering["visualizations"]["svg"].startswith("<svg")
         assert engineering["implementation_roadmap"]["phases"]

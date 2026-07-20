@@ -203,6 +203,15 @@ class LLMConfig:
     context_tokens: int = 8192
 
 
+@dataclass(frozen=True)
+class OutputConfig:
+    """User-facing output shape. AXIOM is a diagram generator: the primary
+    response is the 8-diagram Blueprint. The legacy prose solution document is
+    retained but returned only when explicitly enabled — kept behind a flag
+    (reversible) rather than deleted."""
+    prose_enabled: bool = False   # OCIF_PROSE_ENABLED=true → also return prose body
+
+
 class PlatformSettings:
     """
     Root configuration aggregator for the OCIF Enterprise AI Platform.
@@ -280,6 +289,10 @@ class PlatformSettings:
             log_level=os.getenv("OCIF_LOG_LEVEL", "INFO"),
             otel_endpoint=os.getenv("OCIF_OTEL_ENDPOINT", ""),
             otel_service_name=os.getenv("OCIF_OTEL_SERVICE_NAME", "ocif-platform"),
+        )
+
+        self.output = OutputConfig(
+            prose_enabled=os.getenv("OCIF_PROSE_ENABLED", "false").lower() == "true",
         )
 
         self.llm = LLMConfig(

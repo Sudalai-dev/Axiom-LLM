@@ -17,6 +17,7 @@ from typing import Any, Dict
 
 from dataclasses import asdict
 
+from ocif.blueprint import build_blueprint
 from ocif.documents import build_generated_documents
 from ocif.frames import SolutionDocument
 from ocif.presentation import PresentationEngine
@@ -48,4 +49,8 @@ def build_solution_response(doc: SolutionDocument, markdown: str) -> Dict[str, A
     # Additive field (Phase 3 — Diagram Intelligence): 8 project-specific
     # diagram types, one per pipeline stage. See ocif/project_diagrams.py.
     package["project_diagrams"] = [asdict(d) for d in build_project_diagrams(doc)]
+    # PRIMARY output (diagram-only Blueprint): exactly one grounded diagram per
+    # OCIF layer, per the locked contract in ocif/blueprint_config.py. The prose
+    # fields above are retained for the config-flagged fallback path.
+    package["blueprint"] = build_blueprint(doc).model_dump()
     return package

@@ -289,6 +289,29 @@ SOLUTION_SECTIONS: List[str] = [
 # Reasoning / Validation results (internal)
 # ---------------------------------------------------------------------------
 
+class Diagram(OCIFBaseModel):
+    """One OCIF-layer diagram in the public Blueprint (the diagrams-only output).
+
+    Every node is grounded — it traces to a real extracted entity or a justified
+    structural primitive; nothing is fabricated. ``code`` is valid mermaid emitted
+    deterministically (never shipped raw from a model)."""
+    view: str = ""                          # OCIF layer key (see ocif/blueprint_config.py)
+    label: str = ""                         # human-facing octagon label
+    diagram_type: str = "flowchart"         # mermaid family
+    code: str = ""                          # valid mermaid source
+    nodes: List[str] = Field(default_factory=list)   # grounded node ids
+    provider_used: str = "internal-builder"          # internal-builder | local-llm:<model>
+    grounded: bool = True                    # every node traces to an entity/primitive
+    status: str = "RENDERED"                 # RENDERED | EMPTY (honest no-entities state)
+
+
+class Blueprint(OCIFBaseModel):
+    """AXIOM's user-facing output: exactly one diagram per OCIF layer. Replaces
+    prose as the primary response (the prose SolutionDocument is retained behind
+    a config flag)."""
+    diagrams: List[Diagram] = Field(default_factory=list)
+
+
 class ReasoningResult(OCIFBaseModel):
     """Output of the Reasoning Engine (Engine 6). Never emitted directly."""
     solution_draft: SolutionDocument = Field(default_factory=SolutionDocument)
