@@ -77,6 +77,9 @@ class KernelOutput(OCIFBaseModel):
     cost_usd: float = 0.0
     provider_used: str = ""
     model_used: str = ""
+    # Optional local-LLM reasoning stream (user-facing; empty on the pure
+    # deterministic path). Scrubbed of internal engine vocabulary by Validation.
+    reasoning_thinking: str = ""
 
 
 class OctagonalKernel:
@@ -213,6 +216,7 @@ class OctagonalKernel:
             cost_usd=float(usage.get("cost_usd", 0.0) or 0.0),
             provider_used=getattr(reasoning, "provider_used", "") or "",
             model_used=getattr(reasoning, "model_used", "") or "",
+            reasoning_thinking=getattr(reasoning, "thinking", "") or "",
         )
 
     # -- helpers ------------------------------------------------------------

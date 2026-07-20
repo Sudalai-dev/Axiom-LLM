@@ -809,6 +809,9 @@
         .pdiagram-dl { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
         .pdiagram-dl:hover { border-color: var(--text-primary); color: var(--text-primary); }
         .pdiagram-dl:disabled { opacity: 0.5; cursor: default; }
+        .reasoning-panel { margin: 12px 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-secondary); }
+        .reasoning-panel summary { cursor: pointer; padding: 8px 12px; font-weight: 600; font-size: 13px; color: var(--text-primary); }
+        .reasoning-body { padding: 0 12px 12px; font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; }
 
         /* Solution Map — the user-facing Octagonal Engineering Visualization */
         .solution-map { background: var(--bg-secondary); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 14px; margin: 12px 0; box-shadow: var(--bevel-lifted); }
@@ -2810,7 +2813,8 @@
                 dashboard: data.dashboard || null,
                 documents_catalog: data.documents_catalog || [],
                 export_manifest: data.export_manifest || [],
-                project_diagrams: data.project_diagrams || []
+                project_diagrams: data.project_diagrams || [],
+                reasoning: data.reasoning || null
             };
             return blueprintId;
         }
@@ -2877,6 +2881,10 @@
                 bodyHtml = isDoc ? renderMarkdown(content) : formatContent(content);
             }
 
+            // Optional LLM reasoning stream ("thinking") — shown above the
+            // diagrams when the self-hosted model enhanced this response.
+            const reasoningPlaceholder = meta.blueprintId
+                ? `<div class="reasoning-holder" id="reasoning-${meta.blueprintId}"></div>` : '';
             // Diagram-first: the 8 domain diagrams are the primary deliverable,
             // shown above the octagon map and the (collapsed) full report.
             const diagramsPlaceholder = meta.blueprintId
@@ -2901,6 +2909,7 @@
                 </div>
                 <div class="message-body${isDoc ? ' md-doc' : ''}" id="body-${msgId}">${bodyHtml}</div>
                 ${attachmentHtml}
+                ${reasoningPlaceholder}
                 ${diagramsPlaceholder}
                 ${solutionMapPlaceholder}
                 ${fullReportHtml}
@@ -2911,6 +2920,7 @@
             chatMessages.appendChild(div);
             if (isDoc && !hasDashboard) renderMermaidIn(div);
             if (isDoc && meta.citations && meta.citations.length > 0) updateCitationPanel(meta.citations);
+            if (meta.blueprintId) renderReasoningPanel(meta.blueprintId);
             if (meta.blueprintId) renderBlueprintDiagrams(meta.blueprintId);
             if (meta.blueprintId) renderSolutionMap(meta.blueprintId);
             if (fullReportHtml) {
@@ -3207,6 +3217,22 @@
         // (one per octagon domain) as the primary deliverable. Each is a real,
         // project-specific diagram derived from the solution — not one shared
         // template — so different use cases produce visibly different diagrams.
+        // The self-hosted model's reasoning stream. Empty on the deterministic
+        // path (no panel). Escaped (model output is only semi-trusted) and shown
+        // as pre-wrapped text so line breaks in the reasoning survive.
+        function renderReasoningPanel(blueprintId) {
+            const bp = state.blueprints[blueprintId];
+            const el = document.getElementById('reasoning-' + blueprintId);
+            if (!bp || !el) return;
+            const text = bp.reasoning;
+            if (!text) { el.innerHTML = ''; return; }
+            el.innerHTML = `
+                <details class="reasoning-panel" open>
+                    <summary>🧠 AXIOM's Reasoning</summary>
+                    <div class="reasoning-body">${escapeHtml(text)}</div>
+                </details>`;
+        }
+
         function renderBlueprintDiagrams(blueprintId) {
             const bp = state.blueprints[blueprintId];
             const container = document.getElementById('diagrams-' + blueprintId);

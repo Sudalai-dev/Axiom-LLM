@@ -297,6 +297,11 @@ class ReasoningResult(OCIFBaseModel):
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = "internal-synthesizer"
     model_used: str = "axiom-solution-synthesizer"
+    # Free-form reasoning ("thinking") from the optional local LLM enhancement
+    # layer. Empty when running purely deterministic. User-facing (the platform
+    # surfaces it as a reasoning panel), so it is scrubbed of internal engine
+    # vocabulary like any other narrative.
+    thinking: str = ""
 
 
 class ValidationResult(OCIFBaseModel):
@@ -343,6 +348,7 @@ class CognitiveTrace(OCIFBaseModel):
     validation_report: Optional[ValidationResult] = None
     confidence: float = 0.0
     reasoning_rationale: str = ""
+    reasoning_thinking: str = ""   # optional local-LLM reasoning stream (empty if deterministic)
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = ""
     octagon_svg: str = ""

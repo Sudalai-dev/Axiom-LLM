@@ -45,6 +45,9 @@ class ChatResponse(BaseModel):
     dashboard: Optional[Dict[str, Any]] = None
     documents_catalog: List[Dict[str, Any]] = Field(default_factory=list)
     export_manifest: List[Dict[str, Any]] = Field(default_factory=list)
+    # Optional local-LLM reasoning stream ("thinking"). Empty on the pure
+    # deterministic path; populated only when the self-hosted model is enabled.
+    reasoning: Optional[str] = None
 
 
 @router.post("/chat/messages", response_model=ChatResponse)
@@ -92,5 +95,6 @@ async def chat_message(
         response.dashboard = package["dashboard"]
         response.documents_catalog = package["documents_catalog"]
         response.export_manifest = package["export_manifest"]
+        response.reasoning = output.reasoning_thinking or None
 
     return response
