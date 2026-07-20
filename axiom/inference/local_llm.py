@@ -90,6 +90,9 @@ class LocalLLMClient:
             "options": {
                 "temperature": self.config.temperature if temperature is None else temperature,
                 "num_predict": self.config.max_tokens if max_tokens is None else max_tokens,
+                # Enlarge the context window so AXIOM's long grounding prompt
+                # isn't truncated by Ollama's 2048-token default.
+                "num_ctx": self.config.context_tokens,
             },
         }
         try:

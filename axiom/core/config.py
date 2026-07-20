@@ -197,6 +197,10 @@ class LLMConfig:
     temperature: float = 0.3
     max_tokens: int = 1024
     timeout_seconds: int = 60
+    # AXIOM's grounding prompts are long; Ollama defaults to a 2048-token context
+    # which would silently truncate them. Ask for a larger window so the whole
+    # request context reaches the model.
+    context_tokens: int = 8192
 
 
 class PlatformSettings:
@@ -285,6 +289,7 @@ class PlatformSettings:
             temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
             max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "1024")),
             timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "60")),
+            context_tokens=int(os.getenv("OCIF_LLM_CONTEXT_TOKENS", "8192")),
         )
 
     def _resolve_jwt_secret(self) -> str:
