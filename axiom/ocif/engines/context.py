@@ -9,6 +9,7 @@ solution will be designed against.
 import re
 from typing import List
 
+from ocif.entity_typing import build_typed_entities, derive_relationships
 from ocif.engine import CognitiveEngine
 from ocif.frames import (
     CognitiveContext,
@@ -116,12 +117,19 @@ class ContextEngine(CognitiveEngine):
         actors = self._infer_actors(lowered)
         use_cases = [] if is_trivial else self._expand_use_cases(text, actors, entities, intent)
 
+        # Phase 3 — type the request's own entities and derive a typed
+        # relationship graph (deterministic; drives the Phase-4 diagram core).
+        typed_entities = [] if is_trivial else build_typed_entities(entities, actors)
+        relationships = [] if is_trivial else derive_relationships(typed_entities)
+
         subject = text if len(text) <= 200 else text[:197] + "..."
 
         context.context = ContextFrame(
             intent=intent,
             entities=entities,
             domain_entities=domain_nouns,
+            typed_entities=typed_entities,
+            relationships=relationships,
             actors=actors,
             use_cases=use_cases,
             project=context.project,

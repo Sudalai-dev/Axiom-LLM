@@ -197,6 +197,19 @@ class LLMConfig:
     temperature: float = 0.3
     max_tokens: int = 1024
     timeout_seconds: int = 60
+    # AXIOM's grounding prompts are long; Ollama defaults to a 2048-token context
+    # which would silently truncate them. Ask for a larger window so the whole
+    # request context reaches the model.
+    context_tokens: int = 8192
+
+
+@dataclass(frozen=True)
+class OutputConfig:
+    """User-facing output shape. AXIOM is a diagram generator: the primary
+    response is the 8-diagram Blueprint. The legacy prose solution document is
+    retained but returned only when explicitly enabled — kept behind a flag
+    (reversible) rather than deleted."""
+    prose_enabled: bool = False   # OCIF_PROSE_ENABLED=true → also return prose body
 
 
 class PlatformSettings:
@@ -278,6 +291,10 @@ class PlatformSettings:
             otel_service_name=os.getenv("OCIF_OTEL_SERVICE_NAME", "ocif-platform"),
         )
 
+        self.output = OutputConfig(
+            prose_enabled=os.getenv("OCIF_PROSE_ENABLED", "false").lower() == "true",
+        )
+
         self.llm = LLMConfig(
             enabled=os.getenv("OCIF_LLM_ENABLED", "false").lower() == "true",
             base_url=os.getenv("OCIF_LLM_BASE_URL", "http://localhost:11434").rstrip("/"),
@@ -285,6 +302,7 @@ class PlatformSettings:
             temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
             max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "1024")),
             timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "60")),
+            context_tokens=int(os.getenv("OCIF_LLM_CONTEXT_TOKENS", "8192")),
         )
 
     def _resolve_jwt_secret(self) -> str:

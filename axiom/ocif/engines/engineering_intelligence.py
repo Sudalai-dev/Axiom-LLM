@@ -485,6 +485,10 @@ class SolutionSynthesizer:
         # Concrete domain nouns from the request (Phase 1) — drive the per-project
         # ER + class diagrams (Phase 5).
         domain_entities = list(getattr(frame, "domain_entities", []) or [])
+        # Phase 3 — carry the typed entity graph onto the public document so the
+        # diagram core can ground per-layer diagrams from it.
+        typed_entities = [dict(e) for e in (getattr(frame, "typed_entities", []) or [])]
+        relationships = [dict(r) for r in (getattr(frame, "relationships", []) or [])]
         title = self._title(frame)
         components = pattern.components
 
@@ -494,6 +498,8 @@ class SolutionSynthesizer:
             problem_statement=self._problem_statement(frame, understanding),
             actors=list(frame.actors),
             domain_entities=domain_entities,
+            typed_entities=typed_entities,
+            relationships=relationships,
             requirements_analysis=self._requirements_analysis(frame, plan),
             recommended_solution=self._recommended_solution(pattern, standards, rules, prior),
             architecture_overview=self._architecture_overview(pattern, design_rules),
@@ -1188,6 +1194,17 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
             thinking=thinking,
         )
         context.confidence = final_confidence
+
+        # Primary output: the 8-layer diagram Blueprint, generated here (where the
+        # frame, the LLM client, and the trace all live) with per-layer
+        # observability. Recorded on context.metadata so the kernel can surface
+        # the blueprint and the trace can carry the diagram_usage numbers.
+        from ocif.diagram_brain import DiagramBrain
+        blueprint, diagram_usage = DiagramBrain(
+            llm_client=getattr(self, "llm_client", None)
+        ).generate(optimized_doc)
+        context.metadata["blueprint"] = blueprint.model_dump()
+        context.metadata["diagram_usage"] = diagram_usage
 
         return EngineResult(
             engine=self.name,

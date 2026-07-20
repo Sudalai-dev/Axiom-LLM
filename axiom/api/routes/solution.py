@@ -9,6 +9,7 @@ from api.middleware.auth import resolve_security_context
 from api.routes.deps import (
     DEFAULT_PROJECT, enforce_rate_limit, is_developer, kernel, record_usage,
 )
+from core.config import settings
 from core.models.base import RequestContext, new_uuid
 from ocif.frames import SolutionDocument
 from ocif.renderers import PresentationRenderer
@@ -63,27 +64,51 @@ async def create_solution(
 
     await record_usage(req_ctx, output)
 
+    # Diagrams-only by default: prose (`markdown` + the prose-derived payloads)
+    # is emitted only when explicitly enabled (invariant B1).
+    prose_on = settings.output.prose_enabled
+
     result: Dict[str, Any] = {
         "solution_id": output.solution_id,
         "session_id": session_id,
         "is_conversational": output.is_conversational,
-        "markdown": output.solution_markdown or output.conversational_reply,
         "citations": output.citations,
     }
+    if output.is_conversational:
+        result["markdown"] = output.conversational_reply
+    else:
+        result["markdown"] = output.solution_markdown if prose_on else ""
+
+    # Keys that carry prose-derived content — gated behind the flag (kept, not deleted).
+    _PROSE_KEYS = (
+        "solution_blueprint", "implementation_roadmap", "generated_documents",
+        "dashboard", "documents_catalog", "export_manifest",
+    )
 
     if output.is_conversational:
-        result["solution_blueprint"] = None
+        result["blueprint"] = None
         result["octagonal_model"] = None
         result["visualizations"] = None
-        result["implementation_roadmap"] = None
-        result["generated_documents"] = []
-        result["dashboard"] = None
-        result["documents_catalog"] = []
-        result["export_manifest"] = []
+        # Same keys the non-conversational branch always returns, so the response
+        # shape is stable across both paths.
+        result["project_diagrams"] = []
+        result["reasoning"] = None
+        for k in _PROSE_KEYS:
+            result[k] = None if k in ("solution_blueprint", "dashboard") else []
     else:
         doc = SolutionDocument(**output.solution_json)
-        result.update(PresentationRenderer.render(doc, output.solution_markdown))
+        package = PresentationRenderer.render(doc, output.solution_markdown)
+        # PRIMARY diagram payloads (always). Prefer the engine-generated
+        # Blueprint (per-layer provider + Phase-4 model output); else pipeline.
+        result["blueprint"] = output.blueprint or package["blueprint"]
+        result["octagonal_model"] = package["octagonal_model"]
+        result["visualizations"] = package["visualizations"]
+        result["project_diagrams"] = package.get("project_diagrams", [])
         result["reasoning"] = output.reasoning_thinking or None
+        # Prose-derived payloads only when enabled.
+        if prose_on:
+            for k in _PROSE_KEYS:
+                result[k] = package[k]
 
     if req.developer_mode and is_developer(req_ctx) and output.trace:
         result["developer"] = {

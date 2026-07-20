@@ -3,11 +3,19 @@ dashboard-first fields added to /solution and /chat/messages."""
 
 from fastapi.testclient import TestClient
 
+import core.config
 from api.gateway import create_gateway_app
+from core.config import OutputConfig
 
 app = create_gateway_app()
 
 ENGINEERING_REQUEST = "Design a Kafka-based order processing pipeline"
+
+
+def _enable_prose(monkeypatch):
+    """Dashboard + document/export catalogs are prose-derived; retained behind a
+    flag (AXIOM is diagrams-only by default)."""
+    monkeypatch.setattr(core.config.settings, "output", OutputConfig(prose_enabled=True))
 
 
 def login(client: TestClient) -> dict:
@@ -22,7 +30,8 @@ def create_solution(client: TestClient, headers: dict) -> dict:
     return resp.json()
 
 
-def test_solution_response_carries_dashboard_and_catalogs():
+def test_solution_response_carries_dashboard_and_catalogs(monkeypatch):
+    _enable_prose(monkeypatch)
     with TestClient(app) as client:
         headers = login(client)
         data = create_solution(client, headers)
@@ -39,7 +48,8 @@ def test_solution_response_carries_dashboard_and_catalogs():
         assert data["visualizations"]["svg"].startswith("<svg")
 
 
-def test_chat_response_also_carries_dashboard_fields():
+def test_chat_response_also_carries_dashboard_fields(monkeypatch):
+    _enable_prose(monkeypatch)
     with TestClient(app) as client:
         headers = login(client)
         resp = client.post(
