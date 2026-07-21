@@ -18,7 +18,7 @@ from datasets.ingestion import (
     _extract_entities,
     _extract_text_content,
 )
-from ecosystem.models import GLOBAL_TENANT, KnowledgeCategory, KnowledgeObject, new_id
+from ecosystem.models import GLOBAL_SCOPE, KnowledgeCategory, KnowledgeObject, new_id
 from ecosystem.repository import EngineeringKnowledgeRepository
 from knowledge.chunker import ChunkEngine
 
@@ -40,7 +40,7 @@ class KnowledgeIngestor:
         self.chunker = ChunkEngine()
 
     def _build_object(self, text: str, title: str, domain: str, industry: str,
-                      category: str, tenant_id: str, source: str, entities: List[str]) -> KnowledgeObject:
+                      category: str, user_id: str, source: str, entities: List[str]) -> KnowledgeObject:
         chunks = self.chunker.split(text) if text else []
         return KnowledgeObject(
             knowledge_id=new_id(),
@@ -52,7 +52,7 @@ class KnowledgeIngestor:
             body=text,
             confidence=0.8 if text else 0.5,
             author="ingestion",
-            tenant_id=tenant_id,
+            user_id=user_id,
             source_document=source,
             tags=["ingested"] + entities[:8],
             attributes={
@@ -70,7 +70,7 @@ class KnowledgeIngestor:
         domain: str = "",
         industry: str = "",
         category: Optional[str] = None,
-        tenant_id: str = GLOBAL_TENANT,
+        user_id: str = GLOBAL_SCOPE,
         submitted_by: str = "",
         source: str = "inline",
     ) -> str:
@@ -82,7 +82,7 @@ class KnowledgeIngestor:
             domain=domain or classification["domain"],
             industry=industry or classification["industry"],
             category=category or _DOC_CATEGORY_MAP.get(classification["category"], KnowledgeCategory.DOCUMENT.value),
-            tenant_id=tenant_id,
+            user_id=user_id,
             source=source,
             entities=_extract_entities(text or ""),
         )
@@ -91,7 +91,7 @@ class KnowledgeIngestor:
     def ingest_file(
         self,
         file_path: str,
-        tenant_id: str = GLOBAL_TENANT,
+        user_id: str = GLOBAL_SCOPE,
         submitted_by: str = "",
     ) -> Optional[str]:
         """Ingest a file into the pending queue. Returns the pending id, or
@@ -107,7 +107,7 @@ class KnowledgeIngestor:
             domain=classification["domain"],
             industry=classification["industry"],
             category=_DOC_CATEGORY_MAP.get(classification["category"], KnowledgeCategory.DOCUMENT.value),
-            tenant_id=tenant_id,
+            user_id=user_id,
             source=file_path,
             entities=_extract_entities(text or ""),
         )

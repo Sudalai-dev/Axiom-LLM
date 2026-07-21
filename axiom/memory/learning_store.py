@@ -21,7 +21,7 @@ import sqlite3
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now_iso() -> str:
@@ -31,7 +31,7 @@ def _utc_now_iso() -> str:
 @dataclass
 class LearningRecord:
     id: str
-    tenant_id: str
+    user_id: str
     project: str
     intent: str
     entities: List[str]
@@ -39,13 +39,18 @@ class LearningRecord:
     solution_title: str
     confidence: float
     tradeoffs: List[str] = field(default_factory=list)
+    # Per-layer diagram STRUCTURE of the validated Blueprint (Phase 6): a list of
+    # {"view","nodes","diagram_type"} the diagram core can reuse-and-adapt for a
+    # similar future request. Only the structure is stored — mermaid is always
+    # re-emitted deterministically, never replayed from storage (invariant B4).
+    diagrams: List[Dict[str, Any]] = field(default_factory=list)
     created_at: str = ""
 
 
 @dataclass
 class FeedbackNote:
     id: str
-    tenant_id: str
+    user_id: str
     project: str
     rating: int
     note: str
@@ -67,13 +72,24 @@ class LearningStore:
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
 
+    @staticmethod
+    def _rename_tenant_column(conn, table: str) -> None:
+        """Migrate a pre-workspace store: rename the legacy `tenant_id` column to
+        `user_id` in place. Runs before any index touches `user_id`."""
+        existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if "tenant_id" in existing and "user_id" not in existing:
+            conn.execute(f"ALTER TABLE {table} RENAME COLUMN tenant_id TO user_id")
+
     def _init_db(self) -> None:
         with self._lock, self._connect() as conn:
+            # Legacy tenant_id → user_id (no-op on fresh or already-migrated DBs).
+            self._rename_tenant_column(conn, "learning_records")
+            self._rename_tenant_column(conn, "feedback_notes")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS learning_records (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
                     project TEXT NOT NULL,
                     intent TEXT NOT NULL,
                     entities TEXT NOT NULL,
@@ -81,19 +97,27 @@ class LearningStore:
                     solution_title TEXT NOT NULL,
                     confidence REAL NOT NULL,
                     tradeoffs TEXT NOT NULL,
+                    diagrams TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL
                 )
                 """
             )
+            # Migration for stores created before Phase 6 (the CREATE above is a
+            # no-op once the table exists, so add the column if it's missing).
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(learning_records)").fetchall()}
+            if "diagrams" not in cols:
+                conn.execute(
+                    "ALTER TABLE learning_records ADD COLUMN diagrams TEXT NOT NULL DEFAULT '[]'"
+                )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_learning_tenant_project "
-                "ON learning_records (tenant_id, project)"
+                "CREATE INDEX IF NOT EXISTS idx_learning_user_project "
+                "ON learning_records (user_id, project)"
             )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS feedback_notes (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
                     project TEXT NOT NULL,
                     rating INTEGER NOT NULL,
                     note TEXT NOT NULL,
@@ -108,7 +132,7 @@ class LearningStore:
     def record(
         self,
         record_id: str,
-        tenant_id: str,
+        user_id: str,
         project: str,
         intent: str,
         entities: List[str],
@@ -116,18 +140,20 @@ class LearningStore:
         solution_title: str,
         confidence: float,
         tradeoffs: List[str],
+        diagrams: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Persists a validated outcome. Fail-soft: never blocks the kernel."""
         try:
             with self._lock, self._connect() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO learning_records "
-                    "(id, tenant_id, project, intent, entities, subject, solution_title, "
-                    "confidence, tradeoffs, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(id, user_id, project, intent, entities, subject, solution_title, "
+                    "confidence, tradeoffs, diagrams, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        record_id, tenant_id, project, intent, json.dumps(entities),
+                        record_id, user_id, project, intent, json.dumps(entities),
                         subject, solution_title, confidence, json.dumps(tradeoffs),
-                        _utc_now_iso(),
+                        json.dumps(diagrams or []), _utc_now_iso(),
                     ),
                 )
                 conn.commit()
@@ -135,20 +161,20 @@ class LearningStore:
             pass
 
     def find_similar(
-        self, tenant_id: str, project: str, intent: str, entities: List[str], limit: int = 3
+        self, user_id: str, project: str, intent: str, entities: List[str], limit: int = 3
     ) -> List[LearningRecord]:
         """
-        Recalls past successful outcomes for this tenant/project, ranked by
+        Recalls past successful outcomes for this user/project, ranked by
         entity overlap with the current request, falling back to same-intent
         recency. Records with no overlap at all are excluded.
         """
         try:
             with self._lock, self._connect() as conn:
                 rows = conn.execute(
-                    "SELECT id, tenant_id, project, intent, entities, subject, solution_title, "
-                    "confidence, tradeoffs, created_at FROM learning_records "
-                    "WHERE tenant_id = ? AND project = ? ORDER BY created_at DESC LIMIT 200",
-                    (tenant_id, project),
+                    "SELECT id, user_id, project, intent, entities, subject, solution_title, "
+                    "confidence, tradeoffs, diagrams, created_at FROM learning_records "
+                    "WHERE user_id = ? AND project = ? ORDER BY created_at DESC LIMIT 200",
+                    (user_id, project),
                 ).fetchall()
         except Exception:
             return []
@@ -163,22 +189,57 @@ class LearningStore:
             if score <= 0:
                 continue
             scored.append((score, LearningRecord(
-                id=row[0], tenant_id=row[1], project=row[2], intent=row[3],
+                id=row[0], user_id=row[1], project=row[2], intent=row[3],
                 entities=row_entities, subject=row[5], solution_title=row[6],
                 confidence=row[7], tradeoffs=json.loads(row[8]) if row[8] else [],
-                created_at=row[9],
+                diagrams=json.loads(row[9]) if row[9] else [],
+                created_at=row[10],
             )))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [rec for _, rec in scored[:limit]]
 
-    def count(self, tenant_id: Optional[str] = None) -> int:
-        """Number of persisted learning records, optionally scoped to a tenant."""
+    def iter_records(
+        self, user_id: Optional[str] = None, project: Optional[str] = None
+    ) -> List[LearningRecord]:
+        """Return every persisted record (optionally scoped to a user/project),
+        newest first — the full-corpus read the dataset exporter needs (unlike
+        find_similar, which ranks by entity overlap)."""
+        clauses, params = [], []
+        if user_id:
+            clauses.append("user_id = ?"); params.append(user_id)
+        if project:
+            clauses.append("project = ?"); params.append(project)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         try:
             with self._lock, self._connect() as conn:
-                if tenant_id:
+                rows = conn.execute(
+                    "SELECT id, user_id, project, intent, entities, subject, solution_title, "
+                    "confidence, tradeoffs, diagrams, created_at FROM learning_records"
+                    + where + " ORDER BY created_at DESC",
+                    tuple(params),
+                ).fetchall()
+        except Exception:
+            return []
+        return [
+            LearningRecord(
+                id=r[0], user_id=r[1], project=r[2], intent=r[3],
+                entities=json.loads(r[4]) if r[4] else [], subject=r[5],
+                solution_title=r[6], confidence=r[7],
+                tradeoffs=json.loads(r[8]) if r[8] else [],
+                diagrams=json.loads(r[9]) if r[9] else [],
+                created_at=r[10],
+            )
+            for r in rows
+        ]
+
+    def count(self, user_id: Optional[str] = None) -> int:
+        """Number of persisted learning records, optionally scoped to a user."""
+        try:
+            with self._lock, self._connect() as conn:
+                if user_id:
                     row = conn.execute(
-                        "SELECT COUNT(*) FROM learning_records WHERE tenant_id = ?", (tenant_id,)
+                        "SELECT COUNT(*) FROM learning_records WHERE user_id = ?", (user_id,)
                     ).fetchone()
                 else:
                     row = conn.execute("SELECT COUNT(*) FROM learning_records").fetchone()
@@ -188,28 +249,28 @@ class LearningStore:
 
     # -- feedback notes -------------------------------------------------------
 
-    def record_feedback(self, note_id: str, tenant_id: str, project: str, rating: int, note: str) -> None:
+    def record_feedback(self, note_id: str, user_id: str, project: str, rating: int, note: str) -> None:
         """Persists explicit user feedback on a prior response. Fail-soft."""
         try:
             with self._lock, self._connect() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO feedback_notes "
-                    "(id, tenant_id, project, rating, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (note_id, tenant_id, project, rating, note, _utc_now_iso()),
+                    "(id, user_id, project, rating, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (note_id, user_id, project, rating, note, _utc_now_iso()),
                 )
                 conn.commit()
         except Exception:
             pass
 
-    def recent_feedback(self, tenant_id: str, project: str, limit: int = 5) -> List[FeedbackNote]:
-        """Returns the most recent feedback notes for this tenant/project."""
+    def recent_feedback(self, user_id: str, project: str, limit: int = 5) -> List[FeedbackNote]:
+        """Returns the most recent feedback notes for this user/project."""
         try:
             with self._lock, self._connect() as conn:
                 rows = conn.execute(
-                    "SELECT id, tenant_id, project, rating, note, created_at FROM feedback_notes "
-                    "WHERE tenant_id = ? AND project = ? ORDER BY created_at DESC LIMIT ?",
-                    (tenant_id, project, limit),
+                    "SELECT id, user_id, project, rating, note, created_at FROM feedback_notes "
+                    "WHERE user_id = ? AND project = ? ORDER BY created_at DESC LIMIT ?",
+                    (user_id, project, limit),
                 ).fetchall()
         except Exception:
             return []
-        return [FeedbackNote(id=r[0], tenant_id=r[1], project=r[2], rating=r[3], note=r[4], created_at=r[5]) for r in rows]
+        return [FeedbackNote(id=r[0], user_id=r[1], project=r[2], rating=r[3], note=r[4], created_at=r[5]) for r in rows]

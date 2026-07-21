@@ -1,10 +1,10 @@
 """
-Local-dev bootstrap seeding — default tenant, admin user, policy, tool, and
-startup ingestion of root-level markdown documents into the knowledge base.
+Local-dev bootstrap seeding — admin user, policy, tool, and startup ingestion
+of root-level markdown documents into the knowledge base.
 
-Production deployments replace this with real tenant onboarding
-(`POST /admin/tenants`) and migrations; this exists purely so a freshly
-cloned repo (or a fresh Docker container) is immediately usable.
+Production deployments replace this with real migrations (Alembic); this exists
+purely so a freshly cloned repo (or a fresh Docker container) is immediately
+usable.
 """
 
 import glob
@@ -15,27 +15,27 @@ from pathlib import Path
 
 from sqlalchemy import delete, select
 
-from api.routes.deps import SEED_TENANT_ID, SEED_USER_ID, SEED_USERNAME, knowledge_service
+from api.routes.deps import SEED_USER_ID, SEED_USERNAME, knowledge_service
 from core.config import settings
 from core.models.base import IngestionStatus
 from core.security import hash_password
 from storage.database import AsyncSessionLocal, async_engine
 from storage.models import (
-    Base, Document, DocumentChunk, Policy, Tenant, Tool, User,
+    Base, Document, DocumentChunk, Policy, Tool, User,
 )
 
 logger = logging.getLogger("AxiomSeed")
 
 
 async def ensure_seed_data() -> None:
-    """Creates the default tenant, admin user, RLS policy, tool, and bootstraps vector documents."""
+    """Creates the admin user, default policy, tool, and bootstraps vector documents."""
     async with async_engine.begin() as conn:
         # Create tables if missing (dev convenience — production uses migrations)
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_schema_columns(conn)
 
     async with AsyncSessionLocal() as db:
-        await _seed_tenant_and_admin(db)
+        await _seed_admin(db)
         await _seed_default_policy(db)
         await _seed_default_tool(db)
         await _bootstrap_knowledge_base(db)
@@ -59,7 +59,7 @@ async def _ensure_schema_columns(conn) -> None:
         logger.info("Migrated users table: added hashed_password column.")
 
 
-async def _seed_tenant_and_admin(db) -> None:
+async def _seed_admin(db) -> None:
     admin_hash = hash_password(settings.bootstrap.admin_password)
 
     existing = (await db.execute(
@@ -75,15 +75,8 @@ async def _seed_tenant_and_admin(db) -> None:
             logger.info("Backfilled admin password hash.")
         return
 
-    db.add(Tenant(
-        tenant_id=SEED_TENANT_ID,
-        name="Default Tenant",
-        industry="technology",
-        isolation_mode="shared",
-    ))
     db.add(User(
         user_id=SEED_USER_ID,
-        tenant_id=SEED_TENANT_ID,
         external_idp_subject=SEED_USERNAME,
         email="admin@axiom.local",
         role="platform_admin",
@@ -91,20 +84,20 @@ async def _seed_tenant_and_admin(db) -> None:
         hashed_password=admin_hash,
     ))
     await db.commit()
-    logger.info("Seeded default tenant and admin user.")
+    logger.info("Seeded admin user.")
 
 
 async def _seed_default_policy(db) -> None:
     policy_name = "default-financial-limits-policy"
     existing = (await db.execute(
-        select(Policy).filter(Policy.tenant_id == SEED_TENANT_ID, Policy.name == policy_name)
+        select(Policy).filter(Policy.user_id == SEED_USER_ID, Policy.name == policy_name)
     )).scalars().first()
     if existing:
         return
 
     rule_def = {"rules": [{"field": "amount", "operator": "lte", "value": 500.0, "effect": "allow"}]}
     db.add(Policy(
-        tenant_id=SEED_TENANT_ID,
+        user_id=SEED_USER_ID,
         name=policy_name,
         rule_definition=json.dumps(rule_def),
         risk_threshold=0.7,
@@ -116,7 +109,7 @@ async def _seed_default_policy(db) -> None:
 
 async def _seed_default_tool(db) -> None:
     existing = (await db.execute(
-        select(Tool).filter(Tool.tenant_id == SEED_TENANT_ID, Tool.name == "code_generator_tool")
+        select(Tool).filter(Tool.user_id == SEED_USER_ID, Tool.name == "code_generator_tool")
     )).scalars().first()
     if existing:
         return
@@ -124,7 +117,7 @@ async def _seed_default_tool(db) -> None:
     input_schema = {"type": "object", "properties": {"language": {"type": "string"}, "framework": {"type": "string"}}, "required": ["language"]}
     output_schema = {"type": "object", "properties": {"status": {"type": "string"}, "content": {"type": "string"}}}
     db.add(Tool(
-        tenant_id=SEED_TENANT_ID,
+        user_id=SEED_USER_ID,
         name="code_generator_tool",
         description="Generates standard code templates for developer sessions",
         input_schema=json.dumps(input_schema),
@@ -150,7 +143,7 @@ async def _bootstrap_knowledge_base(db) -> None:
         title = os.path.basename(filepath)
 
         doc_query = await db.execute(
-            select(Document).filter(Document.title == title, Document.tenant_id == SEED_TENANT_ID)
+            select(Document).filter(Document.title == title, Document.user_id == SEED_USER_ID)
         )
         existing_doc = doc_query.scalars().first()
 
@@ -163,7 +156,7 @@ async def _bootstrap_knowledge_base(db) -> None:
                 payload = {
                     "doc_id": existing_doc.doc_id,
                     "chunk_id": chunk.chunk_id,
-                    "tenant_id": SEED_TENANT_ID,
+                    "user_id": SEED_USER_ID,
                     "title": title,
                     "source_type": existing_doc.source_type,
                     "section_ref": "General",
@@ -171,14 +164,14 @@ async def _bootstrap_knowledge_base(db) -> None:
                     "chunk_index": chunk.chunk_index,
                 }
                 await knowledge_service.vector_retriever.upsert_vector(
-                    chunk_id=chunk.chunk_id, vector=vector, payload=payload, tenant_id=SEED_TENANT_ID
+                    chunk_id=chunk.chunk_id, vector=vector, payload=payload, user_id=SEED_USER_ID
                 )
         else:
             if existing_doc:
                 await db.execute(delete(Document).filter(Document.doc_id == existing_doc.doc_id))
                 await db.commit()
             try:
-                await knowledge_service.ingest(db=db, filepath=filepath, tenant_id=SEED_TENANT_ID, source_type="upload")
+                await knowledge_service.ingest(db=db, filepath=filepath, user_id=SEED_USER_ID, source_type="upload")
                 await db.commit()
             except Exception as e:
                 logger.error(f"Failed to ingest document '{title}': {e}")

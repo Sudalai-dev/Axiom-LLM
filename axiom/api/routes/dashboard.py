@@ -1,8 +1,8 @@
-"""Dashboard routes — real, tenant-scoped usage aggregates.
+"""Dashboard routes — real, user-scoped usage aggregates.
 
 Reads the ``usage_metrics`` table (written by ``api/routes/usage.py``) instead
 of fabricating numbers from turn counts. All figures are scoped to the caller's
-tenant; a tenant with no recorded usage yet returns zeros rather than invented
+user; a user with no recorded usage yet returns zeros rather than invented
 values.
 """
 
@@ -19,8 +19,8 @@ router = APIRouter(prefix="/api/v1", tags=["Dashboard"])
 
 @router.get("/dashboard/usage")
 async def get_dashboard_usage(req_ctx: RequestContext = Depends(resolve_security_context)):
-    """Returns aggregated, tenant-scoped usage metrics for the dashboard."""
-    tenant_id = req_ctx.tenant.tenant_id
+    """Returns aggregated, user-scoped usage metrics for the dashboard."""
+    user_id = req_ctx.user.user_id
     async with AsyncSessionLocal() as db:
         totals = (await db.execute(
             select(
@@ -28,15 +28,15 @@ async def get_dashboard_usage(req_ctx: RequestContext = Depends(resolve_security
                 func.coalesce(func.sum(UsageMetric.token_count), 0),
                 func.coalesce(func.sum(UsageMetric.automation_count), 0),
                 func.coalesce(func.sum(UsageMetric.cost_usd), 0.0),
-            ).filter(UsageMetric.tenant_id == tenant_id)
+            ).filter(UsageMetric.user_id == user_id)
         )).one()
         requests, tokens, automations, cost = totals
 
         sessions_count = (await db.execute(
-            select(func.count(DBSession.session_id)).filter(DBSession.tenant_id == tenant_id)
+            select(func.count(DBSession.session_id)).filter(DBSession.user_id == user_id)
         )).scalar() or 0
         audit_count = (await db.execute(
-            select(func.count(AuditEvent.event_id)).filter(AuditEvent.tenant_id == tenant_id)
+            select(func.count(AuditEvent.event_id)).filter(AuditEvent.user_id == user_id)
         )).scalar() or 0
 
     requests = int(requests or 0)

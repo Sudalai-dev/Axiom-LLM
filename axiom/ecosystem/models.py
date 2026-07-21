@@ -96,13 +96,13 @@ COLUMNS: List[str] = [
     "knowledge_id", "version", "title", "summary", "body", "category",
     "domain", "industry", "tags", "confidence", "usage_count", "success_rate",
     "priority", "freshness", "rating", "approval_count", "approval_status",
-    "author", "reviewer", "tenant_id", "source_document", "created_at",
+    "author", "reviewer", "user_id", "source_document", "created_at",
     "updated_at", "attributes",
 ]
 
-# The "*" tenant marks globally-visible (seeded/organizational) knowledge that
-# every tenant can read.
-GLOBAL_TENANT = "*"
+# The "*" user marks globally-visible (seeded/organizational) knowledge that
+# every user can read.
+GLOBAL_SCOPE = "*"
 
 
 @dataclass
@@ -147,7 +147,7 @@ class KnowledgeObject:
     approval_status: str = ApprovalState.APPROVED.value
     author: str = "system"
     reviewer: str = ""
-    tenant_id: str = GLOBAL_TENANT
+    user_id: str = GLOBAL_SCOPE
     source_document: str = ""
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
@@ -171,7 +171,7 @@ class KnowledgeObject:
             self.category, self.domain, self.industry, json.dumps(self.tags),
             self.confidence, self.usage_count, self.success_rate, self.priority,
             self.freshness, self.rating, self.approval_count, self.approval_status,
-            self.author, self.reviewer, self.tenant_id, self.source_document,
+            self.author, self.reviewer, self.user_id, self.source_document,
             self.created_at, self.updated_at, json.dumps(self.attributes),
         )
 

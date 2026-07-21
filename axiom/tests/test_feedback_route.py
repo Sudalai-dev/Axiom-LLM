@@ -3,7 +3,7 @@
 from fastapi.testclient import TestClient
 
 from api.gateway import create_gateway_app
-from api.routes.deps import learning_store
+from api.routes.deps import SEED_USER_ID, learning_store
 
 app = create_gateway_app()
 
@@ -27,8 +27,10 @@ def test_feedback_submission_persists_into_learning_store():
         assert body["status"] == "success"
         assert body["feedback_id"]
 
+        # Feedback is now scoped to the authenticated user (the seeded admin),
+        # not the removed tenant. Query by that user's id.
         notes = learning_store.recent_feedback(
-            tenant_id="00000000-0000-0000-0000-000000000001", project="default"
+            user_id=SEED_USER_ID, project="default"
         )
         assert any("Very helpful architecture" in n.note for n in notes)
 

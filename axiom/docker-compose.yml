@@ -11,13 +11,21 @@ services:
       - OCIF_ENVIRONMENT=production
       - AXIOM_DATA_DIR=/app/data
       - OCIF_CORS_ORIGINS=${OCIF_CORS_ORIGINS:-http://localhost:8000}
-      - OCIF_LLM_DEFAULT_PROVIDER=${OCIF_LLM_DEFAULT_PROVIDER:-auto}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # PostgreSQL by default in the composed stack; unset AXIOM_DATABASE_URL to
+      # fall back to the bundled SQLite file under /app/data.
+      - AXIOM_DATABASE_URL=${AXIOM_DATABASE_URL:-postgresql://axiom:axiom@postgres:5432/axiom}
+      # AXIOM is a self-hosted engine: diagrams-only by default, with an optional
+      # local (Ollama) model for diagram-structure proposal. No cloud AI providers.
+      - OCIF_PROSE_ENABLED=${OCIF_PROSE_ENABLED:-false}
+      - OCIF_LLM_ENABLED=${OCIF_LLM_ENABLED:-false}
+      - OCIF_LLM_BASE_URL=${OCIF_LLM_BASE_URL:-http://host.docker.internal:11434}
+      - OCIF_LLM_MODEL=${OCIF_LLM_MODEL:-axiom-qwen2.5:3b}
       - OCIF_JWT_SECRET=${OCIF_JWT_SECRET:-}
     volumes:
       - axiom_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 30s
@@ -26,6 +34,25 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: axiom-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-axiom}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-axiom}
+      - POSTGRES_DB=${POSTGRES_DB:-axiom}
+    volumes:
+      - axiom_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-axiom} -d ${POSTGRES_DB:-axiom}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   axiom_data:
+    driver: local
+  axiom_pgdata:
     driver: local

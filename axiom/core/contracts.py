@@ -101,7 +101,7 @@ class IMemoryEngine(ABC):
         pass
 
     @abstractmethod
-    async def persist_turn(self, db: AsyncSession, session_id: str, tenant_id: str, role: str, content: str) -> None:
+    async def persist_turn(self, db: AsyncSession, session_id: str, user_id: str, role: str, content: str) -> None:
         """Saves a single conversation turn into memory cache and database."""
         pass
 
@@ -113,9 +113,9 @@ class IPolicyEngine(ABC):
     async def evaluate_policies(
         self,
         db: AsyncSession,
-        tenant_id: str,
+        user_id: str,
         action_type: str,
         payload: Dict[str, Any]
     ) -> List[Any]:
-        """Evaluates proposed actions against tenant policy rules."""
+        """Evaluates proposed actions against the user's policy rules."""
         pass

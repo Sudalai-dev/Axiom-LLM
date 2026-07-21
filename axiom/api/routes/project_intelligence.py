@@ -68,7 +68,6 @@ async def analyze_project(
     output = await kernel.process(
         message=combined_message,
         user_id=req_ctx.user.user_id,
-        tenant_id=req_ctx.tenant.tenant_id,
         project="default",
         conversation_id=session_id,
     )

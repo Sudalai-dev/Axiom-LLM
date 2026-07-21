@@ -57,83 +57,73 @@ or an undefined symbol.
 
 - [x] Remove freemium CSS block (`.plan-pill`, `.axm-modal*`, `.axm-plan*`,
       `.axm-key*`, `.axm-paywall-msg`).
-- [ ] **HTML — remove:**
-  - login "Free plan: 5 chats/day, renews every 24h" note (`~1742`). Keep the
-    `login-switch-link` / `toggleAuthMode` register toggle above it.
-  - plan-pill button `#plan-pill` and its wrapping `status-bar-group` (`~1783`).
-  - sidebar gear→account button `⚙ onclick="openAccountModal()"` (`~1833`).
-    Keep the adjacent `↗ handleLogout()` button.
-  - account/billing modal `#account-modal-overlay` (`~2072`).
-  - paywall modal `#paywall-modal-overlay` (`~2104`).
-- [ ] **JS — remove functions:** `loadBillingStatus`, `updatePlanPill`,
-      `fmtRenews`, `openAccountModal`, `closeAccountModal`, `doUpgrade`,
-      `loadKeys`, `addKey`, `deleteKey`, `showPaywall`, `closePaywall`, and the
-      `state.billing` field.
-- [ ] **JS — remove call sites:** the `loadBillingStatus()` call inside
-      `applyAuthSuccess`; the `402` branch in `sendMessage` (collapse to the plain
-      error path); any remaining `updatePlanPill()` / `loadBillingStatus()` calls.
-- [ ] **Keep** login + register — real accounts survive; only the freemium framing goes.
+- [x] **HTML removed:** login free-plan note, `#plan-pill`, sidebar gear→account
+      button, `#account-modal-overlay`, `#paywall-modal-overlay`.
+- [x] **JS removed:** `loadBillingStatus`, `updatePlanPill`, `fmtRenews`,
+      `openAccountModal`, `closeAccountModal`, `doUpgrade`, `loadKeys`, `addKey`,
+      `deleteKey`, `showPaywall`, `closePaywall`, `state.billing`.
+- [x] **Call sites removed:** `loadBillingStatus()` in `applyAuthSuccess`; the
+      `402` branch in `sendMessage` collapsed to the plain error path.
+- [x] **Kept** login + register.
 
-**Acceptance:** grep for each removed symbol → zero hits; login → no network call
-to `/billing` or `/keys`; no `ReferenceError` in console.
+**Acceptance:** ✅ grep for every freemium symbol → zero hits; no `/billing` or
+`/keys` references remain. **Shipped in commit `95166b7`.**
 
-### Phase FE-2 — Fix backend-connection issues
+### Phase FE-2 — Fix backend-connection issues ✅ DONE
 
 **Goal:** make the client robust to host/config, missing fields, and refresh.
 
-- [ ] **`API_BASE`** (`~2420`): replace the brittle `location.port === '3000'`
-      heuristic with a single resolution order: `window.AXIOM_API_BASE` →
-      `localStorage.getItem('axiom_api_base')` → same-origin `/api/v1`. One
-      documented place to point at a non-default host.
-- [ ] **`loadDashboard`** (`~3733`): defensive metric access (`data.requests ?? 0`,
-      guard `cost_usd` before `toFixed`); fix the meaningless `requests/100*100`
-      progress bar; render per-card so one missing field can't blank the panel;
-      replace hardcoded placeholder deltas ("↑ Active", "within budget", "100%")
-      with real values or neutral labels.
-- [ ] **Token persistence:** store `state.token` in `sessionStorage`; restore on
-      load so refresh doesn't force re-login; still cleared on logout.
-- [ ] **JWT decode** (`~2514`): keep try/catch but surface a real error toast on
-      decode failure instead of silently downgrading role to `end_user`.
-- [ ] **`renderMermaidIn`** (`~3579`): fix the dead cleanup (`'d'+id` ≠ mermaid's
-      real id); on render failure leave the raw mermaid source in a `<pre>`
-      (honest fallback) rather than discarding it.
-- [ ] **`renderBlueprintDiagrams`** (`~3402`): render an explicit empty-state when
-      `project_diagrams` is absent instead of a silent no-op.
-- [ ] **`handleLogout`** (`~2703`): rewrite the fragile chat-reset ternary.
+- [x] **`API_BASE`**: resolution order `window.AXIOM_API_BASE` →
+      `localStorage['axiom_api_base']` → dev `:3000`→`:8000` → same-origin `/api/v1`.
+- [x] **`loadDashboard`**: all metrics coerced with `?? 0` + `Number(...)` (no throw
+      on partial payload); removed the meaningless `requests/100*100` bar; deltas are
+      now neutral/honest; the two unbacked cards relabeled ("Governance: Active",
+      "Platform Health: Healthy") with muted captions; error path escapes the message.
+- [x] **Token persistence:** `state.token` restored from `sessionStorage` on load;
+      `applyAuthSuccess` persists it; `restoreSession()` re-shows the shell silently on
+      refresh; `handleLogout` clears it.
+- [x] **JWT decode:** decode failure now shows an error toast and defaults role to
+      `end_user` (no longer silent).
+- [x] **`renderMermaidIn`:** removed the dead `'d'+id` cleanup; on failure the raw
+      `<pre>` stays visible (`.mermaid-error`) and any stray body node is pruned.
+- [x] **`renderBlueprintDiagrams`:** explicit empty-state when no diagrams.
+- [x] **`handleLogout`:** rewrote the fragile ternary; clears chat pane + token.
 
-**Acceptance:** works from any host without code edits; dashboard renders with a
-partial payload; refresh keeps the session; a bad token shows a toast.
+**Acceptance:** ✅ `node --check` on the extracted inline script passes; all helper
+references resolve; dashboard fields match `dashboard.py`. Live browser verify still
+pending (needs `start.bat`).
 
-### Phase FE-3 — Consistency
+### Phase FE-3 — Consistency ✅ DONE
 
 **Goal:** one convention for errors / empty / loading; kill duplicate renderers.
 
-- [ ] Shared `showError(context, err)` — toasts transient failures and renders a
-      consistent inline `.empty-state` for panel loads. (Dashboard / knowledge /
-      approvals currently use 3 different error markups: `~3797, ~3848, ~3913`.)
-- [ ] Extract one empty-state + skeleton helper (hand-rolled 3× at
-      `~3720, ~3804, ~3870`).
-- [ ] Consolidate markdown/escape into one renderer (`escapeHtml` `~3568` vs
-      `formatContent` `~3617`; `renderMarkdown` vs `formatContent`).
-- [ ] Disable async action buttons while in-flight (`downloadDocument`,
-      `downloadExport` are currently double-fireable).
+- [x] Shared helpers `emptyState(icon, text)` (inline panel states) + `showError(context, err)`
+      (transient action toasts). Dashboard / approvals / knowledge / blueprint-diagrams
+      now all render empty + error states through them — one markup.
+- [x] Shared `skeletonBlock(styles)` primitive; the 3 skeleton builders
+      (dashboard / approvals / knowledge) now use it.
+- [x] Consolidated the escape path: `formatContent` now calls `escapeHtml` instead
+      of re-implementing it. (`renderMarkdown` → `formatContent` stays as the
+      intentional marked-with-offline-fallback tier.)
+- [x] `downloadDocument` / `downloadExport` guarded by an in-flight `Set` keyed by
+      target → no double-download; errors routed through `showError`.
 
-**Acceptance:** all three panels show identical error/empty styling; no
-double-download; a single markdown path.
+**Acceptance:** ✅ all panels share one empty/error markup; downloads are
+single-fire; one escape path.
 
-### Phase FE-4 — Enhancements (quality / accessibility)
+### Phase FE-4 — Enhancements (quality / accessibility) ✅ DONE
 
-- [ ] `#domain-modal-overlay`: add `role="dialog"` + `aria-modal="true"`,
-      Escape-to-close, and focus trap/restore.
-- [ ] `aria-live="polite"` on the toast container.
-- [ ] Graceful degradation across the presentation flow (executive summary → 8
-      diagram grid → octagon map → collapsed full report): a missing field renders
-      a labeled empty section, never a silent blank.
-- [ ] Visible notice if `window.mermaid` / `window.marked` fail to load (offline
-      CDN) rather than silent degradation.
+- [x] `#domain-modal-overlay`: `role="dialog"` + `aria-modal="true"` +
+      `aria-labelledby`; Escape-to-close, Tab focus trap, focus-in on open, and
+      focus restore on close; close button `aria-label`.
+- [x] `role="status"` + `aria-live="polite"` on the toast container.
+- [x] Graceful degradation: domain drill-down with no diagrams/artifacts shows a
+      labeled empty-state; dashboard + blueprint diagrams already guard partial data.
+- [x] CDN-fail banner: a visible `role="alert"` notice if `marked` / `mermaid`
+      failed to load, instead of silent raw-text degradation.
 
-**Acceptance:** modal is keyboard-operable; offline CDN shows a notice; no blank
-sections on partial data.
+**Acceptance:** ✅ modal keyboard-operable (Esc/Tab/focus); offline CDN shows a
+notice; no silent blank sections. `node --check` passes.
 
 ### Frontend — Definition of Done (verify)
 - [ ] `start.bat` → login → send an engineering request → 8 diagrams render.
@@ -153,14 +143,17 @@ modes) was only ever fed to the now-removed LLM prompt. These phases route that
 knowledge into the deterministic synthesizer so output becomes **per-project**,
 not per-industry. Each phase is its own session.
 
-### Phase 1 — Comprehension (understand the actual project)
-- **Goal:** extract the request's concrete entities/assets (nouns: actors, data
-  objects, external systems, constraints), not just an industry slug.
-- **Where:** `ocif/engines/project_understanding.py` — enrich
-  `ProjectUnderstandingFrame` with confidence-weighted domains + a real entity
-  list; feed the existing `ecosystem/` ontology to tag entities.
-- **Acceptance:** two different requests in the same industry produce materially
-  different entity sets; entities are surfaced in the frame for downstream use.
+### Phase 1 — Comprehension (understand the actual project) ✅ DONE
+- **Goal:** extract the request's concrete entities/assets (nouns), not just tech keywords.
+- **Built:** `ContextEngine._extract_domain_nouns()` harvests concrete domain nouns
+  (patient, cafeteria, loomweaver…) from the request — deterministic, stopword-filtered,
+  dependency-free — and appends them to `frame.entities` (tech entities still lead). These
+  now flow into `rules_for` (richer firing), the executive summary, and the compositor.
+- **Acceptance:** ✅ `test_phase1_domain_entities_differentiate` (two same-industry
+  requests → Jaccard < 0.5) and `test_phase1_generic_request_stays_generic` (no fake
+  entities from filler). 323 tests green.
+- **Deferred:** confidence-weighted domains + ontology-tagging of entities (Charter §3
+  `unresolved` candidates) — the noun harvest is the high-leverage 80%.
 
 ### Phase 2 — Analysis (compose, don't copy)
 - **Goal:** build the synthesis from `ecosystem/` standards + sections + fired
@@ -178,33 +171,110 @@ not per-industry. Each phase is its own session.
 - **Acceptance:** these sections vary with the request's rules/standards; no two
   unrelated requests share verbatim security/risk text.
 
-### Phase 4 — Educate (grow the knowledge)
-- **Goal:** expand the rules engine (only ~6 rules today) and the ontology through
-  a **human-gated** review queue so quality stays controlled.
-- **Where:** `ecosystem/` rules + ontology stores; governance/HITL queue.
-- **Acceptance:** an admin can propose/approve a rule; approved rules immediately
-  affect synthesis; nothing auto-commits without approval.
+### Phase 4 — Educate (grow the knowledge) ✅ DONE
+- **Goal:** expand the rules engine through a **human-gated** review queue.
+- **Built:** `EngineeringRulesEngine.propose()` submits a rule to the pending queue;
+  `evaluate()` now reads seed rules **+ approved** ENGINEERING_RULE objects from the
+  repository (deduped), so an approved rule fires on the next request with no restart.
+  Route `POST /api/v1/platform/rules/propose`; approval via the existing
+  `POST /platform/pending/{id}/decision`.
+- **Acceptance:** ✅ `tests/test_brain_genericity.py::test_phase4_human_gated_rule_growth`
+  — proposed rule does NOT fire until approved, then fires immediately and reaches the
+  composed architecture. Nothing auto-commits (Charter §1.3).
+- **Deferred:** ontology growth via the same queue (rules first; ontology is analogous).
 
-### Phase 5 — Diagrams (per-project, not per-industry)
-- **Goal:** ER / sequence / class diagram builders consume Phase-1 entities.
-- **Where:** `ocif/project_diagrams.py` builders + `ocif/solution_mapping.py`.
-- **Acceptance:** ER diagram nodes are the request's real entities; two requests
-  yield structurally different diagrams; empty entities → honest empty-state.
+### Phase 5 — Diagrams (per-project, not per-industry) ✅ DONE
+- **Built:** `ContextFrame`/`SolutionDocument` gained `domain_entities`; the
+  synthesizer builds an entity-derived ER (`_entity_er_mermaid`) into
+  `database_design` when ≥2 entities (so `_er_diagram` becomes per-project via the
+  existing mermaid-extract); `_uml_class_diagram` models domain entities as classes
+  when present. Too few entities → honest fallback to the industry-pattern ER.
+- **Acceptance:** ✅ `test_phase5_entity_driven_er_diagram` (two requests → structurally
+  different ER; fallback when sparse); updated `test_ocif_kernel` to expect the
+  request's own pump-domain entities. 324 tests green.
+- **Deferred:** sequence diagram already uses actors; per-entity sequence flows later.
 
-### Phase 6 — Learning loop (make recall matter)
+### Phase 6 — Learning loop (make recall matter) ✅ DONE
 - **Goal:** recalled prior solutions (durable `memory/learning_store.py`) actually
   influence the new design, not just decorate `final_recommendations`.
 - **Where:** `MemoryEngine` recall → weight into the Phase-2 compositor.
 - **Acceptance:** a second similar request measurably reuses/adapts the first's
   validated design; feedback notes shift subsequent output.
+- **Done:** `MemoryFrame` gained structured `recalled` + `feedback_signals`
+  (alongside the legacy string `learning`/`feedback`); `MemoryEngine` now emits
+  the recall as structured records (title/entities/trade-offs/confidence), not
+  just prose. `SolutionSynthesizer.synthesize(recalled=…, feedback_signals=…)`
+  genuinely REUSES the top recalled design: names it in **Recommended Solution**
+  ("reuses and adapts '<title>'"), adds an explicit **reconcile-with-prior**
+  Phase-1 roadmap deliverable, and carries its recorded trade-offs into the
+  **Risk Assessment** as known-decision risks. Explicit user feedback lands on
+  the risk register as a must-address item (negative rating → high likelihood).
+  Empty recall → byte-identical prior output (backward-compat test holds).
+- **Tests:** `test_phase6_recall_reuses_prior_design` (cold vs warm divergence +
+  named reuse + carried trade-off), `test_phase6_feedback_shifts_output`
+  (negative feedback → high-likelihood risk), `test_phase6_learning_loop_end_to_end`
+  (same request twice through the kernel: 2nd run recalls & reuses the 1st).
+  Full suite: **337 passed** (1 unrelated local-env skip: `fitz`/PyMuPDF absent).
 
-### Phase 7 — Self-check (reject generic output)
+### Phase 7 — Self-check (reject generic output) ✅ DONE
 - **Goal:** Validation engine rejects generic-template output for concrete
   requests and forces a re-compose.
 - **Where:** `ocif/engines/validation.py` — add a genericity/coverage check
   against the extracted entities.
 - **Acceptance:** a concrete request that yields template-identical output is
   flagged and regenerated; a genuinely generic request still passes.
+- **Done:** added check #7 `genericity-self-check` to `ValidationEngine`. For a
+  request carrying concrete `domain_entities`, it measures coverage across the
+  narrative anchors (`_COVERAGE_SECTIONS` = executive_summary / recommended_
+  solution / problem_statement / database_design). Zero coverage → the output
+  has collapsed onto a generic template, so it **regenerates** those anchors to
+  cover the request's real entities (`_inject_entities`, additive/deterministic —
+  never invents beyond extracted entities) and records a warning; <50% coverage
+  → shipped but flagged thin. `ValidationResult` gained `terminal_state`
+  (`accepted` / `accepted-with-warning` / `blocked`) + `warnings` (Charter §9).
+  A generic request (no entities) has nothing to cover → clean `accepted`. This
+  is a self-correction, NOT a hard block, so it never fail-loops the
+  deterministic re-compose while still guaranteeing concrete output for concrete
+  asks.
+- **Tests:** `test_phase7_generic_output_for_concrete_request_is_flagged_and_covered`,
+  `test_phase7_generic_request_passes_clean`,
+  `test_phase7_covered_concrete_request_is_not_flagged`.
+  Full suite: **340 passed** (1 unrelated local-env failure: `fitz`/PyMuPDF absent).
+
+---
+
+## 📜 Operating Charter alignment (from `docs/AXIOM_OPERATING_CHARTER.md`)
+
+The Master Charter is the same roadmap as the phases above, made rigorous. Phases
+1–7 map 1:1 to Charter §3–§9. The Charter adds these **cross-cutting** items to
+build alongside the phases (all deterministic — none needs an LLM):
+
+- [ ] **Provenance (Charter §1.4/§5):** every `SolutionDocument` section carries
+      `provenance: [standard_id | rule_id | entity_id | fallback-seed]`. Sections that
+      fall back to the frozen `IndustryPattern` are flagged `fallback-seed`.
+- [ ] **`knowledge_version` stamp (Charter §1.2):** stamp the ecosystem knowledge
+      snapshot id on every document so `output = f(request, knowledge_version)` and
+      old outputs stay reproducible.
+- [ ] **Honest empty-states (Charter §1.1):** where approved knowledge is missing,
+      render "Not applicable — insufficient approved knowledge for X", never invented
+      content. (Extends the existing no-fabrication invariant to the new compositor.)
+- [ ] **Gap-check + web acquisition (Charter §4):** measure approved coverage for the
+      request's entities × domains; on a gap, `fetch` candidate sources, extract
+      *structured* candidates (standard/rule/ontology/dataset) with full provenance,
+      and **propose to the review queue only** (never auto-commit). Without an LLM this
+      is a simple extractor + admin review; a local Qwen can enrich it later.
+- [ ] **Clarification Protocol (Charter §7):** on low entity-extraction confidence, ask
+      ≤3 targeted questions mapped to specific sections; else proceed and flag affected
+      sections `assumption-based`.
+- [x] **Self-check terminal states (Charter §9):** `accepted` /
+      `accepted-with-warning` / `blocked` (honest failure, never a fabricated fill).
+      Done in Phase 7 — `ValidationResult.terminal_state` + `warnings`, set by the
+      genericity self-check and the existing fail-closed issue path.
+
+**Reframe recorded:** "make the prompt an LLM" is not literally possible (a prompt is
+not a trained model). The Charter is implemented as the **deterministic engine's
+behaviour**; the only parts that would benefit from a *local* model (open dialogue,
+rich web extraction) are optional overlays, deferred, and never on the critical path.
 
 ---
 

@@ -31,7 +31,7 @@ class HITLQueue:
         self,
         db: AsyncSession,
         event_id: str,
-        tenant_id: str
+        user_id: str
     ) -> str:
         """
         Registers a pending manual verification ticket linked to an audit event.
@@ -40,7 +40,7 @@ class HITLQueue:
 
         approval = HITLApproval(
             event_id=event_id,
-            tenant_id=tenant_id,
+            user_id=user_id,
             status=ApprovalStatus.PENDING.value
         )
         db.add(approval)
@@ -53,7 +53,6 @@ class HITLQueue:
         self,
         db: AsyncSession,
         approval_id: str,
-        tenant_id: str,
         decision: str,  # approved | rejected
         user_id: str,
         comments: Optional[str] = None
@@ -67,7 +66,7 @@ class HITLQueue:
         result = await db.execute(
             select(HITLApproval)
             .filter(HITLApproval.approval_id == approval_id)
-            .filter(HITLApproval.tenant_id == tenant_id)
+            .filter(HITLApproval.user_id == user_id)
         )
         approval = result.scalars().first()
         if not approval:

@@ -96,6 +96,15 @@ class ContextFrame(OCIFBaseModel):
     """Intent understanding — what is being asked, in what context (Engine 2)."""
     intent: Intent = Intent.GENERAL_ENGINEERING
     entities: List[str] = Field(default_factory=list)
+    # Concrete domain nouns harvested from the request (patient, bed, loomweaver…),
+    # separate from tech entities — drives per-project ER/class diagrams (Phase 5).
+    domain_entities: List[str] = Field(default_factory=list)
+    # Typed entity graph (Phase 3): each {"name","type"} where type ∈ actor /
+    # device / external_system / service / data_object / constraint; and typed
+    # relationships {"source","target","type"} between them. Drives the Phase-4
+    # per-layer diagram generation.
+    typed_entities: List[Dict[str, str]] = Field(default_factory=list)
+    relationships: List[Dict[str, str]] = Field(default_factory=list)
     actors: List[str] = Field(default_factory=list)
     use_cases: List[UseCase] = Field(default_factory=list)
     project: str = "default"
@@ -148,6 +157,13 @@ class MemoryFrame(OCIFBaseModel):
     decisions: List[str] = Field(default_factory=list)
     learning: List[str] = Field(default_factory=list)
     feedback: List[str] = Field(default_factory=list)
+    # Structured recall (Phase 6 — learning loop). `learning`/`feedback` above
+    # are human-readable strings for prompts/traces; these carry the same recall
+    # as structured records so the deterministic synthesizer can genuinely REUSE
+    # a prior validated design (its title/entities/trade-offs) and let feedback
+    # shift the next solution — not just decorate one sentence.
+    recalled: List[Dict[str, Any]] = Field(default_factory=list)
+    feedback_signals: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ProjectUnderstandingFrame(OCIFBaseModel):
@@ -233,6 +249,12 @@ class SolutionDocument(OCIFBaseModel):
     executive_summary: str = ""
     problem_statement: str = ""
     actors: List[str] = Field(default_factory=list)  # stakeholders/actors surfaced for System Context visualization
+    domain_entities: List[str] = Field(default_factory=list)  # request's concrete nouns → per-project ER/class diagrams
+    # Typed entity graph carried onto the public document so the diagram core
+    # (ocif/diagram_brain.py) can ground per-layer diagrams without touching
+    # CognitiveContext. Same shape as ContextFrame.typed_entities/relationships.
+    typed_entities: List[Dict[str, str]] = Field(default_factory=list)
+    relationships: List[Dict[str, str]] = Field(default_factory=list)
     requirements_analysis: str = ""
     recommended_solution: str = ""
     architecture_overview: str = ""          # includes Mermaid architecture diagram
@@ -278,6 +300,29 @@ SOLUTION_SECTIONS: List[str] = [
 # Reasoning / Validation results (internal)
 # ---------------------------------------------------------------------------
 
+class Diagram(OCIFBaseModel):
+    """One OCIF-layer diagram in the public Blueprint (the diagrams-only output).
+
+    Every node is grounded — it traces to a real extracted entity or a justified
+    structural primitive; nothing is fabricated. ``code`` is valid mermaid emitted
+    deterministically (never shipped raw from a model)."""
+    view: str = ""                          # OCIF layer key (see ocif/blueprint_config.py)
+    label: str = ""                         # human-facing octagon label
+    diagram_type: str = "flowchart"         # mermaid family
+    code: str = ""                          # valid mermaid source
+    nodes: List[str] = Field(default_factory=list)   # grounded node ids
+    provider_used: str = "internal-builder"          # internal-builder | local-llm:<model>
+    grounded: bool = True                    # every node traces to an entity/primitive
+    status: str = "RENDERED"                 # RENDERED | EMPTY (honest no-entities state)
+
+
+class Blueprint(OCIFBaseModel):
+    """AXIOM's user-facing output: exactly one diagram per OCIF layer. Replaces
+    prose as the primary response (the prose SolutionDocument is retained behind
+    a config flag)."""
+    diagrams: List[Diagram] = Field(default_factory=list)
+
+
 class ReasoningResult(OCIFBaseModel):
     """Output of the Reasoning Engine (Engine 6). Never emitted directly."""
     solution_draft: SolutionDocument = Field(default_factory=SolutionDocument)
@@ -286,13 +331,23 @@ class ReasoningResult(OCIFBaseModel):
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = "internal-synthesizer"
     model_used: str = "axiom-solution-synthesizer"
+    # Free-form reasoning ("thinking") from the optional local LLM enhancement
+    # layer. Empty when running purely deterministic. User-facing (the platform
+    # surfaces it as a reasoning panel), so it is scrubbed of internal engine
+    # vocabulary like any other narrative.
+    thinking: str = ""
 
 
 class ValidationResult(OCIFBaseModel):
     """Fail-closed verdict of the Validation Engine (Engine 7)."""
     passed: bool = False
+    # Self-check terminal state (Phase 7 / Charter §9): `accepted` (clean),
+    # `accepted-with-warning` (shipped after a self-correction / soft concern),
+    # or `blocked` (hard issue, fails back to the kernel for regeneration).
+    terminal_state: str = "accepted"
     checks_performed: List[str] = Field(default_factory=list)
     issues: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
     corrections_made: List[str] = Field(default_factory=list)
     corrected_solution: Optional[SolutionDocument] = None
 
@@ -327,9 +382,14 @@ class CognitiveTrace(OCIFBaseModel):
     validation_report: Optional[ValidationResult] = None
     confidence: float = 0.0
     reasoning_rationale: str = ""
+    reasoning_thinking: str = ""   # optional local-LLM reasoning stream (empty if deterministic)
     tradeoffs: List[str] = Field(default_factory=list)
     provider_used: str = ""
     octagon_svg: str = ""
+    # Per-layer diagram-generation observability (Phase 2): one entry per OCIF
+    # layer — provider, latency, node/edge counts, mermaid validity, discard
+    # reason. Admin/developer-only, like the rest of the trace.
+    diagram_usage: List[Dict[str, Any]] = Field(default_factory=list)
     project_understanding: Optional[ProjectUnderstandingFrame] = None
     # Engineering Intelligence pipeline provenance (intent/domains/experts plus
     # Knowledge Platform usage: assembled packs, standards, rules). Developer/
@@ -344,11 +404,10 @@ class CognitiveTrace(OCIFBaseModel):
 class CognitiveContext(OCIFBaseModel):
     """
     The single shared context threaded through the octagonal execution graph.
-    Always carries user, tenant, project, conversation_id for traceability.
+    Always carries user, project, conversation_id for traceability.
     """
     correlation_id: str = Field(default_factory=new_uuid)
     user_id: str = "anonymous"
-    tenant_id: str = "default"
     project: str = "default"
     conversation_id: str = Field(default_factory=new_uuid)
 

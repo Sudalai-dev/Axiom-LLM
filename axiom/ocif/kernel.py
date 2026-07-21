@@ -77,6 +77,13 @@ class KernelOutput(OCIFBaseModel):
     cost_usd: float = 0.0
     provider_used: str = ""
     model_used: str = ""
+    # Optional local-LLM reasoning stream (user-facing; empty on the pure
+    # deterministic path). Scrubbed of internal engine vocabulary by Validation.
+    reasoning_thinking: str = ""
+    # PRIMARY output: the 8-layer diagram Blueprint (None on the conversational path).
+    blueprint: Optional[Dict[str, Any]] = None
+    # Per-layer diagram-generation observability (admin/trace-facing).
+    diagram_usage: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class OctagonalKernel:
@@ -124,7 +131,6 @@ class OctagonalKernel:
         message: str,
         *,
         user_id: str = "anonymous",
-        tenant_id: str = "default",
         project: str = "default",
         conversation_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
@@ -133,7 +139,6 @@ class OctagonalKernel:
         AXIOM's own brain, no external LLM)."""
         context = CognitiveContext(
             user_id=user_id,
-            tenant_id=tenant_id,
             project=project,
             conversation_id=conversation_id or new_uuid(),
             task=message,
@@ -213,6 +218,9 @@ class OctagonalKernel:
             cost_usd=float(usage.get("cost_usd", 0.0) or 0.0),
             provider_used=getattr(reasoning, "provider_used", "") or "",
             model_used=getattr(reasoning, "model_used", "") or "",
+            reasoning_thinking=getattr(reasoning, "thinking", "") or "",
+            blueprint=context.metadata.get("blueprint"),
+            diagram_usage=list(context.metadata.get("diagram_usage", [])),
         )
 
     # -- helpers ------------------------------------------------------------

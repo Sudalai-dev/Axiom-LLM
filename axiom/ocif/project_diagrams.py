@@ -159,12 +159,26 @@ def _sequence_diagram(doc: SolutionDocument) -> str:
 def _uml_class_diagram(doc: SolutionDocument) -> str:
     lines = ["classDiagram"]
     class_names = []
-    for tc in doc.technology_stack[:8]:
-        cname = _slug(tc.layer, fallback=f"Layer{len(class_names)}")
-        class_names.append(cname)
-        lines.append(f"    class {cname} {{")
-        lines.append(f"        +choice : {_esc(tc.choice)}")
-        lines.append("    }")
+    # Phase 5: model the request's real domain entities as classes when present
+    # (per-project); otherwise fall back to the technology-stack layers.
+    domain_entities = [e for e in (getattr(doc, "domain_entities", None) or []) if e]
+    if len(domain_entities) >= 2:
+        for ent in domain_entities[:8]:
+            cname = _slug(ent, fallback=f"Entity{len(class_names)}")
+            if cname in class_names:
+                continue
+            class_names.append(cname)
+            lines.append(f"    class {cname} {{")
+            lines.append("        +id : string")
+            lines.append("        +name : string")
+            lines.append("    }")
+    else:
+        for tc in doc.technology_stack[:8]:
+            cname = _slug(tc.layer, fallback=f"Layer{len(class_names)}")
+            class_names.append(cname)
+            lines.append(f"    class {cname} {{")
+            lines.append(f"        +choice : {_esc(tc.choice)}")
+            lines.append("    }")
     for a, b in zip(class_names, class_names[1:]):
         lines.append(f"    {a} --> {b}")
     if not class_names:

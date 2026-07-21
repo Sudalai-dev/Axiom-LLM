@@ -43,7 +43,7 @@ class IngestionPipeline:
         self,
         db: AsyncSession,
         filepath: str,
-        tenant_id: str,
+        user_id: str,
         source_type: SourceType
     ) -> Dict[str, Any]:
         """
@@ -54,11 +54,11 @@ class IngestionPipeline:
             raise FileNotFoundError(f"Source file not found at: {filepath}")
 
         title = os.path.basename(filepath)
-        logger.info(f"Starting ingestion pipeline for document: '{title}' (Tenant: {tenant_id})")
+        logger.info(f"Starting ingestion pipeline for document: '{title}' (User: {user_id})")
 
         # 1. Create Document database record (Status: Processing)
         doc = Document(
-            tenant_id=tenant_id,
+            user_id=user_id,
             title=title,
             source_type=source_type.value,
             storage_uri=filepath,
@@ -92,7 +92,7 @@ class IngestionPipeline:
                 payload = {
                     "doc_id": doc.doc_id,
                     "chunk_id": chunk_id,
-                    "tenant_id": tenant_id,
+                    "user_id": user_id,
                     "title": title,
                     "source_type": source_type.value,
                     "section_ref": chunk.metadata.get("heading", "General"),
@@ -105,14 +105,14 @@ class IngestionPipeline:
                     chunk_id=chunk_id,
                     vector=vector,
                     payload=payload,
-                    tenant_id=tenant_id
+                    user_id=user_id
                 )
 
                 # SQL database chunk write
                 db_chunk = DocumentChunk(
                     chunk_id=chunk_id,
                     doc_id=doc.doc_id,
-                    tenant_id=tenant_id,
+                    user_id=user_id,
                     chunk_index=idx,
                     text=chunk_text,
                     pinecone_vector_id=chunk_id

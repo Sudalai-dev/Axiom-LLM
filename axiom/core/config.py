@@ -29,21 +29,24 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
-class TenantIsolationMode(str, Enum):
-    """Tenant isolation modes per Doc 10 Section 7."""
-    SHARED = "shared"
-    DEDICATED = "dedicated"
-
-
 class RateLimitTier(str, Enum):
     """Rate limit tiers per Doc 10 Section 9."""
-    STANDARD = "standard"      # 60 requests/min per tenant
-    ENTERPRISE = "enterprise"  # 600 requests/min per tenant (configurable)
+    STANDARD = "standard"      # 60 requests/min per user
+    ENTERPRISE = "enterprise"  # 600 requests/min per user (configurable)
 
 
 @dataclass(frozen=True)
 class DatabaseConfig:
-    """PostgreSQL configuration per Doc 9 Section 2."""
+    """Database configuration.
+
+    Production uses PostgreSQL; local/dev and the test suite use SQLite. Set a
+    single ``AXIOM_DATABASE_URL`` (e.g. ``postgresql://user:pass@host:5432/db``)
+    to point at Postgres — it is honoured verbatim and the async/sync driver
+    prefix is normalised automatically (asyncpg for the app, psycopg2/plain for
+    Alembic). When unset, AXIOM falls back to a local SQLite file, so nothing
+    external is required to run or test. The discrete OCIF_DB_* fields below are
+    retained for backward compatibility but ``AXIOM_DATABASE_URL`` takes
+    precedence when present."""
     host: str = "localhost"
     port: int = 5432
     name: str = "ocif_platform"
@@ -52,6 +55,7 @@ class DatabaseConfig:
     pool_size: int = 20
     max_overflow: int = 10
     ssl_mode: str = "prefer"
+    url_override: str = ""   # AXIOM_DATABASE_URL — full URL, wins over the fields above
 
     @property
     def _sqlite_path(self) -> str:
@@ -65,9 +69,32 @@ class DatabaseConfig:
             path = f"./{path}"
         return path
 
+    @staticmethod
+    def _as_async(url: str) -> str:
+        """Normalise any DB URL to its async driver form (asyncpg / aiosqlite)."""
+        if url.startswith(("postgresql+asyncpg", "sqlite+aiosqlite")):
+            return url
+        if url.startswith("postgresql"):
+            return url.replace("postgresql", "postgresql+asyncpg", 1)
+        if url.startswith("sqlite"):
+            return url.replace("sqlite", "sqlite+aiosqlite", 1)
+        return url
+
+    @staticmethod
+    def _as_sync(url: str) -> str:
+        """Normalise any DB URL to its sync driver form (psycopg2 / sqlite) —
+        used by Alembic migrations and background/admin tasks."""
+        if url.startswith("postgresql+asyncpg"):
+            return url.replace("postgresql+asyncpg", "postgresql", 1)
+        if url.startswith("sqlite+aiosqlite"):
+            return url.replace("sqlite+aiosqlite", "sqlite", 1)
+        return url
+
     @property
     def url(self) -> str:
-        """Constructs SQLAlchemy-compatible database URL."""
+        """Async SQLAlchemy URL for the FastAPI app."""
+        if self.url_override:
+            return self._as_async(self.url_override)
         if self.password:
             return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
         return f"sqlite+aiosqlite:///{self._sqlite_path}"
@@ -75,6 +102,8 @@ class DatabaseConfig:
     @property
     def sync_url(self) -> str:
         """Synchronous URL for Alembic migrations."""
+        if self.url_override:
+            return self._as_sync(self.url_override)
         if self.password:
             return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
         return f"sqlite:///{self._sqlite_path}"
@@ -179,6 +208,39 @@ class ObservabilityConfig:
     error_rate_critical_pct: float = 5.0
 
 
+@dataclass(frozen=True)
+class LLMConfig:
+    """Local, self-hosted LLM configuration (Ollama / OpenAI-compatible).
+
+    AXIOM stays deterministic by default: the LLM is an OPT-IN enhancement
+    layer that adds dynamic prose + a visible reasoning ("thinking") stream on
+    top of the deterministic SolutionSynthesizer, which always runs first and
+    guarantees a complete, contract-valid document. If the LLM is disabled,
+    unreachable, or returns junk, the platform silently keeps the deterministic
+    output — it never degrades. No external/cloud provider is involved: this
+    talks only to a model running on the operator's own machine.
+    """
+    enabled: bool = False                       # opt-in via OCIF_LLM_ENABLED=true
+    base_url: str = "http://localhost:11434"    # Ollama default (native API)
+    model: str = "qwen2.5:3b"                   # Apache-2.0, commercially sellable
+    temperature: float = 0.3
+    max_tokens: int = 1024
+    timeout_seconds: int = 60
+    # AXIOM's grounding prompts are long; Ollama defaults to a 2048-token context
+    # which would silently truncate them. Ask for a larger window so the whole
+    # request context reaches the model.
+    context_tokens: int = 8192
+
+
+@dataclass(frozen=True)
+class OutputConfig:
+    """User-facing output shape. AXIOM is a diagram generator: the primary
+    response is the 8-diagram Blueprint. The legacy prose solution document is
+    retained but returned only when explicitly enabled — kept behind a flag
+    (reversible) rather than deleted."""
+    prose_enabled: bool = False   # OCIF_PROSE_ENABLED=true → also return prose body
+
+
 class PlatformSettings:
     """
     Root configuration aggregator for the OCIF Enterprise AI Platform.
@@ -204,6 +266,7 @@ class PlatformSettings:
             password=os.getenv("OCIF_DB_PASSWORD", ""),
             pool_size=int(os.getenv("OCIF_DB_POOL_SIZE", "20")),
             max_overflow=int(os.getenv("OCIF_DB_MAX_OVERFLOW", "10")),
+            url_override=os.getenv("AXIOM_DATABASE_URL", "").strip(),
         )
 
         self.redis = RedisConfig(
@@ -256,6 +319,20 @@ class PlatformSettings:
             log_level=os.getenv("OCIF_LOG_LEVEL", "INFO"),
             otel_endpoint=os.getenv("OCIF_OTEL_ENDPOINT", ""),
             otel_service_name=os.getenv("OCIF_OTEL_SERVICE_NAME", "ocif-platform"),
+        )
+
+        self.output = OutputConfig(
+            prose_enabled=os.getenv("OCIF_PROSE_ENABLED", "false").lower() == "true",
+        )
+
+        self.llm = LLMConfig(
+            enabled=os.getenv("OCIF_LLM_ENABLED", "false").lower() == "true",
+            base_url=os.getenv("OCIF_LLM_BASE_URL", "http://localhost:11434").rstrip("/"),
+            model=os.getenv("OCIF_LLM_MODEL", "qwen2.5:3b"),
+            temperature=float(os.getenv("OCIF_LLM_TEMPERATURE", "0.3")),
+            max_tokens=int(os.getenv("OCIF_LLM_MAX_TOKENS", "1024")),
+            timeout_seconds=int(os.getenv("OCIF_LLM_TIMEOUT", "60")),
+            context_tokens=int(os.getenv("OCIF_LLM_CONTEXT_TOKENS", "8192")),
         )
 
     def _resolve_jwt_secret(self) -> str:

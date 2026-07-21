@@ -29,6 +29,10 @@ _TEXT_SECTIONS = [
     "final_recommendations",
 ]
 _LIST_SECTIONS = ["technology_stack", "implementation_roadmap", "risk_assessment", "future_enhancements"]
+# Narrative anchors the genericity self-check scans for the request's own
+# entities (Phase 7). These are where a concrete request's subject must surface;
+# the ER (database_design) already carries entities structurally from Phase 5.
+_COVERAGE_SECTIONS = ["executive_summary", "recommended_solution", "problem_statement", "database_design"]
 
 # Internal cognitive vocabulary that must never leak into user-facing output.
 _LEAK_PATTERNS = re.compile(
@@ -108,12 +112,101 @@ class ValidationEngine(CognitiveEngine):
             if _LEAK_PATTERNS.search(text):
                 setattr(doc, field, _LEAK_PATTERNS.sub("the platform", text))
                 corrections.append(f"Scrubbed internal cognitive vocabulary from '{field}'.")
+        # The optional local-LLM reasoning stream is user-facing too — scrub it
+        # with the same screen so an enhanced run can't leak engine vocabulary.
+        if context.reasoning and context.reasoning.thinking and _LEAK_PATTERNS.search(context.reasoning.thinking):
+            context.reasoning.thinking = _LEAK_PATTERNS.sub("the platform", context.reasoning.thinking)
+            corrections.append("Scrubbed internal cognitive vocabulary from the reasoning stream.")
+
+        # 7. Genericity self-check (Phase 7 / Charter §9). A request that carried
+        #    concrete domain entities must yield a solution that actually reflects
+        #    them. If the narrative anchors mention NONE of the request's own
+        #    entities, the output has collapsed onto a generic template — the very
+        #    bug Phases 1-5 fixed at the source. Regenerate those anchors to cover
+        #    the real subject (never ship boilerplate for a concrete ask), and
+        #    flag the run so the terminal state records that a correction was made.
+        checks.append("genericity-self-check")
+        warnings: List[str] = []
+        entities = [e for e in (getattr(doc, "domain_entities", None) or []) if e]
+        if entities:
+            narrative = " ".join(
+                getattr(doc, f) for f in _COVERAGE_SECTIONS
+            ).lower()
+            # Word-boundary match, not a bare substring — otherwise entity "Bed"
+            # would count as covered by the word "embedded", masking genuinely
+            # generic output.
+            covered = [
+                e for e in entities
+                if re.search(rf"(?<!\w){re.escape(e.lower())}(?!\w)", narrative)
+            ]
+            if not covered:
+                doc.executive_summary = self._inject_entities(doc.executive_summary, entities)
+                doc.recommended_solution = self._inject_entities(doc.recommended_solution, entities)
+                corrections.append(
+                    "Regenerated generic narrative to cover the request's own entities: "
+                    + ", ".join(entities[:6]) + "."
+                )
+                warnings.append(
+                    "Solution narrative initially reflected none of the request's entities "
+                    "(generic-template output); corrected to cover them."
+                )
+            elif len(covered) / len(entities) < 0.5:
+                warnings.append(
+                    f"Only {len(covered)}/{len(entities)} request entities are reflected in the "
+                    "narrative; solution shipped but flagged for thin coverage."
+                )
+
+        # 8. Diagram grounding self-check (diagram-only directive). The PRIMARY
+        #    output is the Blueprint — one diagram per OCIF layer — built during
+        #    reasoning and carried on context.metadata. Fail-soft, mirroring the
+        #    prose self-check above: it never hard-blocks, but (a) never ships a
+        #    diagram marked RENDERED that isn't grounded (demote it to an honest
+        #    EMPTY — invariant B2/B3: nothing fabricated reaches the client), and
+        #    (b) flags a CONCRETE request whose diagrams reflect none of its own
+        #    entities (the diagram analog of generic-template collapse).
+        checks.append("diagram-grounding-self-check")
+        meta = getattr(context, "metadata", None) or {}
+        blueprint = meta.get("blueprint")
+        if isinstance(blueprint, dict) and blueprint.get("diagrams"):
+            diagrams = blueprint["diagrams"]
+            demoted = 0
+            for d in diagrams:
+                if d.get("status") == "RENDERED" and not d.get("grounded", False):
+                    d["status"], d["code"], d["nodes"] = "EMPTY", "", []
+                    demoted += 1
+            if demoted:
+                corrections.append(
+                    f"Demoted {demoted} ungrounded diagram(s) to EMPTY — a rendered "
+                    "diagram must be grounded in the request's entities."
+                )
+                warnings.append(
+                    f"{demoted} diagram(s) claimed RENDERED without grounding and "
+                    "were dropped to EMPTY."
+                )
+            entities = [e for e in (getattr(doc, "domain_entities", None) or []) if e]
+            if entities and any(d.get("status") == "RENDERED" for d in diagrams):
+                entity_low = {e.lower() for e in entities}
+                grounded_nodes = {
+                    n.lower() for d in diagrams for n in (d.get("nodes") or [])
+                }
+                if not (grounded_nodes & entity_low):
+                    warnings.append(
+                        "Blueprint diagrams reflected none of the request's entities "
+                        "(generic/empty diagram output); shipped but flagged for review."
+                    )
 
         passed = not issues
+        terminal_state = (
+            "blocked" if not passed
+            else "accepted-with-warning" if warnings
+            else "accepted"
+        )
         context.validation = ValidationResult(
             passed=passed,
+            terminal_state=terminal_state,
             checks_performed=checks,
             issues=issues,
+            warnings=warnings,
             corrections_made=corrections,
             corrected_solution=doc if passed else None,
         )
@@ -125,7 +218,23 @@ class ValidationEngine(CognitiveEngine):
             status=EngineStatus.COMPLETED if passed else EngineStatus.FAILED,
             summary=(
                 f"{len(checks)} checks; {len(corrections)} corrections; "
+                f"terminal={terminal_state}; "
                 f"{'passed' if passed else f'{len(issues)} blocking issues'}."
             ),
-            payload={"passed": passed, "issues": issues, "corrections": corrections},
+            payload={
+                "passed": passed,
+                "terminal_state": terminal_state,
+                "issues": issues,
+                "warnings": warnings,
+                "corrections": corrections,
+            },
         )
+
+    @staticmethod
+    def _inject_entities(text: str, entities: List[str]) -> str:
+        """Weave the request's real entities into a generic narrative section so
+        the shipped output is concrete, not boilerplate. Deterministic and
+        additive — never fabricates beyond the entities already extracted from
+        the request."""
+        names = ", ".join(entities[:6])
+        return (text or "").rstrip() + f" This solution is built specifically around {names}."

@@ -19,7 +19,6 @@ from typing import Any, Dict, Optional
 
 # Context variables to store request scope fields across threads/async tasks
 correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("correlation_id", default=None)
-tenant_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 user_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("user_id", default=None)
 
 
@@ -43,10 +42,6 @@ class JSONFormatter(logging.Formatter):
         corr_id = correlation_id_var.get()
         if corr_id:
             log_data["correlation_id"] = corr_id
-
-        tenant_id = tenant_id_var.get()
-        if tenant_id:
-            log_data["tenant_id"] = tenant_id
 
         user_id = user_id_var.get()
         if user_id:
@@ -98,17 +93,14 @@ class RequestContextManager:
     def __init__(
         self,
         correlation_id: str,
-        tenant_id: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> None:
         self.correlation_id = correlation_id
-        self.tenant_id = tenant_id
         self.user_id = user_id
         self.tokens: list = []
 
     def __enter__(self) -> "RequestContextManager":
         self.tokens.append(correlation_id_var.set(self.correlation_id))
-        self.tokens.append(tenant_id_var.set(self.tenant_id))
         self.tokens.append(user_id_var.set(self.user_id))
         return self
 

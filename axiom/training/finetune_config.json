@@ -1,0 +1,38 @@
+{
+  "_comment": "AXIOM local diagram-model fine-tune config (offline, admin-run). Consumed by the QLoRA runbook in docs/FINE_TUNING.md. Nothing here runs inside the serving platform.",
+  "base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "target_ollama_model": "axiom-qwen2.5:3b",
+  "dataset": {
+    "path": "data/diagram_dataset.jsonl",
+    "manifest": "data/diagram_dataset.jsonl.manifest.json",
+    "format": "chat-jsonl",
+    "min_examples": 200
+  },
+  "qlora": {
+    "quantization": "nf4",
+    "compute_dtype": "bfloat16",
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  },
+  "train": {
+    "epochs": 3,
+    "learning_rate": 0.0002,
+    "lr_scheduler": "cosine",
+    "warmup_ratio": 0.03,
+    "per_device_batch_size": 2,
+    "gradient_accumulation_steps": 8,
+    "max_seq_len": 2048,
+    "weight_decay": 0.0,
+    "seed": 7
+  },
+  "output": {
+    "adapter_dir": "artifacts/axiom-diagram-lora",
+    "merged_dir": "artifacts/axiom-diagram-merged",
+    "gguf_path": "artifacts/axiom-diagram.Q4_K_M.gguf",
+    "gguf_quantization": "Q4_K_M",
+    "modelfile": "inference/axiom.Modelfile",
+    "manifest": "artifacts/model_manifest.json"
+  }
+}

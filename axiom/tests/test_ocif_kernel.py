@@ -28,7 +28,7 @@ def test_trivial_request_short_circuits_before_reasoning():
 
 def test_engineering_request_produces_complete_solution_document():
     kernel = OctagonalKernel()
-    out = run(kernel.process(ENGINEERING_REQUEST, tenant_id="t1", user_id="u1"))
+    out = run(kernel.process(ENGINEERING_REQUEST, user_id="u1"))
     assert not out.is_conversational
     md = out.solution_markdown
 
@@ -94,9 +94,9 @@ def test_unsafe_input_is_blocked_at_perception():
 
 def test_memory_engine_accumulates_decisions_across_runs():
     kernel = OctagonalKernel()
-    run(kernel.process(ENGINEERING_REQUEST, tenant_id="t1", project="p1"))
+    run(kernel.process(ENGINEERING_REQUEST, user_id="t1", project="p1"))
     out2 = run(kernel.process(
-        "Design a Kafka event pipeline for order processing", tenant_id="t1", project="p1"
+        "Design a Kafka event pipeline for order processing", user_id="t1", project="p1"
     ))
     # Second run should see the first run's decision memory
     assert not out2.is_conversational
@@ -149,8 +149,8 @@ def test_hospital_and_waterpump_requests_produce_different_solutions():
     """Direct regression test for the reported bug: unrelated projects must
     no longer collapse onto the same generic _WEB_PATTERN-equivalent."""
     kernel = OctagonalKernel()
-    pump_out = run(kernel.process(WATER_PUMP_REQUEST, tenant_id="t2", conversation_id="conv-pump"))
-    hospital_out = run(kernel.process(HOSPITAL_REQUEST, tenant_id="t2", conversation_id="conv-hospital"))
+    pump_out = run(kernel.process(WATER_PUMP_REQUEST, user_id="t2", conversation_id="conv-pump"))
+    hospital_out = run(kernel.process(HOSPITAL_REQUEST, user_id="t2", conversation_id="conv-hospital"))
 
     assert not pump_out.is_conversational
     assert not hospital_out.is_conversational
@@ -163,5 +163,9 @@ def test_hospital_and_waterpump_requests_produce_different_solutions():
     assert pump_out.solution_json["architecture_overview"] != hospital_out.solution_json["architecture_overview"]
 
     # The ER model itself must be domain-appropriate, not generic TENANT/USER/RESOURCE.
-    assert "DEVICE" in pump_out.solution_json["database_design"] or "TELEMETRY" in pump_out.solution_json["database_design"]
+    # Phase 5: the ER is now derived from the request's OWN entities, so it names
+    # pump-domain nouns (PUMP/COMPRESSOR/EQUIPMENT) rather than the industry
+    # pattern's generic DEVICE/TELEMETRY (either is domain-appropriate; both pass).
+    pump_db = pump_out.solution_json["database_design"]
+    assert any(t in pump_db for t in ("PUMP", "COMPRESSOR", "EQUIPMENT", "DEVICE", "TELEMETRY"))
     assert "PATIENT" in hospital_out.solution_json["database_design"]
