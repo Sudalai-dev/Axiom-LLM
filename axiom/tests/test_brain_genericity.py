@@ -16,8 +16,10 @@ from ocif.engines.engineering_intelligence import (
     SolutionSynthesizer,
 )
 from ocif.frames import (
+    Blueprint,
     CognitiveContext,
     ContextFrame,
+    Diagram,
     EngineStatus,
     KnowledgeFrame,
     Plan,
@@ -399,6 +401,83 @@ def test_phase7_covered_concrete_request_is_not_flagged():
         recommended_solution="Adopt a layered architecture around Patient and Appointment domains.",
     )
     verdict, _ = _validate_draft(draft, task="Design a patient appointment portal")
+
+    assert verdict.passed
+    assert verdict.terminal_state == "accepted"
+    assert not verdict.warnings
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 (diagram-only directive) — Validation's DIAGRAM self-check. The
+# primary output is the Blueprint, so validation must guard diagram grounding:
+# never ship a RENDERED-but-ungrounded diagram, and flag a concrete request
+# whose diagrams reflect none of its entities. Fail-soft (warn/correct, never
+# hard-block), mirroring the prose self-check above.
+# ---------------------------------------------------------------------------
+
+def _validate_with_blueprint(draft: SolutionDocument, blueprint: Blueprint, task: str):
+    from ocif.engines.validation import ValidationEngine
+
+    ctx = CognitiveContext(task=task)
+    ctx.reasoning = ReasoningResult(solution_draft=draft, confidence=0.8)
+    ctx.metadata["blueprint"] = blueprint.model_dump()
+    asyncio.run(ValidationEngine()._run(ctx))
+    return ctx.validation, ctx.metadata["blueprint"]
+
+
+def test_phase5_ungrounded_rendered_diagram_demoted_to_empty():
+    """A diagram marked RENDERED but not grounded must never ship — the
+    self-check demotes it to an honest EMPTY and records the correction."""
+    bp = Blueprint(diagrams=[
+        Diagram(view="reasoning", label="Reasoning", diagram_type="class",
+                code="classDiagram\n    class Foo", nodes=["Foo"],
+                provider_used="local-llm:x", grounded=False, status="RENDERED"),
+    ])
+    draft = _complete_draft(domain_entities=[])   # isolate: no prose check noise
+    verdict, out = _validate_with_blueprint(draft, bp, task="Design a system")
+
+    assert verdict.passed                                  # fail-soft, not blocked
+    assert verdict.terminal_state == "accepted-with-warning"
+    assert any("dropped to EMPTY" in w for w in verdict.warnings)
+    assert out["diagrams"][0]["status"] == "EMPTY"
+    assert out["diagrams"][0]["code"] == ""
+
+
+def test_phase5_concrete_request_with_no_entity_grounding_is_flagged():
+    """A concrete request whose diagrams ground only on generic primitives (no
+    real entity) has collapsed onto generic diagrams — flag it (accepted-with-
+    warning), even though the prose narrative covers the entities cleanly."""
+    bp = Blueprint(diagrams=[
+        Diagram(view="planning", label="Planning", diagram_type="flowchart",
+                code="flowchart LR\n    n0[\"System\"]", nodes=["System"],
+                provider_used="internal-builder", grounded=True, status="RENDERED"),
+    ])
+    draft = _complete_draft(
+        domain_entities=["Turbine", "Rotor"],
+        executive_summary="A monitor for the Turbine and its Rotor.",
+        recommended_solution="A layered design around the Turbine and Rotor.",
+    )
+    verdict, _ = _validate_with_blueprint(draft, bp, task="Design a turbine monitor")
+
+    assert verdict.passed
+    assert verdict.terminal_state == "accepted-with-warning"
+    assert any("reflected none of the request's entities" in w for w in verdict.warnings)
+
+
+def test_phase5_entity_grounded_diagrams_pass_clean():
+    """A concrete request whose diagrams ground in its real entities passes
+    clean — the diagram self-check fires only on genuine genericity."""
+    bp = Blueprint(diagrams=[
+        Diagram(view="knowledge", label="Knowledge", diagram_type="er",
+                code="erDiagram\n    PATIENT {\n        string id\n    }", nodes=["Patient"],
+                provider_used="internal-builder", grounded=True, status="RENDERED"),
+    ])
+    draft = _complete_draft(
+        domain_entities=["Patient", "Record"],
+        executive_summary="A portal for Patient and Record management.",
+        recommended_solution="A layered design around Patient and Record domains.",
+    )
+    verdict, _ = _validate_with_blueprint(draft, bp, task="Design a patient records portal")
 
     assert verdict.passed
     assert verdict.terminal_state == "accepted"
