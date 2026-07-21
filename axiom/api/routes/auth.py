@@ -13,12 +13,11 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from api.routes.deps import SEED_TENANT_ID
 from core.exceptions import AuthenticationError, ValidationError
 from core.models.base import UserRole
 from core.security import create_access_token, hash_password, verify_password
 from storage.database import AsyncSessionLocal
-from storage.models import Tenant, User
+from storage.models import User
 
 router = APIRouter(prefix="/api/v1", tags=["Auth"])
 
@@ -41,40 +40,27 @@ class LoginResponse(BaseModel):
 
 
 async def _issue_token(db, user: User) -> LoginResponse:
-    """Builds a signed JWT whose claims are sourced from the DB user/tenant."""
-    tenant = (await db.execute(
-        select(Tenant).filter(Tenant.tenant_id == user.tenant_id)
-    )).scalars().first()
-
+    """Builds a signed JWT whose claims are sourced from the DB user."""
     token = create_access_token({
         "sub": user.external_idp_subject,
         "user_id": user.user_id,
-        "tenant_id": user.tenant_id,
-        "tenant_name": tenant.name if tenant else "Default Tenant",
         "role": user.role,
-        "industry": (tenant.industry if tenant else None) or "technology",
+        "industry": "technology",
     })
     return LoginResponse(access_token=token, role=user.role)
 
 
 @router.post("/auth/register", response_model=LoginResponse, status_code=201)
 async def register(req: RegisterRequest) -> LoginResponse:
-    """Creates a new end-user account on the local tenant and logs it in.
-
-    Usernames are unique within the tenant.
-    """
+    """Creates a new end-user account and logs it in. Usernames are unique."""
     async with AsyncSessionLocal() as db:
         existing = (await db.execute(
-            select(User).filter(
-                User.tenant_id == SEED_TENANT_ID,
-                User.external_idp_subject == req.username,
-            )
+            select(User).filter(User.external_idp_subject == req.username)
         )).scalars().first()
         if existing:
             raise ValidationError(f"Username '{req.username}' is already taken")
 
         user = User(
-            tenant_id=SEED_TENANT_ID,
             external_idp_subject=req.username,
             email=req.email,
             role=UserRole.END_USER.value,
@@ -92,10 +78,7 @@ async def login(req: LoginRequest) -> LoginResponse:
     """Authenticates a local account by verifying its salted password hash."""
     async with AsyncSessionLocal() as db:
         user = (await db.execute(
-            select(User).filter(
-                User.tenant_id == SEED_TENANT_ID,
-                User.external_idp_subject == req.username,
-            )
+            select(User).filter(User.external_idp_subject == req.username)
         )).scalars().first()
 
         if not user or not user.hashed_password or not verify_password(req.password, user.hashed_password):

@@ -34,14 +34,13 @@ kernel = build_octagonal_kernel(
 )
 
 # Learning-memory project bucket. The durable learning store is keyed by
-# (tenant_id, project); a single stable bucket per deployment lets the Memory
-# Engine recall a tenant's earlier solutions across conversations. Named here
+# (user_id, project); a single stable bucket per deployment lets the Memory
+# Engine recall a user's earlier solutions across conversations. Named here
 # (rather than the literal "default" repeated in each route) so the scope is
 # defined in one place.
 DEFAULT_PROJECT = "default"
 
-# Local-dev single-tenant seed identifiers (see routes/seed.py)
-SEED_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+# Local-dev seed identifiers (see routes/seed.py)
 SEED_USER_ID = "00000000-0000-0000-0000-000000000002"
 SEED_USERNAME = "admin"
 
@@ -54,13 +53,13 @@ def is_developer(req_ctx: RequestContext) -> bool:
 
 
 def enforce_rate_limit(req_ctx: RequestContext) -> None:
-    """Per-tenant token-bucket rate limiting on the expensive agent endpoints.
+    """Per-user token-bucket rate limiting on the expensive agent endpoints.
 
     Raises RateLimitExceededError (429), mapped by the gateway's RFC 7807
     handler. Not part of "billing/free-limit" — a general abuse guard.
     """
     from api.middleware.rate_limiter import rate_limiter
-    rate_limiter.check_rate_limit(req_ctx.tenant.tenant_id, req_ctx.tenant.rate_limit_tier)
+    rate_limiter.check_rate_limit(req_ctx.user.user_id, "standard")
 
 
 async def record_usage(req_ctx: RequestContext, output) -> None:

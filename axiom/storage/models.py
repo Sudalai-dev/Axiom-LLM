@@ -1,8 +1,11 @@
 """
 OCIF Database Models.
 
-Conforms strictly to the PostgreSQL-compatible schema defined in Document 9, 
-Sections 4.1–4.6, supporting both local SQLite execution and production PostgreSQL.
+PostgreSQL-compatible schema supporting both local SQLite execution and
+production PostgreSQL. AXIOM is single-organisation / self-hosted: the isolation
+scope is the USER (there is no tenant dimension). Per-account rows carry
+``user_id``; rows reachable through a parent (turns via session, chunks via
+document) inherit scope from that parent.
 
 Traces to:
   - Document 9 (Database Design) Section 4: Core PostgreSQL Schema
@@ -13,7 +16,7 @@ Traces to:
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Boolean, Text, ForeignKey, 
+    Column, String, Integer, DateTime, Boolean, Text, ForeignKey,
     Numeric, Date, Index, event
 )
 from sqlalchemy.orm import relationship
@@ -31,39 +34,17 @@ def utc_now() -> datetime:
 
 
 # ===========================================================================
-# 4.1 Identity & Tenancy
+# 4.1 Identity
 # ===========================================================================
-
-class Tenant(Base):
-    """
-    Tenants table per Doc 9 Section 4.1.
-    """
-    __tablename__ = "tenants"
-
-    tenant_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    name = Column(String(255), nullable=False)
-    industry = Column(String(100), nullable=True)
-    isolation_mode = Column(String(20), default="shared")  # shared | dedicated
-    created_at = Column(DateTime, default=utc_now)
-
-    # Relationships
-    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
-    sessions = relationship("Session", back_populates="tenant", cascade="all, delete-orphan")
-    documents = relationship("Document", back_populates="tenant", cascade="all, delete-orphan")
-    tools = relationship("Tool", back_populates="tenant", cascade="all, delete-orphan")
-    workflows = relationship("AgentWorkflow", back_populates="tenant", cascade="all, delete-orphan")
-    policies = relationship("Policy", back_populates="tenant", cascade="all, delete-orphan")
-
 
 class User(Base):
     """
-    Users table per Doc 9 Section 4.1.
+    Users table. AXIOM's isolation scope.
     Note: external_idp_subject maps to the subject claim in JWT SSO tokens.
     """
     __tablename__ = "users"
 
     user_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False)
     external_idp_subject = Column(String(255), nullable=False)
     email = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False)  # RBAC role per UserRole enum
@@ -73,13 +54,12 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
-    # Unique constraint per tenant for IdP mapping
+    # Usernames (IdP subjects) are globally unique.
     __table_args__ = (
-        Index("uq_tenant_user_subject", "tenant_id", "external_idp_subject", unique=True),
+        Index("uq_user_subject", "external_idp_subject", unique=True),
     )
 
     # Relationships
-    tenant = relationship("Tenant", back_populates="users")
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     long_term_memories = relationship("LongTermMemory", back_populates="user", cascade="all, delete-orphan")
     workflows = relationship("AgentWorkflow", back_populates="user")
@@ -98,14 +78,12 @@ class Session(Base):
     __tablename__ = "sessions"
 
     session_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False)
     user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     channel = Column(String(50), default="chat")
     started_at = Column(DateTime, default=utc_now)
     ended_at = Column(DateTime, nullable=True)
 
     # Relationships
-    tenant = relationship("Tenant", back_populates="sessions")
     user = relationship("User", back_populates="sessions")
     turns = relationship("ConversationTurn", back_populates="session", cascade="all, delete-orphan")
     long_term_memories = relationship("LongTermMemory", back_populates="session")
@@ -115,12 +93,12 @@ class ConversationTurn(Base):
     """
     Conversation turns table per Doc 9 Section 4.2.
     Tracks messages within a session alongside intent, entities, and context data.
+    Scope is inherited from the parent session.
     """
     __tablename__ = "conversation_turns"
 
     turn_id = Column(String(36), primary_key=True, default=new_uuid_str)
     session_id = Column(String(36), ForeignKey("sessions.session_id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(String(36), nullable=False)
     role = Column(String(20), nullable=False)  # user | assistant | system
     content = Column(Text, nullable=False)
     intent = Column(String(100), nullable=True)
@@ -144,7 +122,6 @@ class LongTermMemory(Base):
     __tablename__ = "long_term_memory"
 
     fact_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), nullable=False)
     user_id = Column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     fact = Column(Text, nullable=False)
     source_session_id = Column(String(36), ForeignKey("sessions.session_id", ondelete="SET NULL"), nullable=True)
@@ -167,7 +144,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     doc_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), nullable=False)
     title = Column(String(500), nullable=False)
     source_type = Column(String(50), nullable=False)  # upload | api | database | web
     storage_uri = Column(String(1000), nullable=True)  # S3 or local path
@@ -175,20 +152,18 @@ class Document(Base):
     created_at = Column(DateTime, default=utc_now)
 
     # Relationships
-    tenant = relationship("Tenant", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
 
 
 class DocumentChunk(Base):
     """
     Document chunks table per Doc 9 Section 4.3.
-    Holds text pieces and refers to Pinecone vectors.
+    Holds text pieces and refers to Pinecone vectors. Scope inherited from doc.
     """
     __tablename__ = "document_chunks"
 
     chunk_id = Column(String(36), primary_key=True, default=new_uuid_str)
     doc_id = Column(String(36), ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(String(36), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     text = Column(Text, nullable=False)
     pinecone_vector_id = Column(String(255), nullable=False)
@@ -213,7 +188,7 @@ class Tool(Base):
     __tablename__ = "tools"
 
     tool_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=True)  # NULL = global tool
+    user_id = Column(String(36), nullable=True)  # NULL = global tool
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     input_schema = Column(Text, nullable=False)  # JSON-encoded string
@@ -223,9 +198,6 @@ class Tool(Base):
     endpoint = Column(String(1000), nullable=False)
     is_active = Column(Boolean, default=True)
 
-    # Relationships
-    tenant = relationship("Tenant", back_populates="tools")
-
 
 class AgentWorkflow(Base):
     """
@@ -234,14 +206,13 @@ class AgentWorkflow(Base):
     __tablename__ = "agent_workflows"
 
     workflow_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), nullable=False)
     name = Column(String(255), nullable=False)
     definition = Column(Text, nullable=False)  # JSON-encoded string mapping LangGraph definitions
     created_by = Column(String(36), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     # Relationships
-    tenant = relationship("Tenant", back_populates="workflows")
     user = relationship("User", back_populates="workflows")
 
 
@@ -256,15 +227,12 @@ class Policy(Base):
     __tablename__ = "policies"
 
     policy_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), nullable=False)
     name = Column(String(255), nullable=False)
     rule_definition = Column(Text, nullable=False)  # JSON-encoded DSL representation
     risk_threshold = Column(Numeric(4, 3), default=0.700)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=utc_now)
-
-    # Relationships
-    tenant = relationship("Tenant", back_populates="policies")
 
 
 class AuditEvent(Base):
@@ -276,7 +244,7 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
 
     event_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), nullable=False)
+    user_id = Column(String(36), nullable=False)
     session_id = Column(String(36), nullable=True)
     actor = Column(String(20), nullable=False)  # agent | human | system
     input_snapshot = Column(Text, nullable=True)  # JSON snapshot of inputs
@@ -294,7 +262,7 @@ class AuditEvent(Base):
     hitl_approvals = relationship("HITLApproval", back_populates="audit_event", cascade="all, delete-orphan")
 
     __table_args__ = (
-        Index("idx_audit_tenant_time", "tenant_id", "created_at"),
+        Index("idx_audit_user_time", "user_id", "created_at"),
     )
 
 
@@ -307,7 +275,7 @@ class HITLApproval(Base):
 
     approval_id = Column(String(36), primary_key=True, default=new_uuid_str)
     event_id = Column(String(36), ForeignKey("audit_events.event_id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(String(36), nullable=False)
+    user_id = Column(String(36), nullable=False)
     assigned_to = Column(String(36), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
     status = Column(String(20), default="pending")  # ApprovalStatus
     resolved_at = Column(DateTime, nullable=True)
@@ -329,7 +297,7 @@ class Feedback(Base):
     __tablename__ = "feedback"
 
     feedback_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), nullable=False)
+    user_id = Column(String(36), nullable=False)
     turn_id = Column(String(36), ForeignKey("conversation_turns.turn_id", ondelete="CASCADE"), nullable=True)
     rating = Column(Integer, nullable=False)  # -1 | 0 | 1
     correction_text = Column(Text, nullable=True)
@@ -341,13 +309,13 @@ class Feedback(Base):
 
 class UsageMetric(Base):
     """
-    Tenant daily usage aggregates table per Doc 9 Section 4.6.
+    Per-user daily usage aggregates table per Doc 9 Section 4.6.
     Used to drive dash displays and calculate cost thresholds.
     """
     __tablename__ = "usage_metrics"
 
     metric_id = Column(String(36), primary_key=True, default=new_uuid_str)
-    tenant_id = Column(String(36), nullable=False)
+    user_id = Column(String(36), nullable=False)
     metric_date = Column(Date, nullable=False)
     token_count = Column(Integer, default=0)
     request_count = Column(Integer, default=0)
@@ -355,7 +323,7 @@ class UsageMetric(Base):
     cost_usd = Column(Numeric(12, 4), default=0.0)
 
     __table_args__ = (
-        Index("uq_tenant_metric_date", "tenant_id", "metric_date", unique=True),
+        Index("uq_user_metric_date", "user_id", "metric_date", unique=True),
     )
 
 

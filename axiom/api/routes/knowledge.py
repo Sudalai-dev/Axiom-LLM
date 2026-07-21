@@ -1,8 +1,8 @@
-"""Knowledge routes — direct search over the tenant's ingested knowledge base.
+"""Knowledge routes — direct search over the user's ingested knowledge base.
 
 Reuses the same embed -> vector search path already wired into the OCIF
 Knowledge Engine's retriever (see core/engine_registry.py::build_octagonal_kernel)
-so a standalone search returns the same real, tenant-scoped documents that
+so a standalone search returns the same real, user-scoped documents that
 back a chat response's citations — nothing fabricated for the UI.
 """
 
@@ -20,10 +20,10 @@ async def search_knowledge(
     q: str = Query(..., min_length=1, max_length=500),
     req_ctx: RequestContext = Depends(resolve_security_context),
 ):
-    """Searches the caller's tenant-scoped knowledge base for the given query."""
+    """Searches the caller's user-scoped knowledge base for the given query."""
     vector = knowledge_service.embedder.embed(q)
     matches = await knowledge_service.vector_retriever.search_vectors(
-        query_vector=vector, tenant_id=req_ctx.tenant.tenant_id, limit=10
+        query_vector=vector, user_id=req_ctx.user.user_id, limit=10
     )
     results = []
     for match in matches or []:

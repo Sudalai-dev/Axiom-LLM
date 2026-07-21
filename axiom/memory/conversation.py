@@ -118,9 +118,11 @@ class MemoryManager:
             summary=summary
         )
 
-    async def persist_turn(self, db: AsyncSession, session_id: str, tenant_id: str, role: str, content: str) -> None:
+    async def persist_turn(self, db: AsyncSession, session_id: str, user_id: str, role: str, content: str) -> None:
         """
-        Persists a new turn to both cache and SQL database.
+        Persists a new turn to both cache and SQL database. The turn's scope is
+        inherited from its parent session (user_id is accepted for interface
+        parity with the IConversationMemory contract).
         """
         # Save to Redis Cache
         await self.session_service.append_session_turn(session_id, role, content)
@@ -129,7 +131,6 @@ class MemoryManager:
         try:
             db_turn = ConversationTurn(
                 session_id=session_id,
-                tenant_id=tenant_id,
                 role=role,
                 content=content
             )

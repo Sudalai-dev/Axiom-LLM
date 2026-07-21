@@ -1,7 +1,7 @@
 """
 Memory Engine (Engine 5) — supplies and updates the memory types of Part D.
 
-Maintains an in-process store keyed by (tenant, project, conversation) for
+Maintains an in-process store keyed by (user, project, conversation) for
 same-process recall (conversation turns, project notes, reasoning/decision
 registries), and delegates the durable "has this been solved successfully
 before" and explicit user-feedback lookups to a persistent LearningStore
@@ -41,10 +41,10 @@ class MemoryEngine(CognitiveEngine):
         self.learning_store = learning_store or LearningStore()
 
     def _conv_key(self, context: CognitiveContext) -> str:
-        return f"{context.tenant_id}:{context.conversation_id}"
+        return f"{context.user_id}:{context.conversation_id}"
 
     def _proj_key(self, context: CognitiveContext) -> str:
-        return f"{context.tenant_id}:{context.project}"
+        return f"{context.user_id}:{context.project}"
 
     async def _run(self, context: CognitiveContext) -> EngineResult:
         conv_key = self._conv_key(context)
@@ -56,7 +56,7 @@ class MemoryEngine(CognitiveEngine):
         # Durable recall: has anything like this been solved before, across
         # this process's lifetime and every prior run of the platform?
         similar = self.learning_store.find_similar(
-            tenant_id=context.tenant_id,
+            user_id=context.user_id,
             project=context.project,
             intent=context.intent,
             entities=context.entities,
@@ -67,7 +67,7 @@ class MemoryEngine(CognitiveEngine):
             f"trade-offs then: {'; '.join(rec.tradeoffs[:2]) or 'none recorded'}."
             for rec in similar
         ]
-        feedback_notes = self.learning_store.recent_feedback(context.tenant_id, context.project)
+        feedback_notes = self.learning_store.recent_feedback(context.user_id, context.project)
         feedback_entries = [f"User rated a prior response {n.rating:+d}: {n.note}" for n in feedback_notes if n.note]
 
         # Structured recall (Phase 6): the same recall as `learning`/`feedback`,
@@ -157,7 +157,7 @@ class MemoryEngine(CognitiveEngine):
             ]
             self.learning_store.record(
                 record_id=new_uuid(),
-                tenant_id=context.tenant_id,
+                user_id=context.user_id,
                 project=context.project,
                 intent=context.intent,
                 entities=context.entities,
@@ -168,8 +168,8 @@ class MemoryEngine(CognitiveEngine):
                 diagrams=recall_diagrams,
             )
 
-    def record_feedback(self, tenant_id: str, project: str, rating: int, note: str) -> None:
-        self._feedback_memory[f"{tenant_id}:{project}"].append(note)
+    def record_feedback(self, user_id: str, project: str, rating: int, note: str) -> None:
+        self._feedback_memory[f"{user_id}:{project}"].append(note)
         self.learning_store.record_feedback(
-            note_id=new_uuid(), tenant_id=tenant_id, project=project, rating=rating, note=note
+            note_id=new_uuid(), user_id=user_id, project=project, rating=rating, note=note
         )

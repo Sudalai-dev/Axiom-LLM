@@ -11,7 +11,7 @@ queryable, rankable, and analyzable like any other knowledge.
 
 from typing import Any, Dict, List, Optional
 
-from ecosystem.models import GLOBAL_TENANT, KnowledgeCategory, KnowledgeObject, stable_id
+from ecosystem.models import GLOBAL_SCOPE, KnowledgeCategory, KnowledgeObject, stable_id
 from ecosystem.repository import EngineeringKnowledgeRepository
 
 # Upper bound on approved custom rules pulled from the repository per request.
@@ -181,7 +181,7 @@ class EngineeringRulesEngine:
         rationale: str = "",
         domain: str = "Software Engineering",
         standards: Optional[List[str]] = None,
-        tenant_id: str = GLOBAL_TENANT,
+        user_id: str = GLOBAL_SCOPE,
         submitted_by: str = "",
     ) -> Optional[str]:
         """Submit a NEW engineering rule to the human-review queue. Returns the
@@ -199,7 +199,7 @@ class EngineeringRulesEngine:
             body=f"{then}\n\nRationale: {rationale}",
             confidence=_PROPOSED_RULE_CONFIDENCE,
             priority=_PROPOSED_RULE_PRIORITY,
-            tenant_id=tenant_id,
+            user_id=user_id,
             tags=["rule", "proposed"] + [s.lower() for s in standards],
             attributes={"when": when, "then": then, "rationale": rationale, "standards": standards},
         )

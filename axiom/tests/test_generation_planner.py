@@ -64,7 +64,7 @@ def test_generation_plan_never_reaches_normal_user_response():
     kernel = OctagonalKernel()
     out = asyncio.run(kernel.process(
         "Design a predictive maintenance platform for factory water pumps.",
-        tenant_id="plan-test",
+        user_id="plan-test",
     ))
     assert "generation_plan" not in out.solution_markdown
     assert "generation_plan" not in out.solution_json

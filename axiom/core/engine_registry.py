@@ -145,10 +145,10 @@ def build_octagonal_kernel(
 
     retriever = None
     if knowledge_service is not None:
-        async def retriever(query: str, tenant_id: str):
+        async def retriever(query: str, user_id: str):
             vector = knowledge_service.embedder.embed(query)
             matches = await knowledge_service.vector_retriever.search_vectors(
-                query_vector=vector, tenant_id=tenant_id, limit=8
+                query_vector=vector, user_id=user_id, limit=8
             )
             results = []
             for match in matches or []:

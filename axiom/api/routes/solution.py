@@ -56,7 +56,6 @@ async def create_solution(
     output = await kernel.process(
         message=req.message,
         user_id=req_ctx.user.user_id,
-        tenant_id=req_ctx.tenant.tenant_id,
         project=DEFAULT_PROJECT,
         conversation_id=session_id,
         attachments=req.attachments,

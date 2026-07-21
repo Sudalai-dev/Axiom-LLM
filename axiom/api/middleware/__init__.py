@@ -1,1 +1,1 @@
-"""API middleware: authentication, tenant isolation, rate limiting."""
+"""API middleware: authentication, rate limiting."""

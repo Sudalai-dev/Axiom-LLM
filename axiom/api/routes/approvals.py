@@ -21,11 +21,11 @@ class ApprovalDecisionRequest(BaseModel):
 
 @router.get("/approvals")
 async def list_approvals(req_ctx: RequestContext = Depends(resolve_security_context)):
-    """Lists pending HITL approval requests for the caller's tenant."""
+    """Lists pending HITL approval requests for the caller's user."""
     verify_rbac(req_ctx.user.role, "approve_hitl")
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(HITLApproval).filter(HITLApproval.tenant_id == req_ctx.tenant.tenant_id)
+            select(HITLApproval).filter(HITLApproval.user_id == req_ctx.user.user_id)
         )
         return [
             {
@@ -53,7 +53,6 @@ async def resolve_approval(
         approval = await queue.resolve_approval(
             db=db,
             approval_id=approval_id,
-            tenant_id=req_ctx.tenant.tenant_id,
             decision=req.decision,
             user_id=req_ctx.user.user_id,
             comments=req.comments,

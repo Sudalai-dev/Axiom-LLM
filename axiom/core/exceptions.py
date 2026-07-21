@@ -131,41 +131,11 @@ class AuthorizationError(OCIFError):
 
 
 # ---------------------------------------------------------------------------
-# Tenant Errors (Doc 9 Section 3)
-# ---------------------------------------------------------------------------
-
-class TenantNotFoundError(OCIFError):
-    """Raised when the tenant cannot be resolved from the JWT claims."""
-
-    def __init__(self, detail: str = "Tenant not found or not accessible", correlation_id: Optional[str] = None) -> None:
-        super().__init__(
-            detail=detail,
-            status_code=404,
-            problem_type="https://ocif-platform.dev/errors/tenant-not-found",
-            title="Tenant Not Found",
-            correlation_id=correlation_id,
-        )
-
-
-class TenantIsolationError(OCIFError):
-    """Raised when a cross-tenant data access attempt is detected."""
-
-    def __init__(self, detail: str = "Cross-tenant access violation detected", correlation_id: Optional[str] = None) -> None:
-        super().__init__(
-            detail=detail,
-            status_code=403,
-            problem_type="https://ocif-platform.dev/errors/tenant-isolation-violation",
-            title="Tenant Isolation Violation",
-            correlation_id=correlation_id,
-        )
-
-
-# ---------------------------------------------------------------------------
 # Rate Limiting (Doc 10 Section 9)
 # ---------------------------------------------------------------------------
 
 class RateLimitExceededError(OCIFError):
-    """Raised when a tenant exceeds their rate limit tier."""
+    """Raised when a user exceeds their rate limit tier."""
 
     def __init__(
         self,

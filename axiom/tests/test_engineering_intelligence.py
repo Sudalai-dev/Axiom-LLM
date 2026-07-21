@@ -210,7 +210,6 @@ def test_engineering_intelligence_e2e():
     
     context = CognitiveContext(
         task="Design a secure medical records system compliant with HIPAA for clinical encounters.",
-        tenant_id="t1",
         user_id="u1"
     )
     

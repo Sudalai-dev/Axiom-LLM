@@ -30,14 +30,14 @@ class KnowledgeService:
         self,
         db: AsyncSession,
         filepath: str,
-        tenant_id: str,
+        user_id: str,
         source_type: str = "upload"
     ) -> Dict[str, Any]:
-        """Ingests a document into the tenant's knowledge base."""
+        """Ingests a document into the user's knowledge base."""
         from core.models.base import SourceType
         try:
             source_enum = SourceType(source_type)
         except ValueError:
             source_enum = SourceType.UPLOAD
 
-        return await self.ingestion_pipeline.ingest_document(db, filepath, tenant_id, source_enum)
+        return await self.ingestion_pipeline.ingest_document(db, filepath, user_id, source_enum)

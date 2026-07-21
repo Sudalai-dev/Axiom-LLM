@@ -1980,7 +1980,6 @@
                 <div class="admin-tabs">
                     <button class="admin-tab active" data-admin-tab="policies">Policies</button>
                     <button class="admin-tab" data-admin-tab="tools">Tool Registry</button>
-                    <button class="admin-tab" data-admin-tab="tenants">Tenants</button>
                 </div>
                 <div class="admin-content" id="admin-content">
                     <!-- Policies tab (default) -->
@@ -2020,33 +2019,6 @@
                         </div>
                     </div>
 
-                    <div id="admin-tenants" class="admin-tab-content hidden">
-                        <div class="admin-card">
-                            <div class="admin-card-header">
-                                <h3 class="admin-card-title">Onboard New Tenant</h3>
-                            </div>
-                            <form id="tenant-form" onsubmit="createTenant(event)">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Tenant Name</label>
-                                        <input type="text" class="form-input" id="tenant-name" placeholder="Acme Corp" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Industry</label>
-                                        <input type="text" class="form-input" id="tenant-industry" placeholder="Healthcare" required>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Isolation Mode</label>
-                                    <select class="form-input" id="tenant-isolation">
-                                        <option value="shared">Shared</option>
-                                        <option value="dedicated">Dedicated</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Onboard Tenant</button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -3918,7 +3890,7 @@
         };
 
         // =====================================================================
-        // Knowledge Search — real vector search over the tenant's ingested
+        // Knowledge Search — real vector search over the user's ingested
         // knowledge base (same embed -> search_vectors path the chat engine
         // uses for citations), via GET /knowledge/search.
         // =====================================================================
@@ -3987,23 +3959,6 @@
                 });
                 showToast('Policy created successfully', 'success');
                 document.getElementById('policy-form').reset();
-            } catch(err) {
-                showToast(err.message, 'error');
-            }
-        };
-
-        window.createTenant = async function(e) {
-            e.preventDefault();
-            try {
-                const name = document.getElementById('tenant-name').value;
-                const industry = document.getElementById('tenant-industry').value;
-                const isolation = document.getElementById('tenant-isolation').value;
-
-                await api('POST', '/admin/tenants', {
-                    name, industry, isolation_mode: isolation
-                });
-                showToast('Tenant onboarded successfully', 'success');
-                document.getElementById('tenant-form').reset();
             } catch(err) {
                 showToast(err.message, 'error');
             }

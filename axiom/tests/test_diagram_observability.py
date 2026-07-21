@@ -74,7 +74,7 @@ def test_invalid_diagram_is_recorded_as_discard_not_shipped(monkeypatch):
 
 def test_kernel_surfaces_blueprint_and_diagram_usage_in_trace():
     kernel = OctagonalKernel()
-    out = asyncio.run(kernel.process(ENGINEERING_REQUEST, tenant_id="t1", user_id="u1"))
+    out = asyncio.run(kernel.process(ENGINEERING_REQUEST, user_id="u1"))
     assert not out.is_conversational
     # Blueprint on the output (primary), usage on the output + the admin trace.
     assert out.blueprint is not None

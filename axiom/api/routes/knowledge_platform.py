@@ -63,10 +63,10 @@ async def query_knowledge(
     limit: int = Query(20, ge=1, le=100),
     req_ctx: RequestContext = Depends(resolve_security_context),
 ):
-    """Ranked query over active knowledge objects (tenant + global)."""
+    """Ranked query over active knowledge objects (user + global)."""
     results = knowledge_platform.repository.query(
         domain=domain, category=category, text=q,
-        tenant_id=req_ctx.tenant.tenant_id, limit=limit,
+        user_id=req_ctx.user.user_id, limit=limit,
     )
     return {"count": len(results), "results": [o.to_public_dict() for o in results]}
 
@@ -112,7 +112,7 @@ async def ingest_document(
         title=req.title,
         domain=req.domain,
         industry=req.industry,
-        tenant_id=req_ctx.tenant.tenant_id,
+        user_id=req_ctx.user.user_id,
         submitted_by=req_ctx.user.user_id,
     )
     return {"pending_id": pending_id, "status": "pending"}
@@ -130,7 +130,7 @@ async def propose_rule(
     pending_id = knowledge_platform.rules.propose(
         name=req.name, when=[w.lower() for w in req.when], then=req.then,
         rationale=req.rationale, domain=req.domain, standards=req.standards,
-        tenant_id=req_ctx.tenant.tenant_id, submitted_by=req_ctx.user.user_id,
+        user_id=req_ctx.user.user_id, submitted_by=req_ctx.user.user_id,
     )
     return {"pending_id": pending_id, "status": "pending"}
 
@@ -139,7 +139,7 @@ async def propose_rule(
 async def list_pending(req_ctx: RequestContext = Depends(resolve_security_context)):
     """List knowledge awaiting human approval (requires approve_hitl)."""
     verify_rbac(req_ctx.user.role, "approve_hitl")
-    return {"pending": knowledge_platform.repository.list_pending(tenant_id=req_ctx.tenant.tenant_id)}
+    return {"pending": knowledge_platform.repository.list_pending(user_id=req_ctx.user.user_id)}
 
 
 @router.post("/pending/{pending_id}/decision")

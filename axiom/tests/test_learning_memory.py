@@ -24,7 +24,7 @@ def test_learning_store_persists_and_recalls_similar_records(tmp_path):
     store = make_store(tmp_path)
 
     store.record(
-        record_id="rec-1", tenant_id="t1", project="p1", intent="aiot_engineering",
+        record_id="rec-1", user_id="t1", project="p1", intent="aiot_engineering",
         entities=["MQTT", "PostgreSQL"], subject="Design a sensor alert platform",
         solution_title="Edge-to-Cloud Event-Driven AIoT Architecture",
         confidence=0.81, tradeoffs=["Chose MQTT over raw sockets"],
@@ -33,11 +33,11 @@ def test_learning_store_persists_and_recalls_similar_records(tmp_path):
     # A durable store must survive being re-opened against the same file.
     reopened = LearningStore(db_path=store.db_path)
     similar = reopened.find_similar(
-        tenant_id="t1", project="p1", intent="aiot_engineering", entities=["MQTT"]
+        user_id="t1", project="p1", intent="aiot_engineering", entities=["MQTT"]
     )
     assert len(similar) == 1
     assert similar[0].solution_title == "Edge-to-Cloud Event-Driven AIoT Architecture"
-    assert reopened.count(tenant_id="t1") == 1
+    assert reopened.count(user_id="t1") == 1
 
 
 def test_learning_store_persists_and_recalls_diagram_structure(tmp_path):
@@ -46,14 +46,14 @@ def test_learning_store_persists_and_recalls_diagram_structure(tmp_path):
     store = make_store(tmp_path)
     diagrams = [{"view": "knowledge", "nodes": ["Patient", "Record"], "diagram_type": "er"}]
     store.record(
-        record_id="rec-1", tenant_id="t1", project="p1", intent="solution_design",
+        record_id="rec-1", user_id="t1", project="p1", intent="solution_design",
         entities=["Patient", "Record"], subject="Patient records portal",
         solution_title="Patient Records Portal", confidence=0.9, tradeoffs=[],
         diagrams=diagrams,
     )
     reopened = LearningStore(db_path=store.db_path)
     similar = reopened.find_similar(
-        tenant_id="t1", project="p1", intent="solution_design", entities=["Patient"]
+        user_id="t1", project="p1", intent="solution_design", entities=["Patient"]
     )
     assert len(similar) == 1
     assert similar[0].diagrams == diagrams
@@ -85,7 +85,7 @@ def test_learning_store_migrates_pre_phase6_schema(tmp_path):
     assert legacy and legacy[0].diagrams == []      # old row: empty structure, no crash
 
     store.record(
-        record_id="new-1", tenant_id="t1", project="p1", intent="solution_design",
+        record_id="new-1", user_id="t1", project="p1", intent="solution_design",
         entities=["Patient"], subject="y", solution_title="New", confidence=0.9,
         tradeoffs=[], diagrams=[{"view": "knowledge", "nodes": ["Patient"], "diagram_type": "er"}],
     )
@@ -96,19 +96,19 @@ def test_learning_store_migrates_pre_phase6_schema(tmp_path):
 def test_learning_store_finds_nothing_for_unrelated_entities(tmp_path):
     store = make_store(tmp_path)
     store.record(
-        record_id="rec-1", tenant_id="t1", project="p1", intent="aiot_engineering",
+        record_id="rec-1", user_id="t1", project="p1", intent="aiot_engineering",
         entities=["MQTT"], subject="x", solution_title="Y", confidence=0.7, tradeoffs=[],
     )
     similar = store.find_similar(
-        tenant_id="t1", project="p1", intent="general_engineering", entities=["React"]
+        user_id="t1", project="p1", intent="general_engineering", entities=["React"]
     )
     assert similar == []
 
 
 def test_learning_store_records_and_returns_feedback(tmp_path):
     store = make_store(tmp_path)
-    store.record_feedback(note_id="fb-1", tenant_id="t1", project="p1", rating=1, note="Great answer")
-    notes = store.recent_feedback(tenant_id="t1", project="p1")
+    store.record_feedback(note_id="fb-1", user_id="t1", project="p1", rating=1, note="Great answer")
+    notes = store.recent_feedback(user_id="t1", project="p1")
     assert len(notes) == 1
     assert notes[0].rating == 1
     assert "Great answer" in notes[0].note
@@ -132,18 +132,18 @@ def test_memory_engine_recalls_persisted_solution_across_instances(tmp_path):
     first_memory = MemoryEngine(learning_store=store)
     ctx1 = CognitiveContext(
         task="Design an MQTT-based industrial sensor alerting platform for a factory",
-        tenant_id="t1", project="p1",
+        user_id="t1", project="p1",
     )
     _run_engines_through_reasoning(ctx1, first_memory)
     assert ctx1.validation.passed
     first_memory.persist_outcome(ctx1)
-    assert store.count(tenant_id="t1") == 1
+    assert store.count(user_id="t1") == 1
 
     # Simulate a fresh process: new MemoryEngine, same durable store.
     second_memory = MemoryEngine(learning_store=store)
     ctx2 = CognitiveContext(
         task="Design an MQTT-based alerting system for warehouse sensors",
-        tenant_id="t1", project="p1",
+        user_id="t1", project="p1",
     )
     run(PerceptionEngine().execute(ctx2))
     run(ContextEngine().execute(ctx2))
@@ -161,7 +161,7 @@ def test_reasoning_tolerates_missing_project_understanding(tmp_path):
     gracefully to today's generic behavior rather than raising."""
     store = make_store(tmp_path)
     memory = MemoryEngine(learning_store=store)
-    ctx = CognitiveContext(task="Design a simple internal tool", tenant_id="t9", project="p9")
+    ctx = CognitiveContext(task="Design a simple internal tool", user_id="t9", project="p9")
     _run_engines_through_reasoning(ctx, memory)
 
     assert ctx.project_understanding is None

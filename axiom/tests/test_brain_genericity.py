@@ -34,7 +34,7 @@ from ocif.frames import (
 
 def _run_engine(platform, task, entities):
     engine = EngineeringIntelligenceEngine(knowledge_platform=platform)
-    ctx = CognitiveContext(task=task, tenant_id="t1", user_id="u1")
+    ctx = CognitiveContext(task=task, user_id="u1")
     ctx.context = ContextFrame(intent="solution_design", entities=entities, actors=["User"], use_cases=[])
     ctx.plan = Plan(functional_requirements=[], non_functional_requirements=[])
     ctx.project_understanding = ProjectUnderstandingFrame(
@@ -279,8 +279,8 @@ def test_phase6_learning_loop_end_to_end(tmp_path):
     req = ("Design a hospital patient records portal that stores medication history "
            "for clinicians with appointment scheduling")
 
-    first = asyncio.run(kernel.process(req, tenant_id="t9", project="p9", conversation_id="c1"))
-    second = asyncio.run(kernel.process(req, tenant_id="t9", project="p9", conversation_id="c2"))
+    first = asyncio.run(kernel.process(req, user_id="t9", project="p9", conversation_id="c1"))
+    second = asyncio.run(kernel.process(req, user_id="t9", project="p9", conversation_id="c2"))
 
     assert not first.is_conversational and not second.is_conversational
     first_rec = first.solution_json["recommended_solution"].lower()

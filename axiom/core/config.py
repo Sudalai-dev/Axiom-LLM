@@ -29,16 +29,10 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
-class TenantIsolationMode(str, Enum):
-    """Tenant isolation modes per Doc 10 Section 7."""
-    SHARED = "shared"
-    DEDICATED = "dedicated"
-
-
 class RateLimitTier(str, Enum):
     """Rate limit tiers per Doc 10 Section 9."""
-    STANDARD = "standard"      # 60 requests/min per tenant
-    ENTERPRISE = "enterprise"  # 600 requests/min per tenant (configurable)
+    STANDARD = "standard"      # 60 requests/min per user
+    ENTERPRISE = "enterprise"  # 600 requests/min per user (configurable)
 
 
 @dataclass(frozen=True)

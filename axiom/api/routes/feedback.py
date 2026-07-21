@@ -29,7 +29,7 @@ async def submit_feedback(
     feedback_id = new_uuid()
     learning_store.record_feedback(
         note_id=feedback_id,
-        tenant_id=req_ctx.tenant.tenant_id,
+        user_id=req_ctx.user.user_id,
         project="default",
         rating=req.rating,
         note=req.note or f"Session {req.session_id} rated {req.rating:+d}",

@@ -103,7 +103,7 @@ class PlanningEngine(CognitiveEngine):
         # request was classified into a real industry (not the generic
         # fallback) — a hospital/school request has zero tech-keyword
         # entities but still benefits from grounding against any
-        # tenant-uploaded domain documents, so it must not be silently
+        # user-uploaded domain documents, so it must not be silently
         # skipped the way it was before project understanding existed.
         required_knowledge = (
             bool(entities)
