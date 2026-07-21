@@ -45,7 +45,6 @@ async def _issue_token(db, user: User) -> LoginResponse:
         "sub": user.external_idp_subject,
         "user_id": user.user_id,
         "role": user.role,
-        "industry": "technology",
     })
     return LoginResponse(access_token=token, role=user.role)
 
