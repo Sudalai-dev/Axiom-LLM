@@ -404,11 +404,10 @@ class CognitiveTrace(OCIFBaseModel):
 class CognitiveContext(OCIFBaseModel):
     """
     The single shared context threaded through the octagonal execution graph.
-    Always carries user, tenant, project, conversation_id for traceability.
+    Always carries user, project, conversation_id for traceability.
     """
     correlation_id: str = Field(default_factory=new_uuid)
     user_id: str = "anonymous"
-    tenant_id: str = "default"
     project: str = "default"
     conversation_id: str = Field(default_factory=new_uuid)
 

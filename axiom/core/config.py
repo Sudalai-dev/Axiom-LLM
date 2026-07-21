@@ -29,21 +29,24 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
-class TenantIsolationMode(str, Enum):
-    """Tenant isolation modes per Doc 10 Section 7."""
-    SHARED = "shared"
-    DEDICATED = "dedicated"
-
-
 class RateLimitTier(str, Enum):
     """Rate limit tiers per Doc 10 Section 9."""
-    STANDARD = "standard"      # 60 requests/min per tenant
-    ENTERPRISE = "enterprise"  # 600 requests/min per tenant (configurable)
+    STANDARD = "standard"      # 60 requests/min per user
+    ENTERPRISE = "enterprise"  # 600 requests/min per user (configurable)
 
 
 @dataclass(frozen=True)
 class DatabaseConfig:
-    """PostgreSQL configuration per Doc 9 Section 2."""
+    """Database configuration.
+
+    Production uses PostgreSQL; local/dev and the test suite use SQLite. Set a
+    single ``AXIOM_DATABASE_URL`` (e.g. ``postgresql://user:pass@host:5432/db``)
+    to point at Postgres — it is honoured verbatim and the async/sync driver
+    prefix is normalised automatically (asyncpg for the app, psycopg2/plain for
+    Alembic). When unset, AXIOM falls back to a local SQLite file, so nothing
+    external is required to run or test. The discrete OCIF_DB_* fields below are
+    retained for backward compatibility but ``AXIOM_DATABASE_URL`` takes
+    precedence when present."""
     host: str = "localhost"
     port: int = 5432
     name: str = "ocif_platform"
@@ -52,6 +55,7 @@ class DatabaseConfig:
     pool_size: int = 20
     max_overflow: int = 10
     ssl_mode: str = "prefer"
+    url_override: str = ""   # AXIOM_DATABASE_URL — full URL, wins over the fields above
 
     @property
     def _sqlite_path(self) -> str:
@@ -65,9 +69,32 @@ class DatabaseConfig:
             path = f"./{path}"
         return path
 
+    @staticmethod
+    def _as_async(url: str) -> str:
+        """Normalise any DB URL to its async driver form (asyncpg / aiosqlite)."""
+        if url.startswith(("postgresql+asyncpg", "sqlite+aiosqlite")):
+            return url
+        if url.startswith("postgresql"):
+            return url.replace("postgresql", "postgresql+asyncpg", 1)
+        if url.startswith("sqlite"):
+            return url.replace("sqlite", "sqlite+aiosqlite", 1)
+        return url
+
+    @staticmethod
+    def _as_sync(url: str) -> str:
+        """Normalise any DB URL to its sync driver form (psycopg2 / sqlite) —
+        used by Alembic migrations and background/admin tasks."""
+        if url.startswith("postgresql+asyncpg"):
+            return url.replace("postgresql+asyncpg", "postgresql", 1)
+        if url.startswith("sqlite+aiosqlite"):
+            return url.replace("sqlite+aiosqlite", "sqlite", 1)
+        return url
+
     @property
     def url(self) -> str:
-        """Constructs SQLAlchemy-compatible database URL."""
+        """Async SQLAlchemy URL for the FastAPI app."""
+        if self.url_override:
+            return self._as_async(self.url_override)
         if self.password:
             return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
         return f"sqlite+aiosqlite:///{self._sqlite_path}"
@@ -75,6 +102,8 @@ class DatabaseConfig:
     @property
     def sync_url(self) -> str:
         """Synchronous URL for Alembic migrations."""
+        if self.url_override:
+            return self._as_sync(self.url_override)
         if self.password:
             return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
         return f"sqlite:///{self._sqlite_path}"
@@ -237,6 +266,7 @@ class PlatformSettings:
             password=os.getenv("OCIF_DB_PASSWORD", ""),
             pool_size=int(os.getenv("OCIF_DB_POOL_SIZE", "20")),
             max_overflow=int(os.getenv("OCIF_DB_MAX_OVERFLOW", "10")),
+            url_override=os.getenv("AXIOM_DATABASE_URL", "").strip(),
         )
 
         self.redis = RedisConfig(

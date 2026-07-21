@@ -65,7 +65,7 @@ class PerceptionEngine(CognitiveEngine):
             input_kinds=input_kinds,
             attachments=attachments,
             environment={
-                "tenant_id": context.tenant_id,
+                "user_id": context.user_id,
                 "project": context.project,
                 "conversation_id": context.conversation_id,
                 "has_attachments": bool(attachments),

@@ -43,7 +43,7 @@ _TASK = "Design a hospital patient records portal for clinicians."
 
 
 def _run(engine, task=_TASK):
-    ctx = CognitiveContext(task=task, tenant_id="t1", user_id="u1")
+    ctx = CognitiveContext(task=task, user_id="u1")
     ctx.context = ContextFrame(
         intent="solution_design", entities=["patient", "record"],
         domain_entities=["patient", "record"], actors=["Clinician"], use_cases=[], subject=task,

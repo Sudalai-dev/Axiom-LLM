@@ -158,7 +158,7 @@ def create_gateway_app() -> FastAPI:
     if _FRONTEND_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="static")
 
-    # Simple health check endpoint (bypasses tenant/auth checks)
+    # Simple health check endpoint (bypasses auth checks)
     @app.get("/health", tags=["System"])
     async def get_health():
         return {

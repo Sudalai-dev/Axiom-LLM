@@ -132,6 +132,6 @@ def test_full_kernel_run_exposes_project_diagrams():
     kernel = OctagonalKernel()
     out = asyncio.run(kernel.process(
         "Design a predictive maintenance platform for factory water pumps with MQTT telemetry.",
-        tenant_id="diagram-test",
+        user_id="diagram-test",
     ))
     assert not out.is_conversational

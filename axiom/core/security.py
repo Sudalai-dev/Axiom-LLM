@@ -156,26 +156,26 @@ def decode_access_token(token: str) -> Dict[str, Any]:
 RBAC_MATRIX: Dict[str, List[UserRole]] = {
     "chat_query": [
         UserRole.END_USER, UserRole.PROCESS_OWNER, UserRole.COMPLIANCE_OFFICER, 
-        UserRole.TENANT_ADMIN, UserRole.PLATFORM_ADMIN
+        UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN
     ],
     "view_own_audit": [
         UserRole.END_USER, UserRole.PROCESS_OWNER, UserRole.COMPLIANCE_OFFICER, 
-        UserRole.TENANT_ADMIN, UserRole.PLATFORM_ADMIN
+        UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN
     ],
-    "view_tenant_audit": [
-        UserRole.COMPLIANCE_OFFICER, UserRole.TENANT_ADMIN, UserRole.PLATFORM_ADMIN
+    "view_all_audit": [
+        UserRole.COMPLIANCE_OFFICER, UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN
     ],
     "approve_hitl": [
-        UserRole.PROCESS_OWNER, UserRole.COMPLIANCE_OFFICER, UserRole.TENANT_ADMIN, 
+        UserRole.PROCESS_OWNER, UserRole.COMPLIANCE_OFFICER, UserRole.ORG_ADMIN, 
         UserRole.PLATFORM_ADMIN
     ],
     "configure_policies": [
-        UserRole.COMPLIANCE_OFFICER, UserRole.TENANT_ADMIN, UserRole.PLATFORM_ADMIN
+        UserRole.COMPLIANCE_OFFICER, UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN
     ],
     "register_tools": [
-        UserRole.TENANT_ADMIN, UserRole.PLATFORM_ADMIN
+        UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN
     ],
-    "manage_tenants": [
+    "manage_users": [
         UserRole.PLATFORM_ADMIN
     ]
 }

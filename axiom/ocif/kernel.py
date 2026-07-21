@@ -131,7 +131,6 @@ class OctagonalKernel:
         message: str,
         *,
         user_id: str = "anonymous",
-        tenant_id: str = "default",
         project: str = "default",
         conversation_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
@@ -140,7 +139,6 @@ class OctagonalKernel:
         AXIOM's own brain, no external LLM)."""
         context = CognitiveContext(
             user_id=user_id,
-            tenant_id=tenant_id,
             project=project,
             conversation_id=conversation_id or new_uuid(),
             task=message,

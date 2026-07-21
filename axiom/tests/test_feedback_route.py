@@ -28,7 +28,7 @@ def test_feedback_submission_persists_into_learning_store():
         assert body["feedback_id"]
 
         notes = learning_store.recent_feedback(
-            tenant_id="00000000-0000-0000-0000-000000000001", project="default"
+            user_id="00000000-0000-0000-0000-000000000001", project="default"
         )
         assert any("Very helpful architecture" in n.note for n in notes)
 

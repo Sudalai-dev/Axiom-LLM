@@ -809,6 +809,12 @@
         .pdiagram-dl { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
         .pdiagram-dl:hover { border-color: var(--text-primary); color: var(--text-primary); }
         .pdiagram-dl:disabled { opacity: 0.5; cursor: default; }
+        /* Provider badge (diagrams-only Blueprint): where each layer's diagram came from. */
+        .pdiagram-provider { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 999px; padding: 2px 7px; border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+        .pdiagram-provider-model { color: #7dd3fc; border-color: rgba(125,211,252,0.4); }
+        .pdiagram-provider-recall { color: #c4b5fd; border-color: rgba(196,181,253,0.4); }
+        .pdiagram-provider-built { color: var(--text-secondary); }
+        .pdiagram-empty { font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 18px 8px; text-align: center; }
         .reasoning-panel { margin: 12px 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-secondary); }
         .reasoning-panel summary { cursor: pointer; padding: 8px 12px; font-weight: 600; font-size: 13px; color: var(--text-primary); }
         .reasoning-body { padding: 0 12px 12px; font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; }
@@ -1974,7 +1980,6 @@
                 <div class="admin-tabs">
                     <button class="admin-tab active" data-admin-tab="policies">Policies</button>
                     <button class="admin-tab" data-admin-tab="tools">Tool Registry</button>
-                    <button class="admin-tab" data-admin-tab="tenants">Tenants</button>
                 </div>
                 <div class="admin-content" id="admin-content">
                     <!-- Policies tab (default) -->
@@ -2014,33 +2019,6 @@
                         </div>
                     </div>
 
-                    <div id="admin-tenants" class="admin-tab-content hidden">
-                        <div class="admin-card">
-                            <div class="admin-card-header">
-                                <h3 class="admin-card-title">Onboard New Tenant</h3>
-                            </div>
-                            <form id="tenant-form" onsubmit="createTenant(event)">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Tenant Name</label>
-                                        <input type="text" class="form-input" id="tenant-name" placeholder="Acme Corp" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Industry</label>
-                                        <input type="text" class="form-input" id="tenant-industry" placeholder="Healthcare" required>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Isolation Mode</label>
-                                    <select class="form-input" id="tenant-isolation">
-                                        <option value="shared">Shared</option>
-                                        <option value="dedicated">Dedicated</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Onboard Tenant</button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -2805,12 +2783,16 @@
         };
 
         function storeBlueprint(data) {
-            if (!data.octagonal_model || !data.visualizations) return null;
+            // The diagrams-only Blueprint is the primary output; the octagon map is
+            // secondary. Store whenever EITHER is present — prose-derived fields
+            // (dashboard/documents/exports) are optional and absent by default.
+            if (!data.blueprint && !data.octagonal_model) return null;
             const blueprintId = 'bp-' + Math.random().toString(36).slice(2);
             state.blueprints[blueprintId] = {
                 solutionId: data.solution_id || null,
-                octagonal_model: data.octagonal_model,
-                visualizations: data.visualizations,
+                blueprint: data.blueprint || null,
+                octagonal_model: data.octagonal_model || null,
+                visualizations: data.visualizations || null,
                 implementation_roadmap: data.implementation_roadmap,
                 generated_documents: data.generated_documents || [],
                 dashboard: data.dashboard || null,
@@ -2880,6 +2862,11 @@
             if (hasDashboard) {
                 const summary = state.blueprints[meta.blueprintId].dashboard.executive_summary || '';
                 bodyHtml = `<div class="dashboard-summary">${renderMarkdown(summary)}</div>`;
+            } else if (isDoc && !(content || '').trim() && meta.blueprintId) {
+                // Diagrams-only response (prose disabled by default): the per-layer
+                // diagrams below ARE the deliverable — show a concise lead-in
+                // rather than an empty bubble.
+                bodyHtml = `<div class="dashboard-summary">Engineering blueprint generated — one diagram per octagon layer is shown below, each downloadable as SVG or PNG.</div>`;
             } else {
                 bodyHtml = isDoc ? renderMarkdown(content) : formatContent(content);
             }
@@ -3236,40 +3223,72 @@
                 </details>`;
         }
 
+        function providerBadgeHtml(p) {
+            // Where a layer's diagram came from: local model / recalled prior /
+            // deterministic builder. Purely a source label — the internal
+            // cognitive trace stays admin-only (Developer Mode), separate from this.
+            if (!p) return '';
+            const isModel = p.indexOf('local-llm') === 0;
+            const kind = isModel ? 'model' : (p === 'recall' ? 'recall' : 'built');
+            const label = isModel ? 'model' : (p === 'recall' ? 'recalled' : 'deterministic');
+            return `<span class="pdiagram-provider pdiagram-provider-${kind}" title="Diagram source: ${escapeHtml(p)}">${label}</span>`;
+        }
+
         function renderBlueprintDiagrams(blueprintId) {
             const bp = state.blueprints[blueprintId];
             const container = document.getElementById('diagrams-' + blueprintId);
             if (!bp || !container) return;
-            const diagrams = bp.project_diagrams || [];
+
+            // PRIMARY: the diagrams-only Blueprint — exactly one diagram per OCIF
+            // layer, each carrying its grounded nodes + the provider that produced
+            // it. Fall back to the legacy per-stage project_diagrams if a blueprint
+            // isn't present (older responses / prose-mode payloads).
+            const layers = (bp.blueprint && Array.isArray(bp.blueprint.diagrams)) ? bp.blueprint.diagrams : null;
+            const useLayers = Boolean(layers && layers.length);
+            const diagrams = useLayers ? layers : (bp.project_diagrams || []);
             if (!diagrams.length) {
-                container.innerHTML = emptyState('📐', 'No engineering diagrams were generated for this blueprint.');
+                container.innerHTML = emptyState('📐', 'No diagrams were generated for this blueprint.');
                 return;
             }
 
             const cards = diagrams.map((d, i) => {
                 const blockId = `pdiag-${blueprintId}-${i}`;
-                // Per-diagram filename: "<domain>-<type>" → one downloadable image
-                // per octagon layer (e.g. perception-state_machine.svg).
-                const fname = sanitizeFilename(`${d.domain || d.stage || 'domain'}-${d.diagram_type || 'diagram'}`);
-                return `
-                    <div class="pdiagram-card" data-filename="${escapeHtml(fname)}">
-                        <div class="pdiagram-head">
-                            <span class="pdiagram-domain">${escapeHtml(d.domain || d.stage || '')}</span>
-                            <span class="pdiagram-type">${escapeHtml(d.diagram_type || '')}</span>
-                        </div>
-                        <div class="pdiagram-body"><pre><code class="language-mermaid" id="${blockId}">${escapeHtml(d.mermaid || '')}</code></pre></div>
-                        <div class="pdiagram-caption">${escapeHtml(d.caption || '')}</div>
+                const label = d.label || d.domain || d.stage || d.view || 'layer';
+                const dtype = d.diagram_type || 'diagram';
+                const code = useLayers ? (d.code || '') : (d.mermaid || '');
+                // One downloadable image per octagon layer (e.g. perception-state.svg).
+                const fname = sanitizeFilename(`${label}-${dtype}`);
+                // Honest empty state: a layer with no grounded entities is EMPTY,
+                // never padded with invented content.
+                const isEmpty = useLayers ? (d.status !== 'RENDERED' || !code.trim()) : !code.trim();
+                const bodyInner = isEmpty
+                    ? `<div class="pdiagram-empty">No grounded entities for this layer.</div>`
+                    : `<pre><code class="language-mermaid" id="${blockId}">${escapeHtml(code)}</code></pre>`;
+                const actionsInner = isEmpty ? '' : `
                         <div class="pdiagram-actions">
                             <button type="button" class="pdiagram-dl" data-fmt="svg" title="Download this diagram as a vector SVG image">⬇ SVG</button>
                             <button type="button" class="pdiagram-dl" data-fmt="png" title="Download this diagram as a PNG image">⬇ PNG</button>
+                        </div>`;
+                return `
+                    <div class="pdiagram-card" data-filename="${escapeHtml(fname)}">
+                        <div class="pdiagram-head">
+                            <span class="pdiagram-domain">${escapeHtml(label)}</span>
+                            <span class="pdiagram-type">${escapeHtml(dtype)}</span>
+                            ${useLayers ? providerBadgeHtml(d.provider_used) : ''}
                         </div>
+                        <div class="pdiagram-body">${bodyInner}</div>
+                        <div class="pdiagram-caption">${escapeHtml(d.caption || '')}</div>
+                        ${actionsInner}
                     </div>`;
             }).join('');
 
+            const title = useLayers
+                ? '🧭 Octagonal Blueprint — one diagram per layer'
+                : '🖼 Engineering Blueprint — 8 Domain Diagrams';
             container.innerHTML = `
                 <div class="pdiagram-header">
-                    <span class="pdiagram-title">🖼 Engineering Blueprint — 8 Domain Diagrams</span>
-                    <span class="pdiagram-hint">One downloadable image per octagon domain</span>
+                    <span class="pdiagram-title">${title}</span>
+                    <span class="pdiagram-hint">One downloadable image per octagon layer</span>
                 </div>
                 <div class="pdiagram-grid">${cards}</div>`;
 
@@ -3378,6 +3397,10 @@
             const bp = state.blueprints[blueprintId];
             const container = document.getElementById('map-' + blueprintId);
             if (!bp || !container) return;
+            // The octagon map is secondary to the diagrams. If a response carried
+            // only the Blueprint (no octagon model/visualization), skip the map
+            // gracefully rather than dereferencing a null.
+            if (!bp.octagonal_model || !bp.visualizations || !bp.visualizations.svg) return;
 
             const legacyDocs = (bp.generated_documents || []).map(d =>
                 `<span class="doc-chip" onclick="downloadGeneratedDocument('${blueprintId}', '${d.type}')">⬇ ${escapeHtml(d.filename || d.type)}</span>`
@@ -3867,7 +3890,7 @@
         };
 
         // =====================================================================
-        // Knowledge Search — real vector search over the tenant's ingested
+        // Knowledge Search — real vector search over the user's ingested
         // knowledge base (same embed -> search_vectors path the chat engine
         // uses for citations), via GET /knowledge/search.
         // =====================================================================
@@ -3936,23 +3959,6 @@
                 });
                 showToast('Policy created successfully', 'success');
                 document.getElementById('policy-form').reset();
-            } catch(err) {
-                showToast(err.message, 'error');
-            }
-        };
-
-        window.createTenant = async function(e) {
-            e.preventDefault();
-            try {
-                const name = document.getElementById('tenant-name').value;
-                const industry = document.getElementById('tenant-industry').value;
-                const isolation = document.getElementById('tenant-isolation').value;
-
-                await api('POST', '/admin/tenants', {
-                    name, industry, isolation_mode: isolation
-                });
-                showToast('Tenant onboarded successfully', 'success');
-                document.getElementById('tenant-form').reset();
             } catch(err) {
                 showToast(err.message, 'error');
             }

@@ -156,6 +156,45 @@ class ValidationEngine(CognitiveEngine):
                     "narrative; solution shipped but flagged for thin coverage."
                 )
 
+        # 8. Diagram grounding self-check (diagram-only directive). The PRIMARY
+        #    output is the Blueprint — one diagram per OCIF layer — built during
+        #    reasoning and carried on context.metadata. Fail-soft, mirroring the
+        #    prose self-check above: it never hard-blocks, but (a) never ships a
+        #    diagram marked RENDERED that isn't grounded (demote it to an honest
+        #    EMPTY — invariant B2/B3: nothing fabricated reaches the client), and
+        #    (b) flags a CONCRETE request whose diagrams reflect none of its own
+        #    entities (the diagram analog of generic-template collapse).
+        checks.append("diagram-grounding-self-check")
+        meta = getattr(context, "metadata", None) or {}
+        blueprint = meta.get("blueprint")
+        if isinstance(blueprint, dict) and blueprint.get("diagrams"):
+            diagrams = blueprint["diagrams"]
+            demoted = 0
+            for d in diagrams:
+                if d.get("status") == "RENDERED" and not d.get("grounded", False):
+                    d["status"], d["code"], d["nodes"] = "EMPTY", "", []
+                    demoted += 1
+            if demoted:
+                corrections.append(
+                    f"Demoted {demoted} ungrounded diagram(s) to EMPTY — a rendered "
+                    "diagram must be grounded in the request's entities."
+                )
+                warnings.append(
+                    f"{demoted} diagram(s) claimed RENDERED without grounding and "
+                    "were dropped to EMPTY."
+                )
+            entities = [e for e in (getattr(doc, "domain_entities", None) or []) if e]
+            if entities and any(d.get("status") == "RENDERED" for d in diagrams):
+                entity_low = {e.lower() for e in entities}
+                grounded_nodes = {
+                    n.lower() for d in diagrams for n in (d.get("nodes") or [])
+                }
+                if not (grounded_nodes & entity_low):
+                    warnings.append(
+                        "Blueprint diagrams reflected none of the request's entities "
+                        "(generic/empty diagram output); shipped but flagged for review."
+                    )
+
         passed = not issues
         terminal_state = (
             "blocked" if not passed

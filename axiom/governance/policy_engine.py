@@ -33,23 +33,23 @@ class PolicyEngine:
     async def evaluate_policies(
         self,
         db: AsyncSession,
-        tenant_id: str,
+        user_id: str,
         action_type: str,
         payload: Dict[str, Any]
     ) -> List[PolicyCheck]:
         """
-        Loads and executes all active policies for the tenant.
+        Loads and executes all active policies for the user.
         
         Enforces default-deny: if rules exist but none allow, or any checks fail,
         action is blocked. Fail-closed on errors.
         """
-        logger.info(f"Evaluating policies for action '{action_type}' (Tenant: {tenant_id})")
+        logger.info(f"Evaluating policies for action '{action_type}' (User: {user_id})")
 
         # 1. Fetch active policies from the database
         try:
             result = await db.execute(
                 select(Policy)
-                .filter(Policy.tenant_id == tenant_id)
+                .filter(Policy.user_id == user_id)
                 .filter(Policy.is_active == True)
             )
             policies = result.scalars().all()
@@ -61,12 +61,12 @@ class PolicyEngine:
 
         # If no policies are registered, default to a general safety block (default-deny)
         if not policies:
-            logger.warning(f"No active policies found for tenant {tenant_id}. Triggering default-deny block.")
+            logger.warning(f"No active policies found for user {user_id}. Triggering default-deny block.")
             checks.append(
                 PolicyCheck(
                     rule_name="default-deny-posture",
                     result=PolicyCheckResult.FAIL,
-                    description="Default safety gate blocking action because no explicit tenant rules are loaded",
+                    description="Default safety gate blocking action because no explicit user rules are loaded",
                     error_message="Action blocked: no active policies registered."
                 )
             )

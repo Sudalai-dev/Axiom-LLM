@@ -29,7 +29,7 @@ ENGINEERING_REQUEST = (
 
 
 def make_context(task: str = ENGINEERING_REQUEST) -> CognitiveContext:
-    return CognitiveContext(task=task, tenant_id="t1", user_id="u1")
+    return CognitiveContext(task=task, user_id="u1")
 
 
 async def run_through(context: CognitiveContext, *engines: CognitiveEngine) -> None:
@@ -112,7 +112,7 @@ def test_knowledge_engine_is_optional_and_honest():
     assert context.knowledge.sources == []
 
     # Failing retriever -> fail-soft empty frame
-    def broken_retriever(query, tenant_id):
+    def broken_retriever(query, user_id):
         raise RuntimeError("retrieval backend down")
 
     context = make_context()
@@ -123,7 +123,7 @@ def test_knowledge_engine_is_optional_and_honest():
 
 
 def test_knowledge_engine_uses_retriever_results():
-    async def retriever(query, tenant_id):
+    async def retriever(query, user_id):
         return [{"doc_id": "d1", "title": "Standards Doc", "text": "MQTT QoS guidance..."}]
 
     context = make_context()

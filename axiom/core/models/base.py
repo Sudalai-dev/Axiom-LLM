@@ -41,7 +41,7 @@ class UserRole(str, Enum):
     END_USER = "end_user"
     PROCESS_OWNER = "process_owner"
     COMPLIANCE_OFFICER = "compliance_officer"
-    TENANT_ADMIN = "tenant_admin"
+    ORG_ADMIN = "org_admin"
     PLATFORM_ADMIN = "platform_admin"
 
 
@@ -177,37 +177,18 @@ class OCIFBaseModel(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Tenant Context — Attached to every request
-# ---------------------------------------------------------------------------
-
-class TenantContext(OCIFBaseModel):
-    """
-    Resolved tenant context attached to every request after gateway processing.
-
-    Populated by the tenant_resolver middleware (Layer 2) from JWT claims.
-    Propagated through all downstream layers for RLS enforcement and
-    Pinecone namespace isolation.
-    """
-    tenant_id: str = Field(..., description="UUID of the resolved tenant")
-    tenant_name: str = Field(..., description="Human-readable tenant name")
-    industry: str = Field(default="general", description="Industry vertical for prompt customization")
-    isolation_mode: str = Field(default="shared", description="shared | dedicated")
-    rate_limit_tier: str = Field(default="standard", description="standard | enterprise")
-
-
-# ---------------------------------------------------------------------------
 # User Context — Attached to every request
 # ---------------------------------------------------------------------------
 
 class UserContext(OCIFBaseModel):
     """
     Resolved user context from the authenticated JWT token.
-    Used for RBAC enforcement at both API and row level.
+    The user is AXIOM's isolation scope — all per-account data (memory,
+    learning, usage, rate limiting) is keyed by user_id.
     """
     user_id: str = Field(..., description="UUID of the authenticated user")
     username: str = Field(..., description="User's login name")
     role: UserRole = Field(..., description="User's RBAC role per Doc 14 Section 3.1")
-    tenant_id: str = Field(..., description="Tenant the user belongs to")
     department: Optional[str] = Field(default=None, description="User's department for scoped access")
     permissions: Dict[str, bool] = Field(default_factory=dict, description="Resolved permission flags")
 
@@ -221,11 +202,10 @@ class RequestContext(OCIFBaseModel):
     Master request context envelope that flows through all 8 OCIF layers.
 
     Created at Layer 2 (Gateway), enriched at each layer, and used for
-    correlation, tenant isolation, and audit tracing.
+    correlation, per-user isolation, and audit tracing.
     """
     correlation_id: str = Field(default_factory=new_uuid, description="Unique request trace ID per Doc 10")
     session_id: Optional[str] = Field(default=None, description="Conversation session ID")
-    tenant: TenantContext = Field(..., description="Resolved tenant context")
     user: UserContext = Field(..., description="Resolved user context")
     timestamp: datetime = Field(default_factory=utc_now, description="Request ingestion timestamp")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Layer-specific metadata accumulator")

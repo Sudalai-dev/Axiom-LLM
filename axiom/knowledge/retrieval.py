@@ -2,11 +2,11 @@
 OCIF Vector Retriever Adapter — Layer 4.
 
 Provides a unified interface for vector operations. Routes to Pinecone using
-tenant namespaces in production (per Doc 11 Section 8) or falls back to
+user namespaces in production (per Doc 11 Section 8) or falls back to
 the local custom VectorEngine database for offline development.
 
 Traces to:
-  - Document 11 (RAG Design) Section 8: Performance (Pinecone namespace-per-tenant)
+  - Document 11 (RAG Design) Section 8: Performance (Pinecone namespace-per-user)
   - Document 9 (Database Design) Section 5: Vector Database Design
 """
 
@@ -49,31 +49,31 @@ class VectorRetriever:
         chunk_id: str,
         vector: List[float],
         payload: Dict[str, Any],
-        tenant_id: str
+        user_id: str
     ) -> None:
         """
-        Inserts a single vector and payload metadata, isolated by tenant namespace.
+        Inserts a single vector and payload metadata, isolated by user namespace.
         """
         if self.provider == "pinecone" and self.pinecone_index:
             try:
-                # Upsert into tenant namespace
+                # Upsert into user namespace
                 self.pinecone_index.upsert(
                     vectors=[(chunk_id, vector, payload)],
-                    namespace=tenant_id
+                    namespace=user_id
                 )
             except Exception as e:
                 logger.error(f"Pinecone upsert failure: {e}. Attempting local database write.")
                 # Write locally as fallback to avoid hard failure
-                self.local_db.insert(chunk_id, vector, payload, project_id=hash(tenant_id) % 100000)
+                self.local_db.insert(chunk_id, vector, payload, project_id=hash(user_id) % 100000)
         else:
-            # Map tenant_id string hash to the legacy local_db project_id (int)
-            local_proj_id = hash(tenant_id) % 100000
+            # Map user_id string hash to the legacy local_db project_id (int)
+            local_proj_id = hash(user_id) % 100000
             self.local_db.insert(chunk_id, vector, payload, project_id=local_proj_id)
 
     async def search_vectors(
         self,
         query_vector: List[float],
-        tenant_id: str,
+        user_id: str,
         limit: int = 20
     ) -> List[Dict[str, Any]]:
         """
@@ -85,7 +85,7 @@ class VectorRetriever:
                     vector=query_vector,
                     top_k=limit,
                     include_metadata=True,
-                    namespace=tenant_id
+                    namespace=user_id
                 )
                 results = []
                 for match in response.get("matches", []):
@@ -97,8 +97,8 @@ class VectorRetriever:
                 return results
             except Exception as e:
                 logger.error(f"Pinecone query failure: {e}. Querying local memory store fallback.")
-                local_proj_id = hash(tenant_id) % 100000
+                local_proj_id = hash(user_id) % 100000
                 return self.local_db.search(query_vector, project_id=local_proj_id, limit=limit)
         else:
-            local_proj_id = hash(tenant_id) % 100000
+            local_proj_id = hash(user_id) % 100000
             return self.local_db.search(query_vector, project_id=local_proj_id, limit=limit)

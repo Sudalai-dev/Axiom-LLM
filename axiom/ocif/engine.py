@@ -77,7 +77,7 @@ class CognitiveEngine(ABC):
                 "status": status_value,
                 "summary": result.summary,
                 "duration_ms": result.duration_ms,
-                "tenant_id": context.tenant_id,
+                "user_id": context.user_id,
                 "conversation_id": context.conversation_id,
             },
         )

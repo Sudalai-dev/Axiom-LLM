@@ -46,7 +46,7 @@ class ContextFrame(OCIFBaseModel):
     Canonical output of Layer 3 — Context Intelligence.
 
     Contains intent analysis, named entities, conversation session history,
-    user/tenant properties, and injected heuristics.
+    user properties, and injected heuristics.
 
     Per Doc 6 Section 3 and Doc 7 Section 4:
     - Intent classification (lexical + semantic evaluation)

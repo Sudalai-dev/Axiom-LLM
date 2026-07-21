@@ -51,7 +51,7 @@ def test_kernel_engineering_request_produces_valid_octagon_svg_in_trace():
     kernel = OctagonalKernel()
     out = run(kernel.process(
         "Design an MQTT-based industrial sensor alerting platform for a factory",
-        tenant_id="t1",
+        user_id="t1",
     ))
     assert not out.is_conversational
     svg = out.trace.octagon_svg

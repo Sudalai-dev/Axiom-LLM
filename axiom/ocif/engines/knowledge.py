@@ -23,7 +23,7 @@ from ocif.frames import (
 
 logger = logging.getLogger("AxiomOCIF.Knowledge")
 
-# A retriever takes (query: str, tenant_id: str) and returns a list of dicts:
+# A retriever takes (query: str, user_id: str) and returns a list of dicts:
 # [{"doc_id": ..., "title": ..., "text": ...}, ...]. May be sync or async.
 Retriever = Callable[[str, str], Any]
 
@@ -49,7 +49,7 @@ class KnowledgeEngine(CognitiveEngine):
 
         if self.retriever is not None:
             try:
-                raw = self.retriever(query, context.tenant_id)
+                raw = self.retriever(query, context.user_id)
                 if inspect.isawaitable(raw):
                     raw = await raw
                 for item in (raw or [])[:8]:

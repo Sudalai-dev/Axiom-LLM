@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 from ecosystem.models import (
     COLUMNS,
-    GLOBAL_TENANT,
+    GLOBAL_SCOPE,
     ApprovalState,
     KnowledgeObject,
     Relationship,
@@ -61,9 +61,23 @@ class EngineeringKnowledgeRepository:
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
 
+    @staticmethod
+    def _rename_tenant_column(conn, table: str) -> None:
+        """Migrate a pre-workspace store: rename legacy `tenant_id` → `user_id`
+        in place (no-op on fresh or already-migrated DBs)."""
+        try:
+            existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            if "tenant_id" in existing and "user_id" not in existing:
+                conn.execute(f"ALTER TABLE {table} RENAME COLUMN tenant_id TO user_id")
+        except Exception:
+            pass
+
     def _init_db(self) -> None:
         try:
             with self._lock, self._connect() as conn:
+                # Legacy tenant_id → user_id (before any index touches user_id).
+                self._rename_tenant_column(conn, "knowledge_objects")
+                self._rename_tenant_column(conn, "pending_knowledge")
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS knowledge_objects (
@@ -86,7 +100,7 @@ class EngineeringKnowledgeRepository:
                         approval_status TEXT,
                         author TEXT,
                         reviewer TEXT,
-                        tenant_id TEXT,
+                        user_id TEXT,
                         source_document TEXT,
                         created_at TEXT,
                         updated_at TEXT,
@@ -95,7 +109,7 @@ class EngineeringKnowledgeRepository:
                     """
                 )
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_ko_domain_cat ON knowledge_objects (domain, category)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_ko_tenant ON knowledge_objects (tenant_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_ko_user ON knowledge_objects (user_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_ko_category ON knowledge_objects (category)")
                 conn.execute(
                     """
@@ -131,7 +145,7 @@ class EngineeringKnowledgeRepository:
                         pending_id TEXT PRIMARY KEY,
                         payload TEXT NOT NULL,
                         submitted_by TEXT,
-                        tenant_id TEXT,
+                        user_id TEXT,
                         status TEXT NOT NULL,
                         review_note TEXT,
                         reviewer TEXT,
@@ -216,15 +230,15 @@ class EngineeringKnowledgeRepository:
         category: Optional[str] = None,
         industry: Optional[str] = None,
         text: Optional[str] = None,
-        tenant_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         approved_only: bool = True,
         ranked: bool = True,
         limit: int = 25,
     ) -> List[KnowledgeObject]:
         """Filtered, optionally rank-ordered query over the knowledge objects.
 
-        Results always include GLOBAL_TENANT ("*") knowledge plus, when
-        `tenant_id` is given, that tenant's private knowledge.
+        Results always include GLOBAL_SCOPE ("*") knowledge plus, when
+        `user_id` is given, that user's private knowledge.
         """
         clauses: List[str] = []
         params: List[Any] = []
@@ -240,9 +254,9 @@ class EngineeringKnowledgeRepository:
         if approved_only:
             clauses.append("approval_status = ?")
             params.append(ApprovalState.APPROVED.value)
-        if tenant_id:
-            clauses.append("(tenant_id = ? OR tenant_id = ?)")
-            params.extend([GLOBAL_TENANT, tenant_id])
+        if user_id:
+            clauses.append("(user_id = ? OR user_id = ?)")
+            params.extend([GLOBAL_SCOPE, user_id])
         if text:
             like = f"%{text.lower()}%"
             clauses.append("(LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(body) LIKE ? OR LOWER(tags) LIKE ?)")
@@ -452,9 +466,9 @@ class EngineeringKnowledgeRepository:
             with self._lock, self._connect() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO pending_knowledge "
-                    "(pending_id, payload, submitted_by, tenant_id, status, review_note, "
+                    "(pending_id, payload, submitted_by, user_id, status, review_note, "
                     "reviewer, created_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (pending_id, json.dumps(obj.to_row()), submitted_by, obj.tenant_id,
+                    (pending_id, json.dumps(obj.to_row()), submitted_by, obj.user_id,
                      ApprovalState.PENDING.value, "", "", utc_now_iso(), None),
                 )
                 conn.commit()
@@ -462,17 +476,17 @@ class EngineeringKnowledgeRepository:
             pass
         return pending_id
 
-    def list_pending(self, tenant_id: Optional[str] = None, status: str = ApprovalState.PENDING.value) -> List[Dict[str, Any]]:
+    def list_pending(self, user_id: Optional[str] = None, status: str = ApprovalState.PENDING.value) -> List[Dict[str, Any]]:
         clauses = ["status = ?"]
         params: List[Any] = [status]
-        if tenant_id:
-            clauses.append("(tenant_id = ? OR tenant_id = ?)")
-            params.extend([GLOBAL_TENANT, tenant_id])
+        if user_id:
+            clauses.append("(user_id = ? OR user_id = ?)")
+            params.extend([GLOBAL_SCOPE, user_id])
         where = " WHERE " + " AND ".join(clauses)
         try:
             with self._lock, self._connect() as conn:
                 rows = conn.execute(
-                    f"SELECT pending_id, payload, submitted_by, tenant_id, status, "
+                    f"SELECT pending_id, payload, submitted_by, user_id, status, "
                     f"review_note, reviewer, created_at FROM pending_knowledge{where} "
                     f"ORDER BY created_at DESC",
                     tuple(params),
@@ -489,7 +503,7 @@ class EngineeringKnowledgeRepository:
                 "domain": obj.domain,
                 "summary": obj.summary,
                 "submitted_by": r[2],
-                "tenant_id": r[3],
+                "user_id": r[3],
                 "status": r[4],
                 "review_note": r[5],
                 "created_at": r[7],

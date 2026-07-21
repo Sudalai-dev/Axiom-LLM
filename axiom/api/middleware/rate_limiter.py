@@ -1,7 +1,7 @@
 """
 OCIF Rate Limiter — Layer 2.
 
-Implements a token-bucket rate limiting policy per tenant. Enforces 
+Implements a token-bucket rate limiting policy per user. Enforces 
 60 requests/min for standard tiers and 600 requests/min for enterprise.
 Uses Redis key storage, falling back to a thread-safe in-memory cache for dev.
 
@@ -40,7 +40,7 @@ class RateLimiter:
         self.redis_client = None
         self.redis_enabled = False
         
-        # Local in-memory fallback (tenant_id -> (tokens, last_refill_timestamp))
+        # Local in-memory fallback (subject -> (tokens, last_refill_timestamp))
         self.local_buckets: Dict[str, Tuple[float, float]] = {}
         self.local_lock = Lock()
 
@@ -61,9 +61,9 @@ class RateLimiter:
             except Exception as e:
                 logger.warning(f"Failed to connect to Redis: {e}. Falling back to in-memory rate limiting.")
 
-    def check_rate_limit(self, tenant_id: str, tier: str) -> int:
+    def check_rate_limit(self, subject: str, tier: str) -> int:
         """
-        Validates rate limit for the given tenant and tier.
+        Validates rate limit for the given user and tier.
         Returns the number of remaining requests in the current window.
         Raises RateLimitExceededError if limit is reached.
         """
@@ -76,19 +76,19 @@ class RateLimiter:
         refill_rate = capacity / 60.0  # tokens per second
 
         if self.redis_enabled and self.redis_client:
-            return self._check_redis(tenant_id, capacity, refill_rate)
+            return self._check_redis(subject, capacity, refill_rate)
         else:
-            return self._check_local(tenant_id, capacity, refill_rate)
+            return self._check_local(subject, capacity, refill_rate)
 
-    def _check_redis(self, tenant_id: str, capacity: int, refill_rate: float) -> int:
+    def _check_redis(self, subject: str, capacity: int, refill_rate: float) -> int:
         """
         Evaluates token bucket policy inside Redis using a transaction or Lua script.
         To avoid complex script compilation, we use standard keys:
-        - ratelimit:{tenant_id}:tokens (float)
-        - ratelimit:{tenant_id}:last_update (float)
+        - ratelimit:{subject}:tokens (float)
+        - ratelimit:{subject}:last_update (float)
         """
-        tokens_key = f"ratelimit:{tenant_id}:tokens"
-        time_key = f"ratelimit:{tenant_id}:last_update"
+        tokens_key = f"ratelimit:{subject}:tokens"
+        time_key = f"ratelimit:{subject}:last_update"
         
         pipe = self.redis_client.pipeline()
         try:
@@ -108,7 +108,7 @@ class RateLimiter:
                 # Calculate time until next token is available
                 wait_time = int((1.0 - tokens) / refill_rate)
                 raise RateLimitExceededError(
-                    detail=f"Rate limit exceeded for tenant '{tenant_id}'. Capacity: {capacity}/min.",
+                    detail=f"Rate limit exceeded for user '{subject}'. Capacity: {capacity}/min.",
                     retry_after_seconds=max(1, wait_time)
                 )
             
@@ -127,13 +127,13 @@ class RateLimiter:
             logger.error(f"Redis rate limiter transaction failure: {e}. Defaulting to allow.")
             return capacity
 
-    def _check_local(self, tenant_id: str, capacity: int, refill_rate: float) -> int:
+    def _check_local(self, subject: str, capacity: int, refill_rate: float) -> int:
         """
         Evaluates token bucket in local thread-safe memory dictionary.
         """
         now = time.time()
         with self.local_lock:
-            bucket = self.local_buckets.get(tenant_id)
+            bucket = self.local_buckets.get(subject)
             if not bucket:
                 tokens = float(capacity)
                 last_update = now
@@ -146,13 +146,13 @@ class RateLimiter:
             if tokens < 1.0:
                 wait_time = int((1.0 - tokens) / refill_rate)
                 raise RateLimitExceededError(
-                    detail=f"Rate limit exceeded for tenant '{tenant_id}'. Capacity: {capacity}/min.",
+                    detail=f"Rate limit exceeded for user '{subject}'. Capacity: {capacity}/min.",
                     retry_after_seconds=max(1, wait_time)
                 )
 
             # Consume 1 token
             tokens -= 1.0
-            self.local_buckets[tenant_id] = (tokens, now)
+            self.local_buckets[subject] = (tokens, now)
             
             return int(tokens)
 
