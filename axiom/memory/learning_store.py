@@ -199,6 +199,40 @@ class LearningStore:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [rec for _, rec in scored[:limit]]
 
+    def iter_records(
+        self, user_id: Optional[str] = None, project: Optional[str] = None
+    ) -> List[LearningRecord]:
+        """Return every persisted record (optionally scoped to a user/project),
+        newest first — the full-corpus read the dataset exporter needs (unlike
+        find_similar, which ranks by entity overlap)."""
+        clauses, params = [], []
+        if user_id:
+            clauses.append("user_id = ?"); params.append(user_id)
+        if project:
+            clauses.append("project = ?"); params.append(project)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        try:
+            with self._lock, self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, user_id, project, intent, entities, subject, solution_title, "
+                    "confidence, tradeoffs, diagrams, created_at FROM learning_records"
+                    + where + " ORDER BY created_at DESC",
+                    tuple(params),
+                ).fetchall()
+        except Exception:
+            return []
+        return [
+            LearningRecord(
+                id=r[0], user_id=r[1], project=r[2], intent=r[3],
+                entities=json.loads(r[4]) if r[4] else [], subject=r[5],
+                solution_title=r[6], confidence=r[7],
+                tradeoffs=json.loads(r[8]) if r[8] else [],
+                diagrams=json.loads(r[9]) if r[9] else [],
+                created_at=r[10],
+            )
+            for r in rows
+        ]
+
     def count(self, user_id: Optional[str] = None) -> int:
         """Number of persisted learning records, optionally scoped to a user."""
         try:

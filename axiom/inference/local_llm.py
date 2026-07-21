@@ -195,7 +195,9 @@ def draft_reasoning_and_prose(
 # Reproducible seed for diagram-structure generation (recorded in the trace).
 DIAGRAM_STRUCTURE_SEED = 7
 
-_DIAGRAM_SYSTEM_PROMPT = (
+# Public so the fine-tune dataset exporter (training/) can emit training examples
+# in EXACTLY the format inference uses — train/inference parity is essential.
+DIAGRAM_SYSTEM_PROMPT = (
     "You are AXIOM's diagram engine. Given a set of typed entities and typed "
     "relationships for an engineering request, and one OCIF layer with a diagram "
     "intent, output ONLY the diagram STRUCTURE as a single JSON object:\n"
@@ -206,6 +208,28 @@ _DIAGRAM_SYSTEM_PROMPT = (
     "are handled AT THIS LAYER per the intent. Keep it focused (3-8 nodes). Output "
     "the JSON object only, no prose, no code fences."
 )
+_DIAGRAM_SYSTEM_PROMPT = DIAGRAM_SYSTEM_PROMPT   # backward-compatible alias
+
+
+def diagram_facts_prompt(
+    *, layer: str, intent: str, diagram_type: str,
+    typed_entities: list, relationships: list, allowed_primitives: list,
+) -> str:
+    """Build the user-facing facts packet for one layer. Shared by live inference
+    (propose_diagram_structure) and the training-data exporter so the model sees
+    identical prompts at train and inference time."""
+    ents = ", ".join(f'{e.get("name")}({e.get("type")})' for e in (typed_entities or [])) or "none"
+    rels = ", ".join(
+        f'{r.get("source")} -{r.get("type")}-> {r.get("target")}' for r in (relationships or [])
+    ) or "none"
+    prims = ", ".join(allowed_primitives or []) or "none"
+    return (
+        f"LAYER: {layer}\nDIAGRAM INTENT: {intent}\nDIAGRAM TYPE: {diagram_type}\n"
+        f"ENTITIES (name(type) — use these as node ids): {ents}\n"
+        f"RELATIONSHIPS: {rels}\n"
+        f"ALLOWED PRIMITIVES (only if needed): {prims}\n\n"
+        "Return the JSON structure now."
+    )
 
 
 def propose_diagram_structure(
@@ -222,19 +246,12 @@ def propose_diagram_structure(
     one layer, grounded on the facts packet. Returns the parsed dict (with
     ``nodes``/``edges`` lists) or None. The caller enforces grounding + emits
     mermaid deterministically — this only proposes structure."""
-    ents = ", ".join(f'{e.get("name")}({e.get("type")})' for e in (typed_entities or [])) or "none"
-    rels = ", ".join(
-        f'{r.get("source")} -{r.get("type")}-> {r.get("target")}' for r in (relationships or [])
-    ) or "none"
-    prims = ", ".join(allowed_primitives or []) or "none"
-    user = (
-        f"LAYER: {layer}\nDIAGRAM INTENT: {intent}\nDIAGRAM TYPE: {diagram_type}\n"
-        f"ENTITIES (name(type) — use these as node ids): {ents}\n"
-        f"RELATIONSHIPS: {rels}\n"
-        f"ALLOWED PRIMITIVES (only if needed): {prims}\n\n"
-        "Return the JSON structure now."
+    user = diagram_facts_prompt(
+        layer=layer, intent=intent, diagram_type=diagram_type,
+        typed_entities=typed_entities, relationships=relationships,
+        allowed_primitives=allowed_primitives,
     )
-    obj = client.chat_json(_DIAGRAM_SYSTEM_PROMPT, user, temperature=0.1, seed=DIAGRAM_STRUCTURE_SEED)
+    obj = client.chat_json(DIAGRAM_SYSTEM_PROMPT, user, temperature=0.1, seed=DIAGRAM_STRUCTURE_SEED)
     if not isinstance(obj, dict):
         return None
     if not isinstance(obj.get("nodes"), list) or not isinstance(obj.get("edges"), list):
