@@ -40,6 +40,59 @@ def test_learning_store_persists_and_recalls_similar_records(tmp_path):
     assert reopened.count(tenant_id="t1") == 1
 
 
+def test_learning_store_persists_and_recalls_diagram_structure(tmp_path):
+    """Phase 6: a validated Blueprint's per-layer structure must round-trip so a
+    similar future request can recall and reuse it."""
+    store = make_store(tmp_path)
+    diagrams = [{"view": "knowledge", "nodes": ["Patient", "Record"], "diagram_type": "er"}]
+    store.record(
+        record_id="rec-1", tenant_id="t1", project="p1", intent="solution_design",
+        entities=["Patient", "Record"], subject="Patient records portal",
+        solution_title="Patient Records Portal", confidence=0.9, tradeoffs=[],
+        diagrams=diagrams,
+    )
+    reopened = LearningStore(db_path=store.db_path)
+    similar = reopened.find_similar(
+        tenant_id="t1", project="p1", intent="solution_design", entities=["Patient"]
+    )
+    assert len(similar) == 1
+    assert similar[0].diagrams == diagrams
+
+
+def test_learning_store_migrates_pre_phase6_schema(tmp_path):
+    """A store created before Phase 6 (no `diagrams` column) must be migrated in
+    place on open — old records read back with an empty diagram structure and
+    new records persist their structure."""
+    import sqlite3
+
+    db_path = str(tmp_path / "old.db")
+    with sqlite3.connect(db_path) as conn:   # legacy schema: no `diagrams` column
+        conn.execute(
+            "CREATE TABLE learning_records (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, "
+            "project TEXT NOT NULL, intent TEXT NOT NULL, entities TEXT NOT NULL, "
+            "subject TEXT NOT NULL, solution_title TEXT NOT NULL, confidence REAL NOT NULL, "
+            "tradeoffs TEXT NOT NULL, created_at TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO learning_records VALUES (?,?,?,?,?,?,?,?,?,?)",
+            ("old-1", "t1", "p1", "solution_design", '["Patient"]', "x",
+             "Legacy Solution", 0.8, "[]", "2020-01-01T00:00:00+00:00"),
+        )
+        conn.commit()
+
+    store = LearningStore(db_path=db_path)          # triggers the ALTER migration
+    legacy = store.find_similar("t1", "p1", "solution_design", ["Patient"])
+    assert legacy and legacy[0].diagrams == []      # old row: empty structure, no crash
+
+    store.record(
+        record_id="new-1", tenant_id="t1", project="p1", intent="solution_design",
+        entities=["Patient"], subject="y", solution_title="New", confidence=0.9,
+        tradeoffs=[], diagrams=[{"view": "knowledge", "nodes": ["Patient"], "diagram_type": "er"}],
+    )
+    new = store.find_similar("t1", "p1", "solution_design", ["Patient"])
+    assert any(r.diagrams for r in new)             # new row persists its structure
+
+
 def test_learning_store_finds_nothing_for_unrelated_entities(tmp_path):
     store = make_store(tmp_path)
     store.record(

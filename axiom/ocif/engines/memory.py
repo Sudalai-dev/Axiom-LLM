@@ -81,6 +81,10 @@ class MemoryEngine(CognitiveEngine):
                 "confidence": rec.confidence,
                 "entities": list(rec.entities),
                 "tradeoffs": list(rec.tradeoffs),
+                # Phase 6: per-layer diagram STRUCTURE of the prior Blueprint, so
+                # the diagram core can reuse-and-adapt it (re-grounded to THIS
+                # request) instead of regenerating every layer from scratch.
+                "diagrams": list(rec.diagrams),
             }
             for rec in similar
         ]
@@ -138,6 +142,19 @@ class MemoryEngine(CognitiveEngine):
             self._conversations[conv_key].append(
                 {"role": "assistant", "content": f"Delivered solution: {title}"}
             )
+            # Phase 6: persist the validated Blueprint's per-layer structure
+            # (view + grounded nodes) so a future similar request can recall it.
+            # Only RENDERED layers with real nodes are worth recalling.
+            blueprint = (context.metadata or {}).get("blueprint") or {}
+            recall_diagrams = [
+                {
+                    "view": d.get("view"),
+                    "nodes": list(d.get("nodes") or []),
+                    "diagram_type": d.get("diagram_type"),
+                }
+                for d in (blueprint.get("diagrams") or [])
+                if d.get("status") == "RENDERED" and d.get("nodes")
+            ]
             self.learning_store.record(
                 record_id=new_uuid(),
                 tenant_id=context.tenant_id,
@@ -148,6 +165,7 @@ class MemoryEngine(CognitiveEngine):
                 solution_title=title,
                 confidence=context.reasoning.confidence,
                 tradeoffs=context.reasoning.tradeoffs,
+                diagrams=recall_diagrams,
             )
 
     def record_feedback(self, tenant_id: str, project: str, rating: int, note: str) -> None:

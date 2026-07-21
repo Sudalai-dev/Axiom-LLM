@@ -1200,9 +1200,13 @@ class EngineeringIntelligenceEngine(CognitiveEngine):
         # observability. Recorded on context.metadata so the kernel can surface
         # the blueprint and the trace can carry the diagram_usage numbers.
         from ocif.diagram_brain import DiagramBrain
+        # Phase 6: feed recalled prior-solution diagram structures so a layer can
+        # reuse-and-adapt a validated past diagram (re-grounded to this request)
+        # instead of regenerating it — consistency + fewer model calls.
+        recalled = list(context.memory.recalled) if context.memory else None
         blueprint, diagram_usage = DiagramBrain(
             llm_client=getattr(self, "llm_client", None)
-        ).generate(optimized_doc)
+        ).generate(optimized_doc, recalled=recalled)
         context.metadata["blueprint"] = blueprint.model_dump()
         context.metadata["diagram_usage"] = diagram_usage
 

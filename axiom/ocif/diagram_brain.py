@@ -84,15 +84,23 @@ class DiagramBrain:
     def __init__(self, llm_client: Optional[Any] = None) -> None:
         self.llm_client = llm_client
 
-    def generate(self, doc: SolutionDocument) -> Tuple[Blueprint, List[Dict[str, Any]]]:
+    def generate(
+        self, doc: SolutionDocument, recalled: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[Blueprint, List[Dict[str, Any]]]:
         """Return (Blueprint, diagram_usage).
 
-        Per layer: if the local model is available, it proposes diagram STRUCTURE
-        (grounded on the request's typed entities); this class guards it (every
-        node must be a real entity or a permitted primitive), emits mermaid
-        deterministically, and validates it. On any failure — no JSON, ungrounded
-        node, empty, invalid syntax — the layer falls back to the deterministic
-        builder. Every outcome is recorded in diagram_usage."""
+        Per layer, in order of precedence:
+          1. RECALL — if a prior validated solution (``recalled``) has a diagram
+             for this layer whose nodes ALL re-ground in THIS request's entities,
+             reuse that structure deterministically (fast, consistent, no model
+             call). Nodes are re-grounded so a prior request's entities can never
+             leak in.
+          2. LOCAL MODEL — if available, propose structure, guard every node,
+             emit mermaid deterministically, validate.
+          3. DETERMINISTIC BUILDER — the always-available fallback.
+        Any failure at 1/2 falls through to the next. Every outcome (including
+        the provider actually used: recall | local-llm:<model> | internal-builder)
+        is recorded in diagram_usage."""
         deterministic = {d.view: d for d in build_blueprint(doc).diagrams}
         canonical = self._canonical_names(doc)
         try:
@@ -110,8 +118,16 @@ class DiagramBrain:
             )
             discard: Optional[str] = None
 
-            if llm_ok:
-                proposed, discard = self._try_llm_layer(doc, view, canonical)
+            prims = AXIOM_LAYER_PRIMITIVES.get(view.key, ())
+            allowed = dict(canonical)   # real entities/actors ∪ this layer's primitives
+            for p in prims:
+                allowed[p.lower()] = p
+
+            recalled_diagram = self._try_recall_layer(doc, view, allowed, recalled)
+            if recalled_diagram is not None:
+                diagram = recalled_diagram          # reused prior structure, re-grounded
+            elif llm_ok:
+                proposed, discard = self._try_llm_layer(doc, view, allowed, prims)
                 if proposed is not None:
                     diagram = proposed  # model-grounded diagram accepted
 
@@ -152,12 +168,56 @@ class DiagramBrain:
                 canon[name.lower()] = name
         return canon
 
-    def _try_llm_layer(self, doc, view, canonical) -> Tuple[Optional[Diagram], Optional[str]]:
+    @staticmethod
+    def _edges_from_relationships(doc, allowed, node_set) -> List[Dict[str, str]]:
+        """Typed edges from THIS request's relationships, restricted to the given
+        grounded node set (used when reusing a recalled structure)."""
+        edges: List[Dict[str, str]] = []
+        for r in (getattr(doc, "relationships", None) or []):
+            if not isinstance(r, dict):
+                continue
+            s = allowed.get((r.get("source") or "").strip().lower())
+            t = allowed.get((r.get("target") or "").strip().lower())
+            if s and t and s != t and s.lower() in node_set and t.lower() in node_set:
+                edges.append({"source": s, "target": t, "type": str(r.get("type", "") or "")})
+        return edges
+
+    def _try_recall_layer(self, doc, view, allowed, recalled) -> Optional[Diagram]:
+        """Reuse a prior validated diagram's STRUCTURE for this layer when every
+        one of its nodes re-grounds in THIS request (so no prior-request entity
+        can leak). Edges are re-derived from THIS request's relationships and the
+        mermaid is re-emitted deterministically — never replayed from storage.
+        Returns a grounded Diagram or None (caller falls through to LLM/builder)."""
+        for rec in (recalled or []):
+            for d in (rec.get("diagrams") or []):
+                if not isinstance(d, dict) or d.get("view") != view.key:
+                    continue
+                raw = [n for n in (d.get("nodes") or []) if n]
+                if not raw or any(n.strip().lower() not in allowed for n in raw):
+                    continue  # empty, or a node that doesn't re-ground here
+                node_names, seen = [], set()
+                for n in raw:
+                    canon = allowed[n.strip().lower()]
+                    if canon.lower() not in seen:
+                        seen.add(canon.lower())
+                        node_names.append(canon)
+                node_set = {n.lower() for n in node_names}
+                edges = self._edges_from_relationships(doc, allowed, node_set)
+                code = emit_mermaid(view.diagram_type, node_names, edges)
+                if validate_mermaid(code):
+                    return Diagram(
+                        view=view.key, label=view.label, diagram_type=view.diagram_type,
+                        code=code, nodes=node_names, provider_used="recall",
+                        grounded=True, status="RENDERED",
+                    )
+        return None
+
+    def _try_llm_layer(self, doc, view, allowed, prims) -> Tuple[Optional[Diagram], Optional[str]]:
         """Propose → guard → emit for one layer. Returns (Diagram, None) on
-        success or (None, discard_reason) so the caller falls back."""
+        success or (None, discard_reason) so the caller falls back. ``allowed``
+        is the grounding map (real entities/actors ∪ this layer's primitives)."""
         from inference.local_llm import propose_diagram_structure
 
-        prims = AXIOM_LAYER_PRIMITIVES.get(view.key, ())
         try:
             struct = propose_diagram_structure(
                 self.llm_client, layer=view.key, intent=view.intent,
@@ -170,11 +230,6 @@ class DiagramBrain:
             return None, "exception"
         if not struct:
             return None, "no_json"
-
-        # Grounding set = real entities/actors ∪ this layer's permitted primitives.
-        allowed = dict(canonical)
-        for p in prims:
-            allowed[p.lower()] = p
 
         node_names: List[str] = []
         seen = set()

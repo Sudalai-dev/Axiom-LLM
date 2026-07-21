@@ -100,6 +100,40 @@ def test_no_llm_degrades_to_eight_deterministic_diagrams():
     assert all(d.provider_used == "internal-builder" for d in bp.diagrams)
 
 
+def test_recalled_structure_is_reused_and_reground_without_llm():
+    """Phase 6: a prior validated diagram whose nodes re-ground in THIS request
+    is reused deterministically (provider 'recall'), with no model call."""
+    recalled = [{
+        "title": "Patient Records Portal",
+        "diagrams": [{"view": "knowledge", "nodes": ["Patient", "Record"], "diagram_type": "er"}],
+    }]
+    bp, usage = DiagramBrain(llm_client=None).generate(
+        _doc(entities=["Patient", "Record"], actors=["Clinician"]), recalled=recalled
+    )
+    knowledge = next(d for d in bp.diagrams if d.view == "knowledge")
+    assert knowledge.provider_used == "recall"
+    assert knowledge.status == "RENDERED"
+    assert {n.lower() for n in knowledge.nodes} <= {"patient", "record"}
+    assert validate_mermaid(knowledge.code)
+    assert any(u["provider"] == "recall" for u in usage)
+
+
+def test_recalled_structure_rejected_when_nodes_dont_reground():
+    """A recalled diagram whose nodes are NOT entities of the current request
+    must be rejected (no cross-request leakage) — the layer falls back to the
+    deterministic builder, never 'recall'."""
+    recalled = [{
+        "title": "Library Catalog",
+        "diagrams": [{"view": "knowledge", "nodes": ["Book", "Member"], "diagram_type": "er"}],
+    }]
+    bp, _ = DiagramBrain(llm_client=None).generate(
+        _doc(entities=["Patient", "Record"], actors=["Clinician"]), recalled=recalled
+    )
+    assert all(d.provider_used != "recall" for d in bp.diagrams)
+    all_nodes = {n.lower() for d in bp.diagrams for n in d.nodes}
+    assert "book" not in all_nodes and "member" not in all_nodes
+
+
 def test_model_diagrams_are_grounded_only_in_request_entities():
     """A node the model returns that isn't in THIS request's entities can never
     appear — cross-request leakage is impossible via the guard."""

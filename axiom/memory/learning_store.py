@@ -21,7 +21,7 @@ import sqlite3
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 def _utc_now_iso() -> str:
@@ -39,6 +39,11 @@ class LearningRecord:
     solution_title: str
     confidence: float
     tradeoffs: List[str] = field(default_factory=list)
+    # Per-layer diagram STRUCTURE of the validated Blueprint (Phase 6): a list of
+    # {"view","nodes","diagram_type"} the diagram core can reuse-and-adapt for a
+    # similar future request. Only the structure is stored — mermaid is always
+    # re-emitted deterministically, never replayed from storage (invariant B4).
+    diagrams: List[Dict[str, Any]] = field(default_factory=list)
     created_at: str = ""
 
 
@@ -81,10 +86,18 @@ class LearningStore:
                     solution_title TEXT NOT NULL,
                     confidence REAL NOT NULL,
                     tradeoffs TEXT NOT NULL,
+                    diagrams TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL
                 )
                 """
             )
+            # Migration for stores created before Phase 6 (the CREATE above is a
+            # no-op once the table exists, so add the column if it's missing).
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(learning_records)").fetchall()}
+            if "diagrams" not in cols:
+                conn.execute(
+                    "ALTER TABLE learning_records ADD COLUMN diagrams TEXT NOT NULL DEFAULT '[]'"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_learning_tenant_project "
                 "ON learning_records (tenant_id, project)"
@@ -116,6 +129,7 @@ class LearningStore:
         solution_title: str,
         confidence: float,
         tradeoffs: List[str],
+        diagrams: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Persists a validated outcome. Fail-soft: never blocks the kernel."""
         try:
@@ -123,11 +137,12 @@ class LearningStore:
                 conn.execute(
                     "INSERT OR REPLACE INTO learning_records "
                     "(id, tenant_id, project, intent, entities, subject, solution_title, "
-                    "confidence, tradeoffs, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "confidence, tradeoffs, diagrams, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         record_id, tenant_id, project, intent, json.dumps(entities),
                         subject, solution_title, confidence, json.dumps(tradeoffs),
-                        _utc_now_iso(),
+                        json.dumps(diagrams or []), _utc_now_iso(),
                     ),
                 )
                 conn.commit()
@@ -146,7 +161,7 @@ class LearningStore:
             with self._lock, self._connect() as conn:
                 rows = conn.execute(
                     "SELECT id, tenant_id, project, intent, entities, subject, solution_title, "
-                    "confidence, tradeoffs, created_at FROM learning_records "
+                    "confidence, tradeoffs, diagrams, created_at FROM learning_records "
                     "WHERE tenant_id = ? AND project = ? ORDER BY created_at DESC LIMIT 200",
                     (tenant_id, project),
                 ).fetchall()
@@ -166,7 +181,8 @@ class LearningStore:
                 id=row[0], tenant_id=row[1], project=row[2], intent=row[3],
                 entities=row_entities, subject=row[5], solution_title=row[6],
                 confidence=row[7], tradeoffs=json.loads(row[8]) if row[8] else [],
-                created_at=row[9],
+                diagrams=json.loads(row[9]) if row[9] else [],
+                created_at=row[10],
             )))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
