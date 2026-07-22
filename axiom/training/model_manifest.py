@@ -41,6 +41,32 @@ class ModelManifest:
         return asdict(self)
 
 
+def manifest_from_approved_proposal(proposal, *, created_at: str, dataset_manifest=None,
+                                    gguf_quantization: str = "", notes: str = "") -> ModelManifest:
+    """Mint a promotable manifest from an APPROVED governance proposal — the only
+    supported way to produce one. The reviewer who approved the proposal becomes
+    the manifest's approver, so provenance ties promotion back to a human
+    decision. Raises if the proposal was not approved (no auto-promotion).
+
+    ``proposal`` is a governance.model_governance.ModelChangeProposal (imported
+    lazily to keep this module dependency-free)."""
+    if getattr(proposal, "status", None) != "approved" or not getattr(proposal, "reviewed_by", None):
+        raise ValueError("Only an approved proposal (with a reviewer) can mint a promotable manifest")
+    return ModelManifest(
+        model_name=proposal.model_name,
+        base_model=proposal.base_model,
+        dataset_path=proposal.dataset_path,
+        dataset_examples=proposal.dataset_examples,
+        dataset_manifest=dataset_manifest or {},
+        hyperparameters=dict(proposal.hyperparameters or {}),
+        gguf_quantization=gguf_quantization,
+        created_at=created_at,
+        approved_by=proposal.reviewed_by,
+        approval_ref=proposal.proposal_id,
+        notes=notes,
+    )
+
+
 def write_manifest(path: str, manifest: ModelManifest) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(manifest.to_dict(), fh, indent=2)

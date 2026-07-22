@@ -9,11 +9,16 @@ KnowledgeService instance per process.
 from core.engine_registry import build_octagonal_kernel
 from core.models.base import RequestContext, UserRole
 from ecosystem import KnowledgePlatform
+from governance.model_governance import ModelGovernanceStore
 from knowledge.service import KnowledgeService
 from memory.learning_store import LearningStore
 
 # Singleton services (constructed once at import-time)
 knowledge_service = KnowledgeService()
+
+# Human-gated model-promotion queue (Phase 12): no fine-tuned model reaches
+# serving without an explicit, recorded approval here.
+model_governance_store = ModelGovernanceStore()
 
 # Durable "learned from past conversations" store — shared by the kernel's
 # Memory Engine (recall + persist) and the feedback route (explicit ratings).
