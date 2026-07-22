@@ -71,9 +71,19 @@ engine remains the guaranteed fallback.
 
 ## Governance gate (Phase 12 — no auto-retrain)
 
-Promotion is **human-gated**. Record provenance with
-[`training/model_manifest.py`](../training/model_manifest.py): base model,
-dataset + its manifest, hyperparameters, and — required — `approved_by` /
-`approval_ref`. `ModelManifest.is_promotable()` returns False until a human has
-approved and the dataset is non-empty. No script in this repo triggers training
-or `ollama create` automatically; each step above is run by an operator.
+Promotion is **human-gated** through a recorded proposal → review loop
+(`governance/model_governance.py`), exposed as a platform-admin API:
+
+```
+POST /api/v1/admin/model-proposals            # propose (starts PENDING)
+GET  /api/v1/admin/model-proposals?status=pending   # the review queue
+POST /api/v1/admin/model-proposals/{id}/review      # {"decision":"approve|reject"}
+```
+
+A proposal never self-approves. Only an **approved** proposal can mint a
+promotable manifest via `training.model_manifest.manifest_from_approved_proposal`
+— the reviewer becomes the manifest's `approved_by`, and
+`ModelManifest.is_promotable()` stays False otherwise (and for an empty dataset).
+No script in this repo triggers training or `ollama create` automatically; every
+step above is run by an operator after approval.
+

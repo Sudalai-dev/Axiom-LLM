@@ -177,6 +177,9 @@ RBAC_MATRIX: Dict[str, List[UserRole]] = {
     ],
     "manage_users": [
         UserRole.PLATFORM_ADMIN
+    ],
+    "manage_models": [
+        UserRole.PLATFORM_ADMIN
     ]
 }
 
